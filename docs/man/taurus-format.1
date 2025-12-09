@@ -1,0 +1,227 @@
+.TH TAURUS-FORMAT 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.SH NAME
+taurus-format \- Pretty-print and format XML documents
+.SH SYNOPSIS
+.B taurus format
+.RI [ OPTIONS ]
+.I FILE
+.SH DESCRIPTION
+The
+.B format
+command formats and pretty-prints XML documents with configurable indentation
+and output formats. It can convert XML to JSON or text representations, and
+supports both compact and expanded formatting styles.
+.PP
+This command is useful for:
+.TP
+.B \(bu
+Making XML human-readable with proper indentation
+.TP
+.B \(bu
+Converting XML to other formats (JSON, text)
+.TP
+.B \(bu
+Compacting XML by removing unnecessary whitespace
+.TP
+.B \(bu
+Pipeline processing with other Taurus commands
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-format " " \fIFORMAT\fR
+Output format: xml, json, or text. Default is xml.
+.TP
+.BR \-i ", " \-\-indent " " \fISIZE\fR
+Number of spaces for indentation. Default is 2. Common values are 2, 4, or 8.
+.TP
+.BR \-\-compact
+Remove all unnecessary whitespace for compact output. Produces single-line
+output without indentation.
+.TP
+.BR \-\-encode " " \fIENCODING\fR
+Output encoding. Default is UTF-8. Supported encodings include UTF-8 and UTF-16.
+.TP
+.BR \-o ", " \-\-output " " \fIFILE\fR
+Write output to file instead of stdout. Creates or overwrites the specified file.
+.TP
+.BR \-h ", " \-\-help
+Show help message for the format command and exit.
+.SH ARGUMENTS
+.TP
+.I FILE
+Path to the XML file to format. Use
+.B -
+to read from stdin.
+.SH OUTPUT FORMATS
+.SS XML Format (default)
+Outputs the document as formatted XML with proper indentation, namespace
+declarations, and attribute formatting. The output is valid XML that can be
+parsed by any XML parser.
+.PP
+.B Example (2-space indentation):
+.nf
+    <?xml version="1.0" encoding="UTF-8"?>
+    <root xmlns="http://example.com">
+      <item id="1">
+        <name>Example</name>
+      </item>
+    </root>
+.fi
+.PP
+.B Example (4-space indentation):
+.nf
+    <?xml version="1.0" encoding="UTF-8"?>
+    <root xmlns="http://example.com">
+        <item id="1">
+            <name>Example</name>
+        </item>
+    </root>
+.fi
+.PP
+.B Example (compact):
+.nf
+    <?xml version="1.0"?><root xmlns="http://example.com"><item id="1"><name>Example</name></item></root>
+.fi
+.SS JSON Format
+Converts the XML document to a JSON representation. Each XML node becomes a
+JSON object with type, name, attributes, and children fields.
+.PP
+.B Example:
+.nf
+    {
+      "type": "element",
+      "name": "root",
+      "attributes": {"xmlns": "http://example.com"},
+      "children": [
+        {
+          "type": "element",
+          "name": "item",
+          "attributes": {"id": "1"},
+          "children": [
+            {
+              "type": "element",
+              "name": "name",
+              "children": [
+                {"type": "text", "content": "Example"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+.fi
+.SS Text Format
+Human-readable tree representation showing the document structure with
+indentation, node types, and attributes. Useful for debugging and inspection.
+.PP
+.B Example:
+.nf
+    Element: root {xmlns="http://example.com"}
+      Element: item {id="1"}
+        Element: name
+          Text: Example
+.fi
+.SH FORMATTING FEATURES
+.TP
+.B Attribute preservation
+All attributes are preserved in the output with their original values.
+.TP
+.B Namespace handling
+Namespace declarations are properly formatted and preserved.
+.TP
+.B Special node handling
+CDATA sections, comments, and processing instructions are formatted appropriately.
+.TP
+.B Mixed content
+Text and elements can be mixed within a single parent element.
+.SH EXIT STATUS
+.TP
+.B 0
+Success. Document formatted without errors.
+.TP
+.B 1
+Parse error. The XML is malformed.
+.TP
+.B 3
+I/O error. Cannot read input file or write output file.
+.TP
+.B 4
+Invalid arguments. Incorrect command-line options.
+.SH EXAMPLES
+.TP
+Pretty-print with default 2-space indentation:
+.B taurus format document.xml
+.TP
+Use 4-space indentation:
+.B taurus format --indent 4 document.xml
+.TP
+Use 8-space indentation (tab-like):
+.B taurus format --indent 8 document.xml
+.TP
+Compact XML (remove whitespace):
+.B taurus format --compact document.xml
+.TP
+Convert to JSON:
+.B taurus format --format json document.xml
+.TP
+Convert to text tree:
+.B taurus format --format text document.xml
+.TP
+Write to file:
+.B taurus format --indent 4 --output formatted.xml document.xml
+.TP
+Format from stdin:
+.B cat document.xml | taurus format --indent 4 -
+.TP
+Pipeline with parse:
+.B taurus parse data.xml | taurus format --compact -
+.TP
+Pipeline with xpath:
+.B taurus xpath doc.xml "//item" | taurus format --indent 4 -
+.TP
+Multi-format conversion:
+.B taurus format --format json document.xml > document.json
+.SH STDIN/STDOUT PIPELINE
+The format command works well in Unix pipelines:
+.PP
+.B Read from stdin:
+Use
+.B -
+as the filename to read from stdin.
+.PP
+.B Write to stdout:
+By default, output goes to stdout. Use
+.B --output
+to write to a file.
+.PP
+.B Combine with other commands:
+Chain with
+.B taurus parse
+and
+.B taurus xpath
+for powerful XML processing pipelines.
+.SH PERFORMANCE
+The format command is optimized for speed and memory efficiency:
+.TP
+.B Low overhead
+Minimal memory allocation during formatting
+.TP
+.B Streaming output
+Output is generated incrementally where possible
+.TP
+.B Fast conversion
+JSON and text conversion use efficient algorithms
+.SH SEE ALSO
+.BR taurus (1),
+.BR taurus-parse (1),
+.BR taurus-xpath (1),
+.BR xmllint (1),
+.BR jq (1)
+.SH BUGS
+Report bugs at:
+.UR https://github.com/lutaml/taurus/issues
+.UE
+.SH AUTHORS
+Written by the Lutaml team at Ribose Inc.
+.SH COPYRIGHT
+Copyright \(co 2024-2025 Ribose Inc.
+License: MIT License

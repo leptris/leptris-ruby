@@ -1,0 +1,45 @@
+# Bundler
+/.bundle/
+/vendor/bundle
+
+# Gem artifacts
+*.gem
+*.rbc
+/pkg/
+/tmp/
+
+# Build artifacts
+*.bundle
+*.so
+*.o
+*.a
+*.dylib
+mkmf.log
+
+# Test artifacts
+/coverage/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+
+# CMake build artifacts
+build/
+CMakeCache.txt
+cmake_install.cmake
+CMakeFiles/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep the shared library
+!lib/libtaurus.dylib
+!lib/libtaurus.so

@@ -1,0 +1,379 @@
+= XPath Performance Benchmarks
+:toc:
+:toclevels: 3
+
+== Overview
+
+This document provides comprehensive performance benchmarks, generated from actual benchmark runs using `benchmark-ips`.
+
+**IMPORTANT**: This file is auto-generated from benchmark data. Do not edit manually.
+To update, run the appropriate rake task (see footer).
+
+== Test Environment
+
+* **Ruby Version**: 3.1.1
+* **Platform**: arm64-darwin21
+* **Taurus Version**: 0.1.0
+* **Libraries Available**: 
+* **Nokogiri**: Available
+* **Timestamp**: 2025-11-27T18:27:43+0800
+* **Method**: benchmark-ips
+
+== Performance Summary
+
+**Overall Results** (50 tests, vs Nokogiri):
+
+* **Average**: 2.34× slower
+* **Best case**: 3.13× faster
+* **Worst case**: 10.38× slower
+* **Tests faster**: 2/50 (4.0%)
+* **Tests slower**: 48/50 (96.0%)
+
+**Verdict**: ❌ **Needs Optimization** - Significantly slower than Nokogiri
+
+== axes
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Child
+|1.39µs
+|4.3µs
+|**3.09× faster** ✅
+
+|Descendant
+|59.56µs
+|5.74µs
+|**10.38× slower** ❌
+
+|Descendant Or Self
+|17.69µs
+|6.49µs
+|**2.73× slower** ❌
+
+|Parent
+|11.5µs
+|4.27µs
+|**2.69× slower** ❌
+
+|Ancestor
+|12.5µs
+|4.3µs
+|**2.91× slower** ❌
+
+|Ancestor Or Self
+|12.72µs
+|4.36µs
+|**2.92× slower** ❌
+
+|Self
+|11.5µs
+|7.53µs
+|**1.53× slower** ❌
+
+|Following Sibling
+|11.83µs
+|6.89µs
+|**1.72× slower** ❌
+
+|Preceding Sibling
+|11.37µs
+|5.52µs
+|**2.06× slower** ❌
+
+|Following
+|17.99µs
+|12.94µs
+|**1.39× slower** ❌
+
+|Preceding
+|12.91µs
+|5.3µs
+|**2.44× slower** ❌
+
+|Attribute
+|11.29µs
+|5.08µs
+|**2.22× slower** ❌
+
+|Namespace
+|14.79µs
+|7.71µs
+|**1.92× slower** ❌
+
+|===
+
+== simple_paths
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Absolute Path
+|6.01µs
+|4.99µs
+|**1.2× slower** ❌
+
+|Relative Path
+|1.65µs
+|4.66µs
+|**2.82× faster** ✅
+
+|Descendant Path
+|12.73µs
+|4.48µs
+|**2.84× slower** ❌
+
+|Wildcard
+|10.55µs
+|4.51µs
+|**2.34× slower** ❌
+
+|Attribute Access
+|25.37µs
+|4.76µs
+|**5.33× slower** ❌
+
+|Text Nodes
+|12.85µs
+|4.67µs
+|**2.75× slower** ❌
+
+|===
+
+== position_predicates
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|First
+|38.24µs
+|5.95µs
+|**6.43× slower** ❌
+
+|Last
+|14.06µs
+|5.86µs
+|**2.4× slower** ❌
+
+|Position Eq
+|11.34µs
+|5.6µs
+|**2.03× slower** ❌
+
+|Position Range
+|11.83µs
+|5.56µs
+|**2.13× slower** ❌
+
+|===
+
+== boolean_predicates
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Attribute Exists
+|11.91µs
+|5.77µs
+|**2.06× slower** ❌
+
+|Attribute Value
+|12.15µs
+|7.24µs
+|**1.68× slower** ❌
+
+|Element Exists
+|13.13µs
+|7.57µs
+|**1.73× slower** ❌
+
+|Negation
+|11.87µs
+|6.21µs
+|**1.91× slower** ❌
+
+|===
+
+== multiple_predicates
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Two Predicates
+|16.65µs
+|6.86µs
+|**2.43× slower** ❌
+
+|Position And Boolean
+|11.52µs
+|11.17µs
+|**1.03× slower** ❌
+
+|Three Predicates
+|16.73µs
+|11.11µs
+|**1.51× slower** ❌
+
+|===
+
+== nodeset_functions
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Count
+|10.64µs
+|3.69µs
+|**2.88× slower** ❌
+
+|Last Func
+|17.68µs
+|5.06µs
+|**3.49× slower** ❌
+
+|Position Func
+|12.61µs
+|8.05µs
+|**1.57× slower** ❌
+
+|Local Name
+|19.11µs
+|13.09µs
+|**1.46× slower** ❌
+
+|Name
+|15.31µs
+|13.7µs
+|**1.12× slower** ❌
+
+|===
+
+== string_functions
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|String
+|13.64µs
+|11.58µs
+|**1.18× slower** ❌
+
+|Concat
+|43.93µs
+|12.81µs
+|**3.43× slower** ❌
+
+|Starts With
+|20.35µs
+|7.64µs
+|**2.66× slower** ❌
+
+|Contains
+|14.53µs
+|9.3µs
+|**1.56× slower** ❌
+
+|String Length
+|15.21µs
+|8.94µs
+|**1.7× slower** ❌
+
+|===
+
+== boolean_functions
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Boolean
+|10.76µs
+|4.56µs
+|**2.36× slower** ❌
+
+|Not
+|12.34µs
+|6.8µs
+|**1.81× slower** ❌
+
+|True
+|11.11µs
+|5.15µs
+|**2.16× slower** ❌
+
+|===
+
+== number_functions
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Number
+|12.6µs
+|7.06µs
+|**1.78× slower** ❌
+
+|Sum
+|14.71µs
+|4.51µs
+|**3.26× slower** ❌
+
+|Floor
+|18.48µs
+|11.28µs
+|**1.64× slower** ❌
+
+|Ceiling
+|22.09µs
+|10.11µs
+|**2.18× slower** ❌
+
+|===
+
+== complex_queries
+
+[cols="["3", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Nokogiri |vs Nokogiri
+
+|Multi Axis
+|12.58µs
+|6.44µs
+|**1.95× slower** ❌
+
+|Union
+|24.42µs
+|13.61µs
+|**1.79× slower** ❌
+
+|Nested
+|18.96µs
+|12.73µs
+|**1.49× slower** ❌
+
+|===
+
+== Conclusion
+
+Based on 50 comprehensive tests (vs Nokogiri):
+
+* **Average Performance**: 2.34× slower
+* **Tests faster**: 2/50 (4.0%)
+* **Tests slower**: 48/50 (96.0%)
+* **Best result**: 0.32×
+* **Worst result**: 10.38×
+
+❌ **Taurus performance needs optimization** - Significantly slower than Nokogiri (2.34× average).
+
+---
+
+**Generated**: 2025-11-27T18:27:43+0800  
+**Baseline**: Nokogiri

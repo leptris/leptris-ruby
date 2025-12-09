@@ -1,0 +1,115 @@
+= XML DOM Performance Benchmarks
+:toc:
+:toclevels: 3
+
+== Overview
+
+This document provides comprehensive performance benchmarks, generated from actual benchmark runs using `benchmark-ips`.
+
+**IMPORTANT**: This file is auto-generated from benchmark data. Do not edit manually.
+To update, run the appropriate rake task (see footer).
+
+== Test Environment
+
+* **Ruby Version**: 3.1.1
+* **Platform**: arm64-darwin21
+* **Taurus Version**: 0.1.0
+* **Libraries Available**: 
+* **Nokogiri**: Not available
+* **Timestamp**: 2025-11-27T18:27:08+0800
+* **Method**: benchmark-ips
+
+== Performance Summary
+
+**Overall Results** (7 tests, vs Ox):
+
+* **Average**: 3.24× slower
+* **Best case**: 1.0× slower
+* **Worst case**: 7.0× slower
+* **Tests faster**: 0/7 (0.0%)
+* **Tests slower**: 7/7 (100.0%)
+
+**Verdict**: ❌ **Needs Optimization** - Significantly slower than Ox
+
+== parsing
+
+[cols="["3", "2", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Ox |Nokogiri |vs Ox
+
+|Parse small XML
+|2.0µs
+|0.78µs
+|8.27µs
+|**2.56× slower** ❌
+
+|Parse medium XML
+|23.56µs
+|8.01µs
+|19.51µs
+|**2.94× slower** ❌
+
+|===
+
+== access
+
+[cols="["3", "2", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Ox |Nokogiri |vs Ox
+
+|Access root element
+|0.22µs
+|0.06µs
+|0.05µs
+|**3.67× slower** ❌
+
+|Access element name
+|0.42µs
+|0.06µs
+|0.09µs
+|**7.0× slower** ❌
+
+|Access child nodes
+|0.25µs
+|0.08µs
+|0.41µs
+|**3.13× slower** ❌
+
+|Access attribute value
+|0.1µs
+|0.1µs
+|0.33µs
+|**1.0× slower** ❌
+
+|===
+
+== write
+
+[cols="["3", "2", "2", "2", "2"]",options="header"]
+|===
+|Test |Taurus |Ox |Nokogiri |vs Ox
+
+|Set attribute value
+|3.12µs
+|1.32µs
+|8.78µs
+|**2.36× slower** ❌
+
+|===
+
+== Conclusion
+
+Based on 7 comprehensive tests (vs Ox):
+
+* **Average Performance**: 3.24× slower
+* **Tests faster**: 0/7 (0.0%)
+* **Tests slower**: 7/7 (100.0%)
+* **Best result**: 1.0×
+* **Worst result**: 7.0×
+
+❌ **Taurus performance needs optimization** - Significantly slower than Ox (3.24× average).
+
+---
+
+**Generated**: 2025-11-27T18:27:08+0800  
+**Baseline**: Ox

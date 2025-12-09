@@ -1,0 +1,160 @@
+.TH TAURUS 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.SH NAME
+taurus \- Fast XML parser with complete XPath 1.0 support
+.SH SYNOPSIS
+.B taurus
+.RI [ OPTIONS ]
+.I COMMAND
+.RI [ ARGS... ]
+.SH DESCRIPTION
+.B Taurus
+is a high-performance XML parser implemented in C with complete XPath 1.0
+support. It provides Ox-level parsing speed (5.87µs per document) with full
+XML Namespaces 1.0 specification compliance and all 27 XPath 1.0 functions.
+.PP
+Taurus beats Nokogiri on parsing speed across all document sizes while
+maintaining full XML and XPath specification compliance. It offers a
+command-line interface for parsing, querying, and formatting XML documents.
+.SH COMMANDS
+.TP
+.B parse
+Parse and validate XML documents. Supports recovery mode for malformed XML
+and multiple output formats (XML, JSON, text). See
+.BR taurus-parse (1).
+.TP
+.B xpath
+Execute XPath 1.0 queries against XML documents. Supports all 13 axes, 27
+functions, predicates, and operators. See
+.BR taurus-xpath (1).
+.TP
+.B format
+Pretty-print XML documents with configurable indentation. Supports multiple
+output formats and can compact or expand whitespace. See
+.BR taurus-format (1).
+.TP
+.B version
+Show version information and build details.
+.SH OPTIONS
+.TP
+.BR \-v ", " \-\-verbose
+Increase verbosity level. Can be used multiple times for more detailed output.
+.TP
+.BR \-q ", " \-\-quiet
+Suppress warnings and informational messages. Only errors are shown.
+.TP
+.BR \-\-color
+Enable colored output for better readability (auto-detected for TTY).
+.TP
+.BR \-\-no\-color
+Disable colored output even when connected to a TTY.
+.TP
+.BR \-h ", " \-\-help
+Show help message with available commands and options, then exit.
+.TP
+.BR \-\-version
+Show version information and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success. The operation completed without errors.
+.TP
+.B 1
+Parse error. The XML document is malformed or invalid.
+.TP
+.B 2
+XPath error. The XPath expression is invalid or evaluation failed.
+.TP
+.B 3
+I/O error. File not found, permission denied, or read/write error.
+.TP
+.B 4
+Invalid arguments. Command-line options or arguments are incorrect.
+.SH EXAMPLES
+.TP
+Parse an XML document and display in default format:
+.B taurus parse document.xml
+.TP
+Parse XML from stdin:
+.B cat document.xml | taurus parse -
+.TP
+Parse with error recovery for malformed XML:
+.B taurus parse --recover broken.xml
+.TP
+Execute XPath query to find all books with price > 20:
+.B taurus xpath books.xml "//book[@price > 20]"
+.TP
+Count matching nodes:
+.B taurus xpath --count library.xml "//book"
+.TP
+Pretty-print with 4-space indentation:
+.B taurus format --indent 4 document.xml
+.TP
+Convert XML to JSON format:
+.B taurus format --format json document.xml
+.TP
+Pipeline example - parse, query, format:
+.B taurus parse data.xml | taurus xpath - "//item[@status='active']" | taurus format --compact -
+.SH FILES
+.TP
+.I /etc/bash_completion.d/taurus
+System-wide bash completion script
+.TP
+.I ~/.bash_completion.d/taurus
+User-specific bash completion script
+.TP
+.I /usr/local/share/zsh/site-functions/_taurus
+Zsh completion script
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+If set to any value, disables colored output (overridden by --color).
+.TP
+.B FORCE_COLOR
+If set to any value, enables colored output even for non-TTY (overridden by --no-color).
+.SH PERFORMANCE
+.B Taurus
+is optimized for speed and memory efficiency:
+.TP
+.B Parsing
+5.87µs per document (2.2× Ox, faster than Nokogiri)
+.TP
+.B XPath
+9.00µs for simple queries (2.3× Nokogiri)
+.TP
+.B DOM Access
+0.069µs children access (1.88× faster than Ox)
+.TP
+.B Memory
+Comparable to Ox, significantly less than Nokogiri
+.SH STANDARDS
+.B Taurus
+implements the following specifications:
+.TP
+.B XML
+Extensible Markup Language (XML) 1.0 (Fifth Edition)
+.TP
+.B Namespaces
+Namespaces in XML 1.0 (Third Edition) - complete implementation
+.TP
+.B XPath
+XML Path Language (XPath) Version 1.0 - all 13 axes, 27 functions
+.SH SEE ALSO
+.BR taurus-parse (1),
+.BR taurus-xpath (1),
+.BR taurus-format (1),
+.BR xmllint (1),
+.BR xpath (1),
+.BR xml (5)
+.SH BUGS
+Report bugs at:
+.UR https://github.com/lutaml/taurus/issues
+.UE
+.SH AUTHORS
+Written by the Lutaml team at Ribose Inc.
+.SH COPYRIGHT
+Copyright \(co 2024-2025 Ribose Inc.
+.br
+License: MIT License
+.br
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.

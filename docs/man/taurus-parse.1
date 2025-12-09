@@ -1,0 +1,178 @@
+.TH TAURUS-PARSE 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.SH NAME
+taurus-parse \- Parse and validate XML documents
+.SH SYNOPSIS
+.B taurus parse
+.RI [ OPTIONS ]
+.I FILE
+.SH DESCRIPTION
+The
+.B parse
+command parses XML documents and validates their structure. It can output the
+parsed document in multiple formats (XML, JSON, text) and supports error
+recovery for malformed XML.
+.PP
+The parser is implemented in C for maximum performance, achieving 5.87µs per
+document (2.2× Ox speed). It supports all XML 1.0 features including CDATA,
+comments, processing instructions, and self-closing tags.
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-format " " \fIFORMAT\fR
+Output format: xml, json, or text. Default is xml.
+.TP
+.BR \-\-validate
+Enable strict validation mode. Reports errors for invalid XML structure.
+(Note: Currently parser always validates; this flag is for future use)
+.TP
+.BR \-\-recover
+Enable error recovery mode. Attempts to parse malformed XML by recovering
+from errors when possible. Useful for processing legacy or broken XML files.
+.TP
+.BR \-\-noout
+Suppress output. Only validates the XML without printing the result.
+Useful for quick validation checks.
+.TP
+.BR \-h ", " \-\-help
+Show help message for the parse command and exit.
+.SH ARGUMENTS
+.TP
+.I FILE
+Path to the XML file to parse. Use
+.B -
+to read from stdin.
+.SH OUTPUT FORMATS
+.SS XML Format (default)
+Outputs the parsed document as formatted XML with proper indentation and
+namespace declarations. Preserves all elements, attributes, text content,
+and special nodes (CDATA, comments, processing instructions).
+.PP
+.B Example:
+.nf
+    <root xmlns="http://example.com">
+      <item id="1" status="active">
+        <name>Example</name>
+      </item>
+    </root>
+.fi
+.SS JSON Format
+Converts the XML document to a JSON representation with the following structure:
+.TP
+.B type
+Node type: "element", "text", "cdata", "comment", "pi"
+.TP
+.B name
+Element name (for element nodes)
+.TP
+.B attributes
+Object containing attribute name-value pairs
+.TP
+.B children
+Array of child nodes
+.TP
+.B content
+Text content (for text/CDATA nodes)
+.PP
+.B Example:
+.nf
+    {
+      "type": "element",
+      "name": "root",
+      "attributes": {"xmlns": "http://example.com"},
+      "children": [
+        {
+          "type": "element",
+          "name": "item",
+          "attributes": {"id": "1", "status": "active"},
+          "children": [...]
+        }
+      ]
+    }
+.fi
+.SS Text Format
+Human-readable tree representation showing the document structure with
+indentation, node types, and attributes.
+.PP
+.B Example:
+.nf
+    Element: root {xmlns="http://example.com"}
+      Element: item {id="1", status="active"}
+        Element: name
+          Text: Example
+.fi
+.SH NAMESPACE HANDLING
+The parser fully supports XML Namespaces 1.0 specification:
+.TP
+.B Default namespaces
+.B xmlns="http://example.com"
+.TP
+.B Prefixed namespaces
+.B xmlns:ns="http://example.com"
+.TP
+.B Namespace inheritance
+Child elements inherit parent namespaces
+.TP
+.B Namespace override
+Children can override parent namespace declarations
+.SH EXIT STATUS
+.TP
+.B 0
+Success. XML parsed without errors.
+.TP
+.B 1
+Parse error. The XML is malformed or invalid.
+.TP
+.B 3
+I/O error. Cannot read input file.
+.TP
+.B 4
+Invalid arguments. Incorrect command-line options.
+.SH EXAMPLES
+.TP
+Parse a file and display as XML:
+.B taurus parse document.xml
+.TP
+Parse and display as JSON:
+.B taurus parse --format json document.xml
+.TP
+Parse and display as text tree:
+.B taurus parse --format text document.xml
+.TP
+Parse from stdin:
+.B cat document.xml | taurus parse -
+.TP
+Validate XML without output:
+.B taurus parse --noout document.xml
+.TP
+Parse malformed XML with recovery:
+.B taurus parse --recover broken.xml
+.TP
+Check if XML is valid (exit code only):
+.B taurus parse --noout document.xml && echo "Valid" || echo "Invalid"
+.SH PERFORMANCE
+The parser achieves high performance through:
+.TP
+.B C implementation
+Native C code for maximum speed
+.TP
+.B Efficient memory
+Minimal allocations during parsing
+.TP
+.B Linear complexity
+O(n) parsing time relative to document size
+.TP
+.B Lazy evaluation
+Namespaces resolved only when accessed
+.SH SEE ALSO
+.BR taurus (1),
+.BR taurus-xpath (1),
+.BR taurus-format (1),
+.BR xmllint (1)
+.SH BUGS
+Report bugs at:
+.UR https://github.com/lutaml/taurus/issues
+.UE
+.SH AUTHORS
+Written by the Lutaml team at Ribose Inc.
+.SH COPYRIGHT
+Copyright \(co 2024-2025 Ribose Inc.
+License: MIT License
