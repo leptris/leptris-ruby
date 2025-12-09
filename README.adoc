@@ -1497,3 +1497,33 @@ MIT License - see link:LICENSE[LICENSE] file for details.
 * **GitHub**: https://github.com/lutaml/taurus
 * **Issues**: https://github.com/lutaml/taurus/issues
 * **Discussions**: https://github.com/lutaml/taurus/discussions
+== C Library
+
+This gem provides Ruby bindings for the https://github.com/lutaml/taurus[libtaurus] C library.
+
+The C library provides the core functionality:
+
+* **High-performance XML parsing** with SIMD optimizations
+* **Complete XPath 1.0 implementation** (27 functions, 13 axes)
+* **Full XML Namespaces 1.0** specification support  
+* **Command-line interface** (taurus CLI)
+* **Zero external dependencies** (no libxml2)
+
+For C API documentation and CLI usage, see the https://github.com/lutaml/taurus[taurus repository].
+
+=== Building libtaurus from Source
+
+If you need to rebuild the C library:
+
+[source,bash]
+----
+git clone https://github.com/lutaml/taurus.git
+cd taurus
+mkdir build && cd build
+cmake ..
+make
+sudo make install  # Optional: system-wide installation
+----
+
+The Ruby gem includes a pre-built copy of `libtaurus.dylib` for convenience.
+
