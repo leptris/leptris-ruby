@@ -1,4 +1,4 @@
-=Taurus: High-Performance XML Parser with Complete Namespace & XPath 1.0 Support
+= Taurus: High-Performance XML Parser with Complete Namespace & XPath 1.0 Support
 :toc:
 :toclevels: 3
 
@@ -9,6 +9,7 @@ image:https://github.com/lutaml/taurus/actions/workflows/build.yml/badge.svg[CLI
 
 == Vision
 
+Taurus is a next-generation XML parser for Ruby that combines:
 *Taurus delivers Ox-level parsing with complete XPath 1.0 support*: full namespace handling and 27 XPath functions in pure C with zero external dependencies.
 
 == Purpose
@@ -22,7 +23,6 @@ Taurus is a next-generation XML parser for Ruby that combines:
 * *XPath 1.0 in C* - All 13 axes, 27 functions, operators, predicates ✅
 * *Memory efficiency* - Optimized memory usage with zero leaks
 
-The name "Taurus" is a pun on "Ox" (both cattle breeds), representing an enhanced version with capabilities Ox lacks.
 
 == Performance
 
@@ -1505,7 +1505,7 @@ The C library provides the core functionality:
 
 * **High-performance XML parsing** with SIMD optimizations
 * **Complete XPath 1.0 implementation** (27 functions, 13 axes)
-* **Full XML Namespaces 1.0** specification support  
+* **Full XML Namespaces 1.0** specification support
 * **Command-line interface** (taurus CLI)
 * **Zero external dependencies** (no libxml2)
 

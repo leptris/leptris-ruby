@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    taurus (1.1.0)
+    taurus (0.1.0)
       ffi (~> 1.15)
       thor (~> 1.0)
 

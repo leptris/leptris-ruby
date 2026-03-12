@@ -16,13 +16,13 @@ Gem::Specification.new do |spec|
     queries that are competitive with Nokogiri. Features: complete XPath 1.0
     (27 functions, 13 axes), XML pretty-printing CLI, zero external dependencies.
   DESC
-  spec.homepage = "https://github.com/lutaml/taurus"
+  spec.homepage = "https://github.com/lutaml/taurus-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/lutaml/taurus"
-  spec.metadata["changelog_uri"] = "https://github.com/lutaml/taurus/blob/main/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = "https://github.com/lutaml/taurus-ruby"
+  spec.metadata["changelog_uri"] = "https://github.com/lutaml/taurus-ruby/blob/main/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
@@ -32,11 +32,20 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
     end
   end
+
   spec.bindir = "bin"
   spec.executables = ["taurus"]
   spec.require_paths = ["lib"]
-  
+
+  # Extension configuration - build libtaurus during gem install
+  spec.extensions = ["ext/taurus/extconf.rb"]
+
   # Runtime dependencies
   spec.add_dependency "ffi", "~> 1.15"
   spec.add_dependency "thor", "~> 1.0"
+
+  # Development dependencies
+  spec.add_development_dependency "rake"
+  spec.add_development_dependency "rake-compiler"
+  spec.add_development_dependency "rspec"
 end
