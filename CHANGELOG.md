@@ -5,6 +5,72 @@ All notable changes to Taurus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-08-08
+
+Complete rewrite as a Nokogiri-compatible FFI binding for
+[libtaurus](https://github.com/lutaml/taurus) v0.5.14. The C DOM is the
+single source of truth; Ruby objects are thin FFI wrappers (one Ruby
+method = one FFI call).
+
+### Added — XML::Document
+- `XML::Document.parse(string_or_io)` and `.parse_file(path)`
+- `#root`, `#free`, `#encoding`, `#name`, `#document`
+- `#create_element`, `#create_text_node`, `#create_comment`,
+  `#create_cdata`, `#create_processing_instruction`
+- `#to_xml`, `#save`, `#canonicalize` (alias `#c14n`)
+- Includes `Searchable`: `#xpath`, `#at_xpath`, `#css`, `#at_css`,
+  `#search`, `#at`
+
+### Added — XML::Node hierarchy
+- `Node` (base): type predicates, navigation (siblings, parent, children),
+  `#unlink`/`#remove`, `#line`, `#<=>`, `#traverse`
+- `Element < Node`: name/content/attributes mutation, child manipulation
+  (`#add_child`, `#prepend_child`, `#add_next_sibling`,
+  `#add_previous_sibling`, `#replace`, `#swap`, `#wrap`, `#children=`)
+- `Text`, `Comment`, `CDATA < Text`, `ProcessingInstruction`:
+  per-type content setters
+- `Attr`: name/value/namespace/remove
+- `Namespace`: prefix/href, derived from element's declarations
+- `NodeSet`: Enumerable + Searchable
+
+### Added — XML::Searchable
+- `#xpath`, `#at_xpath` via `taurus_xpath_eval`
+- `#css`, `#at_css` via minimal CSS-to-XPath translator
+  (`.class`, `#id`, `[attr]`, `[attr=val]`, descendant, child,
+  comma-multi, `:first-child`, `:last-child`, `:only-child`,
+  `:empty`, `:root`, `:not(simple)`)
+- `#search`, `#at` auto-detect CSS vs XPath
+
+### Added — XML::SAX
+- `SAX::Parser#parse(string_or_io)`, `#parse_memory`, `#parse_io`,
+  `#parse_file`
+- `SAX::Document` handler base class with Nokogiri-compatible
+  callback signatures
+
+### Added — Serialization
+- `Document#to_xml`, `Element#to_xml` with indent / xml_declaration /
+  encoding options
+- `Document#canonicalize` (whole-doc) and `Element#canonicalize`
+  (subtree) via `taurus_c14n_canonicalize_ex` / `_subtree_ex`
+- All four C14N modes: canonical 1.0, canonical 1.1, exclusive,
+  with/without comments, inclusive namespace prefixes
+
+### Removed
+- Pure-Ruby XML tree model (`lib/taurus/{document,element,node,
+  node_set}.rb`) — replaced by thin FFI wrappers
+- Pure-Ruby XPath engine (`lib/taurus/xpath/`) — replaced by libtaurus
+  XPath 1.0 evaluator
+- Stale bundled C source at `ext/taurus/lib/`
+- `taurus` CLI (`lib/taurus/cli.rb`, `lib/taurus/commands/`)
+- Pure-Ruby adapter framework (`lib/taurus/adapter*`)
+- Thor runtime dependency
+
+### Required external dependency
+- libtaurus v0.5.14 or later, installed separately. Get it from
+  https://github.com/lutaml/taurus/releases and place the shared
+  library on your system's library search path, or set
+  `TAURUS_LIB_PATH` to point at it.
+
 ## [1.1.0] - 2024-12-08
 
 ### Fixed
