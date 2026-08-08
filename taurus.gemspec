@@ -8,44 +8,35 @@ Gem::Specification.new do |spec|
   spec.authors = ["Ribose Inc."]
   spec.email = ["open.source@ribose.com"]
 
-  spec.summary = "Ultra-fast XML parser with full XPath support and CLI"
+  spec.summary = "Nokogiri-compatible Ruby binding for libtaurus (XML 1.0, XPath 1.0, SAX)"
   spec.description = <<~DESC
-    Taurus is a next-generation XML parser for Ruby with complete XPath 1.0
-    support and command-line interface. Built in C for maximum performance,
-    it delivers Ox-level parsing speed with full namespace support and XPath
-    queries that are competitive with Nokogiri. Features: complete XPath 1.0
-    (27 functions, 13 axes), XML pretty-printing CLI, zero external dependencies.
+    Taurus is a Nokogiri-compatible Ruby binding for libtaurus, a pure-C99 XML
+    1.0 parser with full XPath 1.0 and SAX support. The C DOM is the single
+    source of truth; Ruby objects are thin FFI wrappers (one Ruby method =
+    one FFI call).
   DESC
   spec.homepage = "https://github.com/lutaml/taurus-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/lutaml/taurus-ruby"
-  spec.metadata["changelog_uri"] = "https://github.com/lutaml/taurus-ruby/blob/main/CHANGELOG.md"
+  spec.metadata = {
+    "homepage_uri" => spec.homepage,
+    "source_code_uri" => "https://github.com/lutaml/taurus-ruby",
+    "changelog_uri" => "https://github.com/lutaml/taurus-ruby/blob/main/CHANGELOG.md",
+  }
 
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
       (File.expand_path(f) == __FILE__) ||
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
     end
   end
-
   spec.bindir = "bin"
-  spec.executables = ["taurus"]
+  spec.executables = []
   spec.require_paths = ["lib"]
 
-  # Extension configuration - build libtaurus during gem install
-  spec.extensions = ["ext/taurus/extconf.rb"]
-
-  # Runtime dependencies
   spec.add_dependency "ffi", "~> 1.15"
-  spec.add_dependency "thor", "~> 1.0"
 
-  # Development dependencies
   spec.add_development_dependency "rake"
-  spec.add_development_dependency "rake-compiler"
   spec.add_development_dependency "rspec"
 end
