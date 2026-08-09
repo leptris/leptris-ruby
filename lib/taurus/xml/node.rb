@@ -143,6 +143,29 @@ class Taurus::XML::Node
     yield self
   end
 
+  def path
+    str_ptr = Taurus::XML::FFI.taurus_node_get_xpath(@c_ptr)
+    return nil if str_ptr.null?
+    str_ptr.read_string.tap { Taurus::XML::FFI.taurus_free_string(str_ptr) }
+  end
+
+  def css_path
+    return nil if path.nil?
+    path.split("/").filter_map do |part|
+      next nil if part.empty?
+      part.gsub(/\[(\d+)\]/, ':nth-of-type(\1)')
+    end.join(" > ")
+  end
+
+  def dup
+    elem_ptr = Taurus::XML::FFI.taurus_node_as_element(@c_ptr)
+    raise Taurus::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
+    copy_ptr = Taurus::XML::FFI.taurus_element_copy(elem_ptr, @document.c_ptr)
+    raise Taurus::XML::Error, "taurus_element_copy failed" if copy_ptr.null?
+    Taurus::XML::Element.new(copy_ptr, @document)
+  end
+  alias_method :clone, :dup
+
   def ==(other)
     return false unless other.is_a?(Taurus::XML::Node)
     @c_ptr == other.c_ptr

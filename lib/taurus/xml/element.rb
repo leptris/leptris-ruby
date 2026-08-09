@@ -167,7 +167,32 @@ class Taurus::XML::Element < Taurus::XML::Node
   end
 
   def dup
-    raise NotImplementedError, "Element#dup requires taurus_element_copy (not yet exposed in v0.5.10 public API)"
+    copy_ptr = Taurus::XML::FFI.taurus_element_copy(@c_ptr, @document.c_ptr)
+    raise Taurus::XML::Error, "taurus_element_copy failed" if copy_ptr.null?
+    Taurus::XML::Element.new(copy_ptr, @document)
+  end
+  alias_method :clone, :dup
+
+  def add_child(node_or_markup)
+    case node_or_markup
+    when Taurus::XML::Node
+      status = Taurus::XML::FFI.taurus_element_append_child(@c_ptr, node_or_markup.c_ptr)
+      raise Taurus::XML::Error,
+        Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+      node_or_markup
+    when String
+      frag = Taurus::XML::DocumentFragment.parse(node_or_markup, @document)
+      added = []
+      frag.children.each do |n|
+        status = Taurus::XML::FFI.taurus_element_append_child(@c_ptr, n.c_ptr)
+        raise Taurus::XML::Error,
+          Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+        added << n
+      end
+      Taurus::XML::NodeSet.new(@document, added)
+    else
+      raise ArgumentError, "add_child expects a Node or String, got #{node_or_markup.class}"
+    end
   end
 
   def namespace

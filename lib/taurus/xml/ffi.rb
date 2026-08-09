@@ -20,6 +20,7 @@ module Taurus
       typedef :pointer, :taurus_element
       typedef :pointer, :taurus_node_ref
       typedef :pointer, :taurus_attribute
+      typedef :pointer, :taurus_doctype
       typedef :pointer, :taurus_xpath_result
       typedef :pointer, :taurus_xpath_var_set
       typedef :pointer, :taurus_sax_parser
@@ -263,6 +264,15 @@ module Taurus
       attach_function :taurus_element_insert_copy_after,
         [:taurus_element, :taurus_element], :taurus_element
 
+      attach_function :taurus_element_copy,
+        [:taurus_element, :taurus_document], :taurus_element
+      attach_function :taurus_document_copy,
+        [:taurus_document], :taurus_document
+      attach_function :taurus_node_get_xpath,
+        [:taurus_node_ref], :pointer
+      attach_function :taurus_parse_fragment,
+        [:string, :size_t, :taurus_document, :pointer], :taurus_element
+
       attach_function :taurus_element_namespace,
         [:taurus_element], :string
       attach_function :taurus_element_namespace_for_prefix,
@@ -342,6 +352,19 @@ module Taurus
         [:taurus_document, :int, :int, :pointer, :int], :pointer
       attach_function :taurus_c14n_canonicalize_subtree_ex,
         [:taurus_element, :int, :int, :pointer, :int], :pointer
+
+      attach_function :taurus_document_internal_subset,
+        [:taurus_document], :taurus_doctype
+      attach_function :taurus_doctype_get_name,
+        [:taurus_doctype], :string
+      attach_function :taurus_doctype_get_root_name,
+        [:taurus_doctype], :string
+      attach_function :taurus_doctype_get_public_id,
+        [:taurus_doctype], :string
+      attach_function :taurus_doctype_get_system_id,
+        [:taurus_doctype], :string
+      attach_function :taurus_doctype_get_internal_subset,
+        [:taurus_doctype], :string
 
       attach_function :taurus_free_string, [:pointer], :void
       attach_function :taurus_explicit_cleanup, [], :void
