@@ -12,6 +12,8 @@ module Taurus
     autoload :Attr, "taurus/xml/attr"
     autoload :Namespace, "taurus/xml/namespace"
     autoload :Document, "taurus/xml/document"
+    autoload :DocumentFragment, "taurus/xml/document_fragment"
+    autoload :DocType, "taurus/xml/doc_type"
     autoload :NodeSet, "taurus/xml/node_set"
     autoload :Searchable, "taurus/xml/searchable"
     autoload :ParseOptions, "taurus/xml/parse_options"

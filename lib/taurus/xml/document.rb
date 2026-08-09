@@ -74,6 +74,24 @@ class Taurus::XML::Document
     Taurus::XML::ProcessingInstruction.new(ptr, self)
   end
 
+  def fragment(markup)
+    Taurus::XML::DocumentFragment.parse(markup, self)
+  end
+
+  def dup
+    raw = Taurus::XML::FFI.taurus_document_copy(@c_ptr)
+    raise Taurus::XML::Error, "taurus_document_copy failed" if raw.null?
+    self.class.new(::FFI::AutoPointer.new(raw, Taurus::XML::FFI.method(:taurus_document_free)))
+  end
+  alias_method :clone, :dup
+
+  def doctype
+    ptr = Taurus::XML::FFI.taurus_document_internal_subset(@c_ptr)
+    return nil if ptr.null?
+    Taurus::XML::DocType.new(ptr, self)
+  end
+  alias_method :internal_subset, :doctype
+
   def to_xml(indent: 0, no_decl: false, encoding: nil)
     raise Taurus::XML::UseAfterFreeError if @freed
     return "" if @c_ptr.nil?
