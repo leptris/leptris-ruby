@@ -5,9 +5,18 @@ require "ffi"
 class Taurus::XML::Document
   attr_reader :c_ptr
 
-  def initialize(c_ptr = nil)
+  # @api private
+  # Internal flag container shared between the Document instance and its
+  # GC finalizer. Using a one-element Array because Procs close over
+  # variables by reference — mutating freed[0] is visible from both
+  # the explicit `free` path and the finalizer. This eliminates the
+  # double-free that FFI::AutoPointer's release proc caused when
+  # `Document#free` was called explicitly and then GC ran.
+  Freed = Struct.new(:state)  # state: :alive | :freed
+
+  def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
-    @freed = false
+    @freed = freed
   end
 
   def self.parse(xml_or_io)
@@ -22,7 +31,7 @@ class Taurus::XML::Document
       raise Taurus::XML::ParseError,
         "taurus_parse_string failed (status=#{status})"
     end
-    new(::FFI::AutoPointer.new(raw, Taurus::XML::FFI.method(:taurus_document_free)))
+    wrap(raw)
   end
 
   def self.parse_file(path)
@@ -33,11 +42,35 @@ class Taurus::XML::Document
       raise Taurus::XML::ParseError,
         "taurus_parse_file failed (status=#{status})"
     end
-    new(::FFI::AutoPointer.new(raw, Taurus::XML::FFI.method(:taurus_document_free)))
+    wrap(raw)
   end
 
+  # Convert a raw TaurusDocument pointer into a Ruby Document with safe
+  # GC lifetime management. The finalizer captures the raw address
+  # integer (not the Document or Pointer object — those would prevent
+  # GC) and shares a one-shot flag with the instance so explicit
+  # `#free` and the GC finalizer can never both call
+  # `taurus_document_free` on the same address.
+  def self.wrap(raw_address)
+    addr = raw_address.is_a?(::FFI::Pointer) ? raw_address.address : raw_address
+    ptr = ::FFI::Pointer.new(addr)
+    freed = Freed.new(:alive)
+    doc = new(ptr, freed)
+    ObjectSpace.define_finalizer(doc, finalizer(addr, freed))
+    doc
+  end
+
+  def self.finalizer(address, freed)
+    proc do
+      next if freed.state == :freed
+      freed.state = :freed
+      Taurus::XML::FFI.taurus_document_free(::FFI::Pointer.new(address))
+    end
+  end
+  private_class_method :finalizer
+
   def root
-    raise Taurus::XML::UseAfterFreeError if @freed
+    raise Taurus::XML::UseAfterFreeError if @freed.state == :freed
     return nil if @c_ptr.nil?
     ptr = Taurus::XML::FFI.taurus_document_root(@c_ptr)
     return nil if ptr.null?
@@ -81,7 +114,7 @@ class Taurus::XML::Document
   def dup
     raw = Taurus::XML::FFI.taurus_document_copy(@c_ptr)
     raise Taurus::XML::Error, "taurus_document_copy failed" if raw.null?
-    self.class.new(::FFI::AutoPointer.new(raw, Taurus::XML::FFI.method(:taurus_document_free)))
+    self.class.wrap(raw)
   end
   alias_method :clone, :dup
 
@@ -93,7 +126,7 @@ class Taurus::XML::Document
   alias_method :internal_subset, :doctype
 
   def to_xml(indent: 0, no_decl: false, encoding: nil)
-    raise Taurus::XML::UseAfterFreeError if @freed
+    raise Taurus::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
     opts, enc_ptr = build_serialize_options(indent: indent, no_decl: no_decl, encoding: encoding)
     str_ptr = Taurus::XML::FFI.taurus_document_serialize(@c_ptr, opts.pointer)
@@ -119,7 +152,7 @@ class Taurus::XML::Document
                    with_comments: false,
                    exclusive: false,
                    mode: nil)
-    raise Taurus::XML::UseAfterFreeError if @freed
+    raise Taurus::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
     resolved_mode = mode || (exclusive ? Taurus::XML::FFI::C14N_MODE_EXCLUSIVE
                                        : Taurus::XML::FFI::C14N_MODE_CANONICAL)
@@ -133,9 +166,9 @@ class Taurus::XML::Document
   alias_method :c14n, :canonicalize
 
   def free
-    return if @freed || @c_ptr.nil?
-    @c_ptr.free
-    @freed = true
+    return if @freed.state == :freed
+    @freed.state = :freed
+    Taurus::XML::FFI.taurus_document_free(@c_ptr) unless @c_ptr.nil?
     @c_ptr = nil
   end
 
