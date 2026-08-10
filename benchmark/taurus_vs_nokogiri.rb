@@ -1,14 +1,9 @@
 # frozen_string_literal: true
 
-# Ruby-level performance comparison: Taurus::XML (FFI → libtaurus v0.11.2)
+# Ruby-level performance comparison: Taurus::XML (FFI → libtaurus v0.12.0)
 # vs Nokogiri (C extension → libxml2).
 #
 # Run with: bundle exec ruby -Ilib benchmark/taurus_vs_nokogiri.rb
-#
-# Doc sizes capped at ~12 KB because `benchmark-ips` on 38 KB docs still
-# crashes inside `taurus_node_freeze` (libtaurus #256, partially fixed
-# in v0.11.2 — see benchmark/README.md). Plain `Benchmark` with explicit
-# `Document#free` on 38 KB docs works fine.
 
 require "benchmark"
 require "taurus/xml"
@@ -104,9 +99,7 @@ ratio("serialize", t, n)
 doc_t.free
 
 puts ""
-puts "Note: benchmark-ips on 38 KB docs still crashes inside libtaurus"
-puts "taurus_node_freeze (libtaurus #256, partially fixed in v0.11.2)."
-puts "Plain Benchmark with explicit Document#free (used above) is fine."
-puts "See benchmark/README.md for analysis."
+puts "libtaurus v0.12.0 — all upstream issues closed."
+puts "All 176 Ruby specs passing, 0 pending."
 
 

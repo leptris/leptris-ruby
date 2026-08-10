@@ -149,7 +149,6 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     end
 
     it "exposes the internal subset (DTD declarations)" do
-      pending "upstream libtaurus #253: DOCTYPE internal_subset not exposed"
       xml = %q{<!DOCTYPE root [<!ELEMENT root (a,b)><!ELEMENT a EMPTY><!ELEMENT b EMPTY>]><root><a/><b/></root>}
       doc = Taurus::XML::Document.parse(xml)
       dt = doc.doctype
