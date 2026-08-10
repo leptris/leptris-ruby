@@ -3,7 +3,7 @@
 require "ffi"
 
 class Taurus::XML::Document
-  attr_reader :c_ptr
+  attr_reader :c_ptr, :wrapper_cache
 
   # @api private
   # Internal flag container shared between the Document instance and its
@@ -17,6 +17,11 @@ class Taurus::XML::Document
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
     @freed = freed
+    # Per-document weak-ref cache for Node wrappers, keyed on c_ptr
+    # address. Eliminates re-allocation when the same node is accessed
+    # repeatedly (e.g. via children, siblings, multiple xpath calls).
+    # Dies with the Document — no stale entries pointing at freed memory.
+    @wrapper_cache = ObjectSpace::WeakMap.new
   end
 
   def self.parse(xml_or_io)

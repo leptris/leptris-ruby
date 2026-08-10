@@ -10,20 +10,32 @@ class Taurus::XML::Node
   end
 
   def self.wrap(c_ptr, document, parent: nil)
-    case Taurus::XML::FFI.taurus_node_get_type(c_ptr)
-    when Taurus::XML::FFI::NODE_ELEMENT
-      Taurus::XML::Element.new(c_ptr, document, parent: parent)
-    when Taurus::XML::FFI::NODE_TEXT
-      Taurus::XML::Text.new(c_ptr, document, parent: parent)
-    when Taurus::XML::FFI::NODE_COMMENT
-      Taurus::XML::Comment.new(c_ptr, document, parent: parent)
-    when Taurus::XML::FFI::NODE_CDATA
-      Taurus::XML::CDATA.new(c_ptr, document, parent: parent)
-    when Taurus::XML::FFI::NODE_PI
-      Taurus::XML::ProcessingInstruction.new(c_ptr, document, parent: parent)
-    else
-      new(c_ptr, document, parent: parent)
+    # Per-document weak-ref cache. Returns the existing wrapper when the
+    # same c_ptr is wrapped twice (common in children/sibling walks,
+    # repeated xpath queries, traverse-then-access patterns). The cache
+    # dies with the document so no stale entries.
+    if document && (cached = document.wrapper_cache[c_ptr.address])
+      return cached
     end
+
+    node =
+      case Taurus::XML::FFI.taurus_node_get_type(c_ptr)
+      when Taurus::XML::FFI::NODE_ELEMENT
+        Taurus::XML::Element.new(c_ptr, document, parent: parent)
+      when Taurus::XML::FFI::NODE_TEXT
+        Taurus::XML::Text.new(c_ptr, document, parent: parent)
+      when Taurus::XML::FFI::NODE_COMMENT
+        Taurus::XML::Comment.new(c_ptr, document, parent: parent)
+      when Taurus::XML::FFI::NODE_CDATA
+        Taurus::XML::CDATA.new(c_ptr, document, parent: parent)
+      when Taurus::XML::FFI::NODE_PI
+        Taurus::XML::ProcessingInstruction.new(c_ptr, document, parent: parent)
+      else
+        new(c_ptr, document, parent: parent)
+      end
+
+    document.wrapper_cache[c_ptr.address] = node if document
+    node
   end
 
   def name
