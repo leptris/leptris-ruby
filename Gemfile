@@ -7,3 +7,8 @@ gemspec
 gem "rake"
 gem "rspec"
 gem "rubocop"
+
+group :benchmark do
+  gem "benchmark-ips"
+  gem "nokogiri"
+end
