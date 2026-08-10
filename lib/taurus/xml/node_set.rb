@@ -63,12 +63,39 @@ class Taurus::XML::NodeSet
   def each
     return enum_for(:each) unless block_given?
     if @result_ptr
-      length.times { |i| yield self[i] }
+      # Batch-fetch all node pointers in one FFI call (taurus_xpath_result_get_nodes,
+      # libtaurus v0.11.4) and wrap each. Saves N-1 FFI calls vs the per-index
+      # taurus_xpath_result_get loop. Wrappers are still cached per-Document via
+      # Node.wrap, so a re-iteration of the same NodeSet hits the cache.
+      n = length
+      if n > 0
+        buf = ::FFI::MemoryPointer.new(:pointer, n)
+        begin
+          copied = Taurus::XML::FFI.taurus_xpath_result_get_nodes(@result_ptr, buf, n)
+          copied.times do |i|
+            ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
+            next if ptr.null?
+            yield Taurus::XML::Node.wrap(ptr, @document)
+          end
+        ensure
+          buf.free
+        end
+      end
     else
       @array.each { |n| yield n }
     end
     self
   end
+
+  def to_a
+    return @array if @array
+    return [] if @result_ptr.nil?
+    out = []
+    each { |n| out << n }
+    @array = out  # memoize so subsequent to_a / each avoids re-fetch
+    out
+  end
+  alias_method :to_ary, :to_a
 
   def first(n = nil)
     return self[0] if n.nil?
@@ -82,11 +109,6 @@ class Taurus::XML::NodeSet
       @array.last
     end
   end
-
-  def to_a
-    @array || length.times.map { |i| self[i] }
-  end
-  alias_method :to_ary, :to_a
 
   def inner_text
     map(&:content).join

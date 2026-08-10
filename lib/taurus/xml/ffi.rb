@@ -112,6 +112,10 @@ module Taurus
         [:taurus_node_ref], :taurus_element
       attach_function :taurus_element_as_node,
         [:taurus_element], :taurus_node_ref
+      attach_function :taurus_node_get_binding_wrapper,
+        [:taurus_node_ref], :pointer
+      attach_function :taurus_node_set_binding_wrapper,
+        [:taurus_node_ref, :pointer], :void
       attach_function :taurus_node_parent,
         [:taurus_node_ref], :taurus_element
       attach_function :taurus_node_unlink,
@@ -305,6 +309,8 @@ module Taurus
         [:taurus_xpath_result], :size_t
       attach_function :taurus_xpath_result_get,
         [:taurus_xpath_result, :size_t], :taurus_element
+      attach_function :taurus_xpath_result_get_nodes,
+        [:taurus_xpath_result, :pointer, :size_t], :size_t
       attach_function :taurus_xpath_result_boolean,
         [:taurus_xpath_result], :int
       attach_function :taurus_xpath_result_number,
