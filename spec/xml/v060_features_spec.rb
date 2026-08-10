@@ -130,7 +130,6 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     end
 
     it "exposes PUBLIC and SYSTEM identifiers" do
-      pending "upstream libtaurus #253: DOCTYPE PUBLIC/SYSTEM not exposed"
       xml = <<~XML
         <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
         <html/>
@@ -142,7 +141,6 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     end
 
     it "exposes SYSTEM-only identifiers" do
-      pending "upstream libtaurus #253: DOCTYPE SYSTEM not exposed"
       xml = %q{<!DOCTYPE config SYSTEM "config.dtd"><config/>}
       doc = Taurus::XML::Document.parse(xml)
       dt = doc.doctype
@@ -161,7 +159,6 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     end
 
     it "renders the full DOCTYPE declaration via #to_s" do
-      pending "upstream libtaurus #253: DOCTYPE PUBLIC/SYSTEM not exposed"
       xml = %q{<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html/>}
       doc = Taurus::XML::Document.parse(xml)
       expect(doc.doctype.to_s)

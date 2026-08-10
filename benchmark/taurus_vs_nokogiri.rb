@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
-# Ruby-level performance comparison: Taurus::XML (FFI → libtaurus v0.11.0)
+# Ruby-level performance comparison: Taurus::XML (FFI → libtaurus v0.11.2)
 # vs Nokogiri (C extension → libxml2).
 #
-# Workloads chosen to stay under the libtaurus v0.11.0 parse-loop crash
-# threshold (~38 KB, tracked in upstream #256): explicit `free` after each
-# parse, and doc sizes capped at ~12 KB.
-#
 # Run with: bundle exec ruby -Ilib benchmark/taurus_vs_nokogiri.rb
+#
+# Doc sizes capped at ~12 KB because `benchmark-ips` on 38 KB docs still
+# crashes inside `taurus_node_freeze` (libtaurus #256, partially fixed
+# in v0.11.2 — see benchmark/README.md). Plain `Benchmark` with explicit
+# `Document#free` on 38 KB docs works fine.
 
 require "benchmark"
 require "taurus/xml"
@@ -103,7 +104,9 @@ ratio("serialize", t, n)
 doc_t.free
 
 puts ""
-puts "Note: parse-loop on documents > ~20 KB can segfault inside libtaurus"
-puts "under benchmark-ips GC pressure. See upstream issue"
-puts "https://github.com/lutaml/taurus/issues/256. Workaround here is to"
-puts "call Document#free explicitly and cap doc size."
+puts "Note: benchmark-ips on 38 KB docs still crashes inside libtaurus"
+puts "taurus_node_freeze (libtaurus #256, partially fixed in v0.11.2)."
+puts "Plain Benchmark with explicit Document#free (used above) is fine."
+puts "See benchmark/README.md for analysis."
+
+
