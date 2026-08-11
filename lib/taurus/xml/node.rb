@@ -149,10 +149,20 @@ class Taurus::XML::Node
   end
   alias_method :remove, :unlink
 
+  # Walks the subtree in post-order DFS (matches Nokogiri's semantics).
+  #
+  # Specialized hot path: skips the intermediate NodeSet allocation that
+  # Element#children would create, walking via raw FFI calls and wrapping
+  # nodes directly. Saves one Array + one NodeSet allocation per parent
+  # node. For a tree of N nodes that's ~N fewer allocations on a full
+  # traversal.
+  #
+  # Still pays ~2 FFI calls per visited node (first_child + next_sibling).
+  # Beating Nokogiri on this benchmark needs C-side traverse with a
+  # callback (libtaurus #273); the per-node FFI cost is the floor.
   def traverse
     return enum_for(:traverse) unless block_given?
-    children.each { |child| child.traverse { |n| yield n } }
-    yield self
+    walk_post_order(@c_ptr, @document) { |n| yield n }
   end
 
   def path
@@ -191,6 +201,27 @@ class Taurus::XML::Node
 
   def as_element_or_self
     is_a?(Taurus::XML::Element) ? self : nil
+  end
+
+  private
+
+  # Walks the subtree in post-order DFS (matches Nokogiri's semantics).
+  #
+  # Specialized hot path for #traverse: skips the intermediate NodeSet
+  # allocation that Element#children would create, walking via raw FFI
+  # calls and wrapping nodes directly. Saves one Array + one NodeSet
+  # allocation per parent node.
+  #
+  # Still pays ~2 FFI calls per visited node (first_child + next_sibling).
+  # Beating Nokogiri on this benchmark needs C-side traverse with a
+  # callback (libtaurus #273); the per-node FFI cost is the floor.
+  def walk_post_order(ptr, doc, &block)
+    child_ptr = Taurus::XML::FFI.taurus_node_first_child(ptr)
+    until child_ptr.nil? || child_ptr.null?
+      walk_post_order(child_ptr, doc, &block)
+      child_ptr = Taurus::XML::FFI.taurus_node_next_sibling(child_ptr)
+    end
+    yield Taurus::XML::Node.wrap(ptr, doc)
   end
 
   include Taurus::XML::Searchable
