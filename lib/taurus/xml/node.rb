@@ -162,7 +162,12 @@ class Taurus::XML::Node
   # callback (libtaurus #273); the per-node FFI cost is the floor.
   def traverse
     return enum_for(:traverse) unless block_given?
-    walk_post_order(@c_ptr, @document) { |n| yield n }
+    callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
+      yield Taurus::XML::Node.wrap(node_ptr, @document)
+      0
+    end
+    Taurus::XML::FFI.taurus_node_traverse(
+      @c_ptr, Taurus::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
   end
 
   def path
@@ -212,17 +217,5 @@ class Taurus::XML::Node
   # calls and wrapping nodes directly. Saves one Array + one NodeSet
   # allocation per parent node.
   #
-  # Still pays ~2 FFI calls per visited node (first_child + next_sibling).
-  # Beating Nokogiri on this benchmark needs C-side traverse with a
-  # callback (libtaurus #273); the per-node FFI cost is the floor.
-  def walk_post_order(ptr, doc, &block)
-    child_ptr = Taurus::XML::FFI.taurus_node_first_child(ptr)
-    until child_ptr.nil? || child_ptr.null?
-      walk_post_order(child_ptr, doc, &block)
-      child_ptr = Taurus::XML::FFI.taurus_node_next_sibling(child_ptr)
-    end
-    yield Taurus::XML::Node.wrap(ptr, doc)
-  end
-
   include Taurus::XML::Searchable
 end

@@ -124,6 +124,8 @@ module Taurus
         [:taurus_node_ref], :int
       attach_function :taurus_node_compare,
         [:taurus_node_ref, :taurus_node_ref], :int
+      attach_function :taurus_node_traverse,
+        [:taurus_node_ref, :int, :pointer, :pointer], :int
 
       attach_function :taurus_text_node_get_content,
         [:taurus_node_ref], :string
@@ -410,6 +412,9 @@ module Taurus
 
       C14N_MODE_CANONICAL = 0
       C14N_MODE_EXCLUSIVE = 1
+
+      TRAVERSE_PRE_ORDER = 0
+      TRAVERSE_POST_ORDER = 1
     end
   end
 end
