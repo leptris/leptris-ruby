@@ -35,10 +35,12 @@ jobs:
         LIB=$(find build -type f -o -type l 2>/dev/null | grep -iE '(lib)?taurus\.(dylib|so|dll)$' | head -1)
         if [ -z "$LIB" ]; then
           echo "ERROR: libtaurus shared library not found after build"
-          find build/src -name 'libtaurus*'
+          find build -name '*taurus*' -type f
           exit 1
         fi
-        echo "TAURUS_LIB_PATH=$(pwd)/$LIB" >> "$GITHUB_ENV"
-        echo "Installed libtaurus at: $(pwd)/$LIB"
+        # Convert to native path for Ruby FFI (Git-bash /tmp/ → C:\... on Windows)
+        LIBPATH=$(cygpath -w "$(pwd)/$LIB" 2>/dev/null || echo "$(pwd)/$LIB")
+        echo "TAURUS_LIB_PATH=$LIBPATH" >> "$GITHUB_ENV"
+        echo "Installed libtaurus at: $LIBPATH"
     secrets:
       pat_token: ${{ secrets.LUTAML_CI_PAT_TOKEN }}
