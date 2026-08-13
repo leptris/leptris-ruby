@@ -1,113 +1,23 @@
 name: release
 
-on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      next_version:
-        description: 'Version to release (e.g. 0.2.0). Leave empty to use current VERSION.'
-        type: string
-        required: false
-
-# contents: write is needed for pushing the tag commit.
-# id-token: write is required for RubyGems.org Trusted Publishing (OIDC).
 permissions:
   contents: write
   id-token: write
 
+on:
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: 'Next version (x.y.z, major, minor, patch, or skip to release current)'
+        required: true
+        default: 'skip'
+  repository_dispatch:
+    types: [ do-release ]
+
 jobs:
-  bump:
-    if: github.event_name == 'workflow_dispatch' && inputs.next_version != ''
-    runs-on: ubuntu-latest
-    outputs:
-      sha: ${{ steps.bump.outputs.sha }}
-      new-version: ${{ steps.bump.outputs.new-version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ruby/setup-ruby@master
-        with:
-          ruby-version: '3.3'
-
-      - name: Bump version.rb
-        id: bump
-        shell: bash
-        env:
-          NEXT_VERSION: ${{ inputs.next_version }}
-        run: |
-          set -euo pipefail
-          sed -i "s/VERSION = \".*\"/VERSION = \"${NEXT_VERSION}\"/" lib/taurus/version.rb
-          NEW_VERSION=$(ruby -Ilib -rtaurus/version -e 'puts Taurus::VERSION')
-          echo "new-version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          # Regenerate Gemfile.lock so the version matches (deployment-mode
-          # Bundler refuses to install if the lockfile's taurus version
-          # doesn't match version.rb).
-          bundle lock --update
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/taurus/version.rb Gemfile.lock
-          git commit -m "Release v${NEW_VERSION}"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Push bump commit + tag
-        env:
-          NEW_VERSION: ${{ steps.bump.outputs.new-version }}
-        run: |
-          git push origin "HEAD:${{ github.event.repository.default_branch }}"
-          git tag "v${NEW_VERSION}" HEAD
-          git push origin "v${NEW_VERSION}"
-
-  build:
-    needs: bump
-    if: always() && !cancelled() && !failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
-
-      - uses: ruby/setup-ruby@master
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-
-      - name: Build gem
-        run: |
-          gem build taurus.gemspec
-          mkdir -p pkg
-          cp taurus-*.gem pkg/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pkg
-          path: pkg/*.gem
-
-  publish:
-    needs: [ bump, build ]
-    if: always() && !cancelled() && !failure()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
-
-      - uses: ruby/setup-ruby@master
-        with:
-          ruby-version: '3.3'
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: pkg
-          path: pkg
-
-      - name: Configure RubyGems credentials (Trusted Publishing / OIDC)
-        uses: rubygems/configure-rubygems-credentials@main
-
-      - name: Publish to rubygems.org
-        run: |
-          for gem in pkg/*.gem; do
-            echo "Pushing $gem..."
-            gem push -V "$gem"
-          done
+  release:
+    uses: metanorma/ci/.github/workflows/rubygems-release.yml@main
+    with:
+      next_version: ${{ github.event.inputs.next_version }}
+      gated: false
+      submodules: false
