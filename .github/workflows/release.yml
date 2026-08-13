@@ -41,9 +41,13 @@ jobs:
           sed -i "s/VERSION = \".*\"/VERSION = \"${NEXT_VERSION}\"/" lib/taurus/version.rb
           NEW_VERSION=$(ruby -Ilib -rtaurus/version -e 'puts Taurus::VERSION')
           echo "new-version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          # Regenerate Gemfile.lock so the version matches (deployment-mode
+          # Bundler refuses to install if the lockfile's taurus version
+          # doesn't match version.rb).
+          bundle lock --update
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib/taurus/version.rb
+          git add lib/taurus/version.rb Gemfile.lock
           git commit -m "Release v${NEW_VERSION}"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
