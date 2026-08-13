@@ -1,1529 +1,405 @@
-= Taurus: High-Performance XML Parser with Complete Namespace & XPath 1.0 Support
+= taurus-ruby
 :toc:
 :toclevels: 3
 
 image:https://img.shields.io/gem/v/taurus.svg[RubyGems Version,link=https://rubygems.org/gems/taurus]
-image:https://img.shields.io/github/license/lutaml/taurus.svg[License,link=https://github.com/lutaml/taurus/blob/main/LICENSE]
-image:https://github.com/lutaml/taurus/actions/workflows/test.yml/badge.svg[Test Suite,link=https://github.com/lutaml/taurus/actions/workflows/test.yml]
-image:https://github.com/lutaml/taurus/actions/workflows/build.yml/badge.svg[CLI Build,link=https://github.com/lutaml/taurus/actions/workflows/build.yml]
-
-== Vision
-
-Taurus is a next-generation XML parser for Ruby that combines:
-*Taurus delivers Ox-level parsing with complete XPath 1.0 support*: full namespace handling and 27 XPath functions in pure C with zero external dependencies.
-
-== Purpose
-
-Taurus is a next-generation XML parser for Ruby that combines:
-
-* *Fast XML parsing* - C-based XML parsing with SIMD
-
- optimizations
-* *Complete namespace support* - Full XML Namespaces 1.0 specification
-* *XPath 1.0 in C* - All 13 axes, 27 functions, operators, predicates ✅
-* *Memory efficiency* - Optimized memory usage with zero leaks
-
-
-== Performance
-
-**Version**: 1.0.0
-**Status**: Production Ready - First Stable Release! 🎉
-
-[cols="3,2",options="header"]
-|===
-|Component |Status
-
-|XML Parsing
-|✅ Complete (100%)
-
-|XML Namespaces 1.0
-|✅ Complete (100%)
-
-|XPath 1.0 Engine
-|✅ Complete (100% spec compliance)
-
-|**Pure C Library (libtaurus)**
-|✅ **Complete** (44+ functions, all exported)
-
-|**Ruby FFI Bindings**
-|✅ **Complete** (AutoPointer, thread-safe errors)
-
-|**C CLI Tool**
-|✅ **Complete** (4 commands: parse, xpath, format, version)
-
-|Ruby Test Suite
-|✅ 335/336 passing (99.7%) - 250/250 XPath tests (100%)
-
-|Memory Safety
-|✅ Zero leaks verified
-|===
-
-=== Current Performance
-
-**XML Parsing** (FFI via libtaurus):
-* **5.87µs** per parse (2.45× slower than Ox's 2.4µs)
-* **C library**: 5.3µs (2.22× slower than Ox)
-* **FFI overhead**: Only 18% (5.3µs → 5.87µs)
-* **Status**: Excellent - near C-extension speed with FFI portability! ✅
-
-**XPath Queries** (tested on 5-element document):
-* **Complete XPath 1.0**: All 27 functions, 13 axes working
-* **AST Caching**: Parse once, use forever with O(1) lookup
-* **Status**: Production-ready with full spec compliance ✅
-
-**FFI Architecture** (v0.5.0):
-* Pure C library (lib taurus) with 44+ public API functions
-* Ruby FFI bindings with AutoPointer memory management
-* CLI tool using libtaurus directly (zero Ruby overhead)
-* **Trade-off**: ~18% FFI overhead but no compilation needed! ✅
-
-=== DOM Access Performance (v0.2.0) 🚀
-
-Taurus v0.2.0 achieves exceptional DOM access performance through targeted optimizations:
-
-[cols="3,2,2,2",options="header"]
-|===
-|Operation |Taurus v0.2.0 |Ox |Status
-
-|Root access
-|0.09µs
-|0.06µs
-|✅ Close (1.5×)
-
-|Element name
-|0.18µs
-|0.09µs
-|✅ Competitive (2×)
-
-|Attribute access
-|0.181µs
-|0.157µs
-|✅ On par
-
-|**Children access**
-|**0.069µs**
-|**0.13µs**
-|🚀 ***1.88× Faster!***
-
-|Deep traversal
-|2.12µs
-|2.95µs
-|✅ On par
-|===
-
-**Children access is now faster than Ox!** 🏆
-
-==== Optimization Techniques
-
-v0.2.0 implements four key optimizations:
-
-**1. Root Element Caching (5.4× faster)**
-
-[source,ruby]
-----
-# Caches root element after first access
-doc = Taurus.parse(xml)
-root = doc.root  # First call: scans nodes array
-root = doc.root  # Subsequent: instant cache hit
-----
-
-**2. String Interning (1.39× faster)**
-
-Element names are automatically interned and frozen in C, providing automatic memory deduplication and VM optimization hints.
-
-**3. Symbol Fast-Path for Attributes (Matches Ox)**
-
-[source,ruby]
-----
-elem[:id]   # Fast: direct symbol lookup (O(1))
-elem["id"]  # Compatible: converted to symbol
-----
-
-*Best practice*: Use symbol keys for 90% of real-world usage pattern.
-
-**4. Direct ivar Access for Children (2.3× faster)**
-
-[source,ruby]
-----
-# @nodes always initialized in C/Ruby
-elem.nodes  # Direct access, no lazy init overhead
-----
-
-==== Best Practices for Performance
-
-1. **Use symbol keys**: `elem[:attr]` is faster than `elem["attr"]`
-2. **Cache root reference**: Call `doc.root` once, reuse the reference
-3. **Iterate children efficiently**: Use `elem.nodes.each` not repeated `elem.nodes[i]`
-4. **Trust string interning**: Element names automatically deduplicated
-
-=== Performance Optimizations (v0.9.0)
-
-==== XPath Namespace Resolution
-
-**2-3× faster** namespace resolution with reverse iteration strategy:
-
-* **Best case**: O(1) - Local namespace found immediately
-* **Average case**: O(k) where k << n (most queries)
-* **Significant** for nested documents with namespace overrides
-
-Implementation highlights:
-* Reverse iteration finds local (recent) namespace registrations first
-* Pointer comparison fast-path for repeated queries
-* Early exit on match (no full array scan)
-* Naturally handles namespace override semantics
-
-==== XPath Function Benchmarks
-
-All 27 XPath 1.0 functions tested (see link:docs/v0.9.0_PERFORMANCE_IMPROVEMENTS.md[Complete Results]):
-
-**Ultra-Fast** (<5μs):
-* Boolean: `true()`, `false()` - 3.6μs
-* String: `normalize-space()`, `substring-after()` - 4.8μs
-* Number: `ceiling()` - 4.6μs
-
-**Fast** (5-10μs):
-* String: `translate()`, `string-length()`, `substring()`
-* Node-set: `local-name()`, `name()`, `namespace-uri()`
-
-**Medium** (10-40μs):
-* String: `concat()`, `starts-with()`, `contains()`
-* Node-set: `last()`, `id()`, `position()`
-
-=== Key Optimizations
-
-* **Namespace Resolution** (v0.9.0): 2-3× faster with reverse iteration
-* **SIMD Vectorization**: ARM NEON & x86 SSE2 for 300% parsing speedup
-* **Character Classification Table**: 256-byte lookup for zero-branch character tests
-* **AST Pattern Optimization**: Rewrites inefficient query patterns before evaluation
-* **AST Caching**: Global cache with O(1) lookup - parse once, use forever
-* **DOM Optimizations** (v0.2.0): Root caching, string interning, symbol fast-path, direct ivar access
-
-For comprehensive XPath axis and function benchmarks, see link:docs/xpath-performance.adoc[XPath Performance Benchmarks] (115+ query patterns tested).
-
-For detailed optimization history and lessons learned, see link:docs/OPTIMIZATIONS_IMPLEMENTED.adoc[Optimizations Implemented].
-
-=== Performance vs Competition
-
-**XML Parsing**:
-
-[cols="3,2,2,2",options="header"]
-|===
-|Parser |Parse Time |vs Taurus |Memory
-
-|**Ox**
-|2.4µs
-|0.4× (faster)
-|1.0×
-
-|**Taurus**
-|5.87µs
-|1.0× (baseline)
-|~1.1×
-
-|Nokogiri
-|~10µs
-|1.7× (slower)
-|1.3×
-
-|Oga
-|~15µs
-|2.6× (slower)
-|1.5×
-
-|Calculated Speedup
-|v0.4×
-|v1.2×
-
-|]])
-
-**XPath Queries** (`//book` on 5-element document):
-
-[cols="3,2,2,2",options="header"]
-|===
-|Parser |XPath Time |vs Nokogiri |Status
-
-|**Nokogiri**
-|**3.87µs**
-|**1.0× (baseline)**
-|**✅ Fastest** (libxml2)
-
-|Taurus
-|9.00µs
-|2.3× (slower)
-|✅ Complete XPath 1.0
-
-|Ox
-|N/A
-|N/A
-|❌ No XPath support
-
-|Oga
-|~300µs
-|~77× (slower)
-|Pure Ruby
-|===
-
-*Taurus: Ox-level parsing + Complete XPath 1.0 (27 functions) + Full namespaces + Zero dependencies*
+image:https://github.com/lutaml/taurus-ruby/actions/workflows/build.yml/badge.svg[CI,link=https://github.com/lutaml/taurus-ruby/actions/workflows/build.yml]
+
+A Nokogiri-compatible Ruby binding for
+https://github.com/lutaml/taurus[libtaurus], a pure-C99 XML 1.0 parser
+with full https://www.w3.org/TR/1999/REC-xpath-19991116/[XPath 1.0],
+XML Namespaces 1.0, SAX, and C14N (1.0 / 1.1 / Exclusive).
+
+The C DOM is the single source of truth — Ruby objects are thin FFI
+handles over the C pointers, so every Ruby method maps to one FFI call.
+No tree hydration, no parallel Ruby-side model.
 
 == Installation
-
-=== As a Library (Recommended: FFI)
-
-Taurus v0.5.0+ uses Ruby FFI for better portability - no compilation required!
 
 Add to your Gemfile:
 
 [source,ruby]
 ----
-gem 'taurus'
+gem "taurus"
 ----
 
-Then execute:
+Then `bundle install`.
 
-[source,shell]
-----
-bundle install
-----
+=== Runtime requirement: libtaurus
 
-**That's it!** The gem automatically uses FFI to call the native C library. No build tools needed.
+`taurus` shells out to the native `libtaurus` shared library via FFI.
+You need `libtaurus.{dylib,so,dll}` installed on the host. Options:
 
-==== What You Get with FFI
-
-✅ **No Compilation**: Install on any platform without gcc/make +
-✅ **Better Portability**: Works across Ruby versions and platforms +
-✅ **Easy Updates**: Just `bundle update taurus` +
-✅ **Minimal Overhead**: Only 15-20% compared to direct C binding +
-✅ **Clean API**: Simple and consistent interface
-
-==== Building libtaurus from Source
-
-The native library is included, but you can rebuild it:
-
+1. **Homebrew (macOS, easiest):** `brew install lutaml/tap/libtaurus`
+   (if packaged) or build from source (see below).
+2. **Build from source** (Linux/macOS/Windows):
++
 [source,shell]
 ----
 git clone https://github.com/lutaml/taurus.git
 cd taurus
-mkdir build && cd build
-cmake ..
-make
+cmake -B build -S . \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DTAURUS_BUILD_SHARED=ON \
+  -DTAURUS_BUILD_STATIC=OFF \
+  -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
+cmake --build build -j
+sudo cmake --install build   # optional, system-wide
 ----
 
-This creates `libtaurus.dylib` (macOS) or `libtaurus.so` (Linux).
-
-=== As a Command-Line Tool
-
-Install directly to get the `taurus` CLI:
-
+3. **Point Taurus at a specific path** by setting `TAURUS_LIB_PATH`:
++
 [source,shell]
 ----
-gem install taurus
+export TAURUS_LIB_PATH=/usr/local/lib/libtaurus.dylib
 ----
 
-Verify installation:
+If Taurus can't find the library at startup, every `parse` call raises
+`LoadError`.
 
-[source,shell]
-----
-taurus version
-# Taurus 0.3.0
-# Fast XML parser with complete XPath 1.0 support
-----
+== Parsing
 
-==== Shell Completion (Optional)
-
-Enable command-line completion for faster CLI usage:
-
-**Bash**
-
-[source,shell]
-----
-# Install globally (requires sudo)
-sudo cp docs/completion/taurus.bash /etc/bash_completion.d/taurus
-
-# Or for current user only
-mkdir -p ~/.bash_completion.d
-cp docs/completion/taurus.bash ~/.bash_completion.d/taurus
-echo 'source ~/.bash_completion.d/taurus' >> ~/.bashrc
-source ~/.bashrc
-----
-
-**Zsh**
-
-[source,shell]
-----
-# Install globally (requires sudo)
-sudo cp docs/completion/taurus.zsh /usr/local/share/zsh/site-functions/_taurus
-
-# Or for current user only
-mkdir -p ~/.zsh/completion
-cp docs/completion/taurus.zsh ~/.zsh/completion/_taurus
-echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
-echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
-source ~/.zshrc
-----
-
-After installation, you can use tab completion:
-
-[source,shell]
-----
-taurus p<TAB>          # Completes to 'parse'
-taurus parse --f<TAB>  # Completes to '--format'
-taurus xpath doc.xml --format <TAB>  # Shows: xml json text
-----
-
-==== Man Pages (Optional)
-
-View comprehensive documentation using man pages:
-
-[source,shell]
-----
-# View main manual
-man docs/man/taurus.1
-
-# View command-specific manuals
-man docs/man/taurus-parse.1
-man docs/man/taurus-xpath.1
-man docs/man/taurus-format.1
-----
-
-To install system-wide (when building CLI from source):
-
-[source,shell]
-----
-mkdir -p build && cd build
-cmake .. -DTAURUS_BUILD_CLI=ON
-cmake --build . --config Release
-sudo cmake --install .
-----
-
-After installation, man pages are accessible directly:
-
-[source,shell]
-----
-man taurus
-man taurus-parse
-man taurus-xpath
-man taurus-format
-----
-
-== Features
-
-=== Enhanced Error Messages (✅ v1.0.0)
-
-Taurus v1.0.0 provides comprehensive error handling with helpful context:
-
-* ✅ **Context-aware errors** - Show code snippet around error position
-* ✅ **Precise location tracking** - Line, column, and byte offset for all errors
-* ✅ **Categorized error codes** - Parse, XPath, evaluation, and generic errors
-* ✅ **Rich error objects** - Full error attributes accessible in Ruby
-* ✅ **Zero-overhead design** - Thread-local error state with minimal impact
-
-**Example Error Output**:
+The top-level entry point is `Taurus::XML`. Parse a string or an IO:
 
 [source,ruby]
 ----
-# Parse error with context
-Taurus.parse("<>")
-# => Taurus::ParseError: Failed to parse root element at line 1, column 1
-#    code: :parse_failed
-#    line: 1, column: 1, byte_offset: 0
-#
-#    Context:
-#    <>
-#    ^
+require "taurus"
 
-# XPath error with helpful message
-doc.xpath("//unknown()")
-# => Taurus::XPathError: Unknown function 'unknown' at line 1, column 3
-#    code: :xpath_function
-#    Suggestion: Did you mean count(), concat(), or contains()?
+doc = Taurus::XML.parse(<<~XML)
+  <library xmlns="http://example.org/ns">
+    <book id="b1" lang="en">
+      <title>Refactoring</title>
+      <author>Martin Fowler</author>
+    </book>
+    <book id="b2" lang="fr">
+      <title>Programmer en Ruby</title>
+    </book>
+  </library>
+XML
+
+doc.root.name        # => "library"
+doc.root.children.size   # => 5 (2 element children + 3 whitespace text nodes)
 ----
 
-**Error Attributes**:
-
-All error exceptions provide full diagnostic information:
+Or a file:
 
 [source,ruby]
 ----
-begin
-  Taurus.parse(invalid_xml)
-rescue Taurus::ParseError => e
-  puts e.message      # Human-readable message
-  puts e.code         # Symbol error code (:parse_failed, :unclosed_tag, etc.)
-  puts e.line         # Line number (1-based)
-  puts e.column       # Column number (1-based)
-  puts e.byte_offset  # Byte offset in input
-  puts e.context      # Code snippet showing error location
+doc = Taurus::XML.parse_file("books.xml")
+----
+
+This is the direct Nokogiri equivalent of `Nokogiri::XML(...)`. The
+returned object is a `Taurus::XML::Document`.
+
+== Reading nodes
+
+[horizontal]
+`Document#root` :: root `Element`, or `nil` for an empty document.
+`Node#name` :: element name (e.g. `"book"`).
+`Node#content` (alias `#text`, `#inner_text`) :: all descendant text concatenated.
+`Node#[]` (alias `#attr`, `#get_attribute`) :: attribute value by name.
+`Node#attributes` :: hash of `{name => Attr}`.
+`Node#key?` (alias `#has_attribute?`) :: attribute presence.
+`Node#children` :: `NodeSet` of all children (elements, text, comments, …).
+`Node#element_children` :: `NodeSet` of element children only.
+`Node#first_element_child`, `#last_element_child` :: first/last element child (skip text nodes).
+`Node#next_element`, `#previous_element` :: next/prev sibling element.
+`Node#parent`, `#next_sibling`, `#previous_sibling` :: tree navigation.
+`Node#line` :: 1-based source line number.
+`Node#type` (alias `#node_type`) :: integer type code. Element predicates: `#element?`, `#text?`, `#comment?`, `#cdata?`, `#processing_instruction?`.
+
+Example — walk all book titles:
+
+[source,ruby]
+----
+doc.root.children.select(&:element?).each do |book|
+  title = book.children.find { |c| c.element? && c.name == "title" }
+  puts "#{book[:id]}: #{title&.content}"
+end
+# b1: Refactoring
+# b2: Programmer en Ruby
+----
+
+=== Tree iteration
+
+`Node#traverse` walks the subtree in document order via a single C-side
+callback (one FFI call for the whole traversal, not one per node):
+
+[source,ruby]
+----
+doc.root.traverse do |node|
+  case node
+  when Taurus::XML::Element   then puts "E  #{node.name}"
+  when Taurus::XML::Text      then puts "T  #{node.content.inspect}"
+  when Taurus::XML::Comment   then puts "C  #{node.content.inspect}"
+  end
 end
 ----
 
-=== XML Parsing (✅ Complete)
-
-* ✅ Complete XML 1.0 specification support
-* ✅ Elements, attributes, text, CDATA, comments, processing instructions
-* ✅ Self-closing elements
-* ✅ Robust error handling with Ruby exceptions
-* ✅ Zero-copy parsing techniques
-* ✅ SIMD-optimized hot paths
-
-=== XML Namespaces 1.0 (✅ Complete)
-
-* ✅ Namespace declaration parsing (`xmlns`, `xmlns:prefix`)
-* ✅ Namespace inheritance with proper scoping
-* ✅ Prefix-to-URI resolution with parent chain traversal
-* ✅ Default namespace handling (nil prefix)
-* ✅ Namespace override in child elements
-
-**Rich Namespace API**:
-
-* `Element#namespace` - Active namespace for element
-* `Element#namespaces` - Local namespace declarations
-* `Element#namespace_for_prefix(prefix)` - Resolve with inheritance
-* `Element#all_namespaces` - All namespaces including inherited
-
-=== XPath 1.0 Engine (✅ Complete - All 27 Functions!)
-
-All features implemented in C for maximum performance, with intelligent AST caching.
-
-**Performance**: **2.3× slower than Nokogiri** for XPath queries (competitive for v0.1.0 ✅)
-
-* Complete XPath 1.0 specification (27/27 functions, 13/13 axes)
-* AST caching eliminates re-parsing overhead
-* O(1) cache lookup with hash table (64 buckets, 256 entries max)
-* ~154KB memory for full cache
-* All 250 XPath tests passing (100%)
-* Zero external dependencies (Nokogiri requires libxml2)
-
-==== XPath Axes (13/13) ✅
-
-All XPath 1.0 axes fully implemented and tested:
-
-* `child` - Direct element children (default)
-* `descendant` - All descendants
-* `descendant-or-self` - Self and descendants (`//`)
-* `parent` - Parent element (`..`)
-* `ancestor` - All ancestors
-* `ancestor-or-self` - Self and ancestors
-* `self` - Context node (`.`)
-* `following-sibling` - Siblings after context
-* `preceding-sibling` - Siblings before context
-* `following` - All following nodes in document order
-* `preceding` - All preceding nodes in document order
-* `attribute` - Element attributes (`@`)
-* `namespace` - Namespace nodes
-
-==== XPath Functions (27/27) ✅
-
-**String Functions (10/10)**:
-
-* `string(object?)` - Convert to string
-* `concat(string, string, ...)` - Concatenate strings
-* `starts-with(string, string)` - Prefix test
-* `contains(string, string)` - Substring test
-* `substring(string, number, number?)` - Extract substring
-* `string-length(string?)` - String length
-* `normalize-space(string?)` - Normalize whitespace
-* `translate(string, string, string)` - Character translation
-* `substring-before(string, string)` - Before delimiter
-* `substring-after(string, string)` - After delimiter
-
-**Boolean Functions (5/5)**:
-
-* `boolean(object)` - Convert to boolean
-* `not(boolean)` - Logical NOT
-* `true()` - Boolean true
-* `false()` - Boolean false
-* `lang(string)` - Language matching
-
-**Number Functions (5/5)**:
-
-* `number(object?)` - Convert to number
-* `sum(node-set)` - Sum node values
-* `floor(number)` - Round down
-* `ceiling(number)` - Round up
-* `round(number)` - Round to nearest
-
-**Node-set Functions (7/7)**:
-
-* `count(node-set)` - Count nodes
-* `id(object)` - Select by ID
-* `last()` - Context size
-* `position()` - Context position
-* `local-name(node-set?)` - Local name
-* `namespace-uri(node-set?)` - Namespace URI
-* `name(node-set?)` - Qualified name
-
-==== XPath Operators (15/15) ✅
-
-* **Logical**: `or`, `and`
-* **Equality**: `=`, `!=`
-* **Relational**: `<`, `<=`, `>`, `>=`
-* **Arithmetic**: `+`, `-`, `*`, `div`, `mod`
-* **Union**: `|`
-* **Predicate**: `[]`
-
-==== XPath Predicates (3/3) ✅
-
-* **Position predicates**: `[1]`, `[N]`, `[last()]`
-* **Boolean predicates**: `[@attr]`, `[element]`, `[expression]`
-* **Comparison predicates**: `[@price > 20]`, `[@stock >= 5]` ✅ **NEW in v0.3.1**
-
-==== XPath 1.0 Specification Compliance
-
-Taurus implements the complete https://www.w3.org/TR/1999/REC-xpath-19991116/[XPath 1.0 W3C Recommendation] with **100% compliance** (250/250 tests passing):
-
-* ✅ **All 13 XPath axes** - Full spec compliance with document order maintained
-* ✅ **All 27 XPath functions** - Complete string, boolean, number, and node-set functions
-* ✅ **All 15 operators** - Logical, comparison, arithmetic, and union operators
-* ✅ **Complete predicate support** - Position and boolean predicates with proper sequencing
-* ✅ **Full namespace support** - `namespace-uri()`, `local-name()`, `name()` functions working
-* ✅ **Comprehensive testing** - 250/250 XPath tests passing (100%)
-
-**What's implemented**:
-
-* All node tests: name tests, wildcards, `text()`, `comment()`, `node()`, `processing-instruction()`
-* All abbreviated syntax: `@attr`, `.`, `..`, `//`, `[N]`
-* Complete type conversion per spec (boolean, number, string, node-set)
-* Proper operator precedence and short-circuit evaluation
-* Document order maintenance across all axes
-* UTF-8 character handling in string functions
-* Complete namespace support in parser and XPath functions
-* ✅ **NEW in v0.6.1**: Absolute path element matching (`/root`, `/root/child`)
-* ✅ **NEW in v1.1.0**: Axis syntax with operator keywords (`ancestor::div`, `child::mod`)
-* ✅ **NEW in v1.1.0**: UTF-8 encoding and substring edge cases
-
-**Known Edge Case** (1 test, 0.4% - deferred to v0.7.0):
-
-1. **Complex predicates with absolute descendant-or-self** - `//*[function()]` patterns may fail
-   * *Example*: `count(//*[local-name() = "item"])` raises error
-   * *Workaround*: Use relative path `count(.//*[local-name() = "item"])`
-   * *Workaround*: Or use `count(//item)` without predicate
-   * Cause: Pre-existing issue with function calls in `//*[...]` predicates
-
-This limitation doesn't affect core functionality. Basic XPath queries with `//element` work perfectly, and relative path predicates work correctly.
-
-**Planned for v0.7.0+**:
-
-* Fix `//*[function()]` predicate evaluation
-* Namespace prefixes in XPath queries (`//ns:book`)
-* XPath 2.0/3.0 features (long-term)
-
-==== Edge Cases
-
-The implementation correctly handles all XPath 1.0 edge cases (fixed in v1.1.0):
-
-* **Negative positions**: `substring("12345", -1, 4)` returns "12" per spec
-* **UTF-8 strings**: Proper character (not byte) counting with correct encoding
-* **Empty delimiters**: `substring-before(str, '')` returns empty string
-* **Operator keywords as names**: Support for `ancestor::div`, `child::mod` etc.
-
-For complete compliance details including test coverage by feature, see link:docs/XPATH_SPEC_COMPLIANCE.md[XPath 1.0 Spec Compliance Matrix].
-
-=== Performance Features
-
-* **AST Caching** (Session 67) - Parse XPath expressions once, use forever
-* **SIMD Optimizations** (Session 48) - ARM NEON & x86 SSE2 vectorization
-* **Character Tables** (Session 58) - Zero-branch character classification
-* **Zero-Copy Parsing** - Minimal memory allocations
-* **Memory Efficient** - ~154KB max for XPath cache, zero leaks
-
-=== Command-Line Interface (✅ Complete)
-
-Taurus includes a production-ready CLI for XML processing directly from the terminal.
-
-**Available Commands**:
-
-* `taurus parse FILE` - Parse and validate XML documents
-* `taurus xpath FILE EXPRESSION` - Execute XPath queries
-* `taurus format FILE` - Pretty-print XML
-* `taurus version` - Show version information
-
-**Key Features**:
-
-* Full XPath 1.0 support from command line
-* Multiple output formats: `xml` (default), `json`, `text`
-* Attribute support in all output formats (✅ v0.5.0)
-* Pretty-printing with customizable indentation
-* Compact mode to remove whitespace
-* Stdin/stdout support for pipelines
-* Quiet and verbose modes
-* Compatible with xmllint exit codes
-
-See <<CLI Usage>> section for detailed examples.
-
-=== Ox API Compatibility (✅ Complete)
-
-* `Element#name`, `#attributes`, `#nodes`
-* `Element#<<`, `#text`, `#replace_text`
-* `Element#[]`, `#[]=` - Dual string/symbol attribute access
-* `Document#root`, `#root=`
-* Parent-child relationships
-* Node addition/removal
-
-== Quick Start
-
-=== Command-Line Usage
-
-==== Parse & Validate
-
-Parse and validate XML documents with optional format conversion:
-
-[source,shell]
-----
-# Basic parsing (XML output)
-taurus parse document.xml
-
-# JSON output with attributes
-taurus parse --format json document.xml
-
-# Human-readable tree format
-taurus parse --format text document.xml
-
-# Validate without output
-taurus parse --noout document.xml
-
-# From stdin
-cat document.xml | taurus parse -
-----
-
-[example]
-====
-Given `books.xml`:
-[source,xml]
-----
-<library>
-  <book id="1">
-    <title>Ruby Guide</title>
-  </book>
-</library>
-----
-
-JSON output with attributes:
-[source,shell]
-----
-$ taurus parse --format json books.xml
-{"name":"library","children":[{"name":"book","attributes":{"id":"1"},"children":[{"name":"title","text":"Ruby Guide"}]}]}
-----
-
-Text tree output with attributes:
-[source,shell]
-----
-$ taurus parse --format text books.xml
-library
-  book {id="1"}
-    title: Ruby Guide
-----
-====
-
-==== XPath Queries
-
-Execute XPath queries from the command line:
-
-[source,shell]
-----
-# Basic XPath query
-taurus xpath books.xml "//book"
-
-# From stdin
-cat books.xml | taurus xpath - "//title"
-
-# Count results
-taurus xpath --count books.xml "//book"
-
-# Boolean results
-taurus xpath --boolean books.xml "//book[@price > 20]"
-
-# With verbose output
-taurus xpath --verbose books.xml "//book"
-----
-
-==== XML Formatting
-
-Pretty-print XML documents:
-
-[source,shell]
-----
-# Format with default 2-space indentation
-taurus format books.xml
-
-# Custom indentation (4 spaces)
-taurus format --indent 4 books.xml
-
-# Save to file
-taurus format --output formatted.xml books.xml
-
-# Compact mode (remove whitespace)
-taurus format --compact books.xml
-
-# From stdin
-cat books.xml | taurus format -
-----
-
-==== Pipeline Examples
-
-Combine with standard Unix tools:
-
-[source,shell]
-----
-# Count books
-taurus xpath books.xml "//book" | wc -l
-
-# Extract and format
-curl https://example.org/feed.xml | taurus xpath - "//entry" | taurus format -
-
-# Filter and count
-taurus xpath catalog.xml "//item[@available='true']" --count
-----
-
-=== Library Usage
-
-==== Basic Parsing
+== Searching: XPath and CSS
+
+`Document` and `Element` (via `Taurus::XML::Searchable`) support:
+
+[horizontal]
+`#xpath(*exprs)` :: evaluate XPath; returns `NodeSet`, `true`/`false`, `Float`, or `String` depending on the expression.
+`#at_xpath(*exprs)` :: first match (or scalar), like `xpath(*exprs).first`.
+`#css(*selectors)` :: minimal CSS-to-XPath translation, then `xpath`.
+`#at_css(*selectors)` :: first match of `css`.
+`#search(*exprs)` :: dispatches on syntax — `/`-prefixed or `,`-separated → `xpath`, otherwise `css`.
+`#at(*exprs)` :: first match of `search`.
 
 [source,ruby]
 ----
-require 'taurus'
+doc.xpath("//book")                       # => NodeSet of both <book>
+doc.xpath("count(//book)")                # => 2.0
+doc.xpath("//book[@lang='fr']/title")     # => NodeSet[<title>Programmer en Ruby</title>]
+doc.at_xpath("//book[@id='b1']")          # => <book id="b1" ...>
+doc.at_xpath("string(//book[1]/@id)")     # => "b1"
 
-# Parse XML document
-xml = '<root xmlns="http://example.org"><item id="1">content</item></root>'
-doc = Taurus.parse(xml)
+doc.css("book[lang='en'] title")          # => NodeSet[<title>Refactoring</title>]
+doc.at_css("book#b1 title")               # => <title>Refactoring</title>  (id selector)
+doc.css("book:first-child")               # first <book>
+----
 
-# Access elements
+XPath result type follows XPath 1.0 semantics:
+`count(...)` → `Float`, `boolean(...)` → `true`/`false`,
+`string(...)` → `String`, otherwise a `Taurus::XML::NodeSet`.
+
+=== Supported CSS selectors
+
+Minimal subset (translated to XPath via `Taurus::XML::CssToXPath`):
+
+* Type/universal: `book`, `*`
+* Class/ID: `.highlight`, `#b1`
+* Attribute presence: `[lang]`
+* Attribute value: `[lang='en']`, `[lang~='en']`, `[lang^='en']`, `[lang$='en']`, `[lang*='en']`
+* Combinators: descendant (space), child (`>`), comma (multi-selector)
+* Pseudo-classes: `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(...)`
+
+For anything more sophisticated, drop down to `xpath`.
+
+== Building and mutating
+
+Documents expose factory methods; elements expose mutation methods:
+
+[source,ruby]
+----
+doc  = Taurus::XML.parse("<root/>")
+book = doc.create_element("book")
+book[:id] = "b3"
+book.add_child(doc.create_element("title")).content = "New book"
+doc.root.add_child(book)
+
+puts doc.to_xml
+# <?xml version="1.0"?>
+# <root><book id="b3"><title>New book</title></book></root>
+----
+
+[horizontal]
+`Document#create_element(name)` :: detached element owned by the document.
+`Document#create_text_node(str)`, `#create_comment(str)`, `#create_cdata(str)` :: text-class factories.
+`Document#create_processing_instruction(target, data)` :: PI factory.
+`Document#fragment(markup)` :: parse a markup fragment (multiple top-level children allowed).
+`Element#name=`, `#content=` :: rename / replace inner text.
+`Element#[]=` (alias `#set_attribute`) :: add/update an attribute.
+`Element#remove_attribute` (alias `#delete`) :: drop an attribute.
+`Element#add_child(node_or_markup)` (alias `#<<`) :: append a Node, or parse+append a markup String.
+`Element#prepend_child(node)` :: insert as the first child.
+`Element#add_next_sibling(node)`, `#add_previous_sibling(node)` :: sibling insertion.
+`Element#remove_child(node)` :: detach (does not free).
+`Element#children=` :: replace all children.
+`Element#replace(node)` / `#swap(node)` :: replace in parent.
+`Element#wrap(node_or_markup)` :: wrap this element in a new one.
+`Node#unlink` :: detach from the tree.
+
+=== Building from scratch (no parse)
+
+[source,ruby]
+----
+# Create an empty Document by parsing a sentinel and replacing the root,
+# or build incrementally on a one-element seed.
+doc = Taurus::XML.parse("<root/>")
+doc.root.name = "catalog"
+# ... then create_element / add_child as above.
+----
+
+== Namespaces
+
+[horizontal]
+`Element#namespace` :: the element's in-scope namespace as a `Namespace` (or `nil`).
+`Element#namespaces` :: all in-scope namespaces (inherited from ancestors) as a `{prefix_or_xmlns => href}` hash.
+`Element#namespace_definitions` :: only namespaces declared directly on this element.
+`Element#add_namespace_definition(prefix, href)` (alias `#add_namespace`) :: declare `xmlns:prefix="href"` on this element.
+`Element#default_namespace=(href)` :: declare/replace `xmlns="href"`.
+`Element#remove_namespace_definition(prefix)` :: drop a declaration.
+
+[source,ruby]
+----
 root = doc.root
-puts root.name              # => "root"
-puts root.namespace         # => "http://example.org"
+root.add_namespace_definition("t", "https://example.org/types")
+puts root.namespaces
+# {"xmlns"=>"http://example.org/ns", "xmlns:t"=>"https://example.org/types"}
 
-# Access children
-item = root.nodes.first
-puts item.name              # => "item"
-puts item[:id]              # => "1" (symbol or string keys)
-puts item.text              # => "content"
+# XPath with prefixes is dispatched straight to libtaurus, which resolves
+# prefixes using the in-scope namespace declarations.
+doc.xpath("//t:title")
 ----
 
-=== Working with Namespaces
+== Serialization and canonicalization
+
+[horizontal]
+`Document#to_xml(indent: 0, no_decl: false, encoding: nil)` (aliases `#to_s`, `#serialize`) :: serialize the whole document.
+`Element#to_xml(...)` :: serialize a subtree.
+`Document#save(path, **opts)` :: serialize to a file.
+`Document#canonicalize(version, inclusive_ns, with_comments:, exclusive:, mode:)` (alias `#c14n`) :: canonical XML.
+`Element#canonicalize(...)` :: subtree canonicalization.
 
 [source,ruby]
 ----
-xml = <<~XML
-  <root xmlns="http://default.org"
-        xmlns:ex="http://example.org">
-    <item>default namespace</item>
-    <ex:item>example namespace</ex:item>
-  </root>
-XML
+doc.to_xml                       # one-line, no indent
+doc.to_xml(indent: 2)            # pretty-printed
+doc.canonicalize                # C14N 1.0
+doc.canonicalize(Taurus::XML::FFI::C14N_1_1)              # C14N 1.1
+doc.canonicalize(exclusive: true)                         # Exclusive C14N
+doc.canonicalize(with_comments: true)                     # keep comments
+doc.canonicalize(exclusive: true, inclusive_namespaces: ["ds"])  # InclusiveNamespaces
+----
 
-doc = Taurus.parse(xml)
+== SAX parsing
 
-# Access namespace declarations
-doc.root.namespaces.each do |ns|
-  puts "#{ns[:prefix] || 'default'}: #{ns[:href]}"
+For very large documents, use the streaming SAX parser. Subclass
+`Taurus::XML::SAX::Document` and override the events you care about:
+
+[source,ruby]
+----
+class Counter < Taurus::XML::SAX::Document
+  attr_reader :elements, :depth
+  def initialize
+    @elements = 0
+    @depth    = 0
+  end
+
+  def start_element(name, attrs = [])
+    @elements += 1
+    @depth    += 1
+    puts "  " * (@depth - 1) + "<#{name}>"
+  end
+
+  def end_element(name)
+    @depth -= 1
+  end
+
+  def characters(str)
+    puts "  " * @depth + "text: #{str.inspect}" unless str.strip.empty?
+  end
 end
 
-# Resolve with inheritance
-child = doc.root.nodes.first
-puts child.namespace  # => "http://default.org" (inherited)
-
-# XPath with namespace functions (NEW in v0.6.0)
-uri = doc.xpath('namespace-uri(//item)')
-# => "http://default.org"
-
-local = doc.xpath('local-name(//ex:item)')
-# => "item"
-
-qualified = doc.xpath('name(//ex:item)')
-# => "ex:item"
+parser = Taurus::XML::SAX::Parser.new(Counter.new)
+parser.parse(File.open("huge.xml"))   # streams in 4 KB chunks
 ----
 
-=== Custom Namespace Support (NEW in v0.9.0)
-
-==== Automatic Namespace Detection
-
-Taurus automatically detects namespace declarations from your XML documents:
-
-[source,ruby]
-----
-xml = <<~XML
-  <library xmlns:book="http://books.org">
-    <book:title>Ruby Guide</book:title>
-  </library>
-XML
-
-doc = Taurus.parse(xml)
-doc.xpath('//book:title')  # Automatically uses detected namespaces
-----
-
-==== Custom Namespace Registration
-
-For explicit control over namespace mappings, use the `namespaces:` parameter:
-
-[source,ruby]
-----
-# Override or supplement auto-detected namespaces
-doc.xpath('//ns:book', namespaces: { 'ns' => 'http://books.org' })
-
-# Works on elements too
-elem.xpath('.//ns:title', namespaces: { 'ns' => 'http://example.org' })
-----
-
-NOTE: The `namespaces:` parameter is optional and backward compatible. By default, Taurus auto-detects namespaces from XML declarations.
-
-=== Namespace Prefixes in XPath Queries (v0.8.0)
-
-Taurus v0.8.0 added full support for namespace prefixes directly in XPath queries.
-
-==== Basic Usage
-
-[source,ruby]
-----
-xml = <<~XML
-  <root xmlns:book="http://books.org"
-        xmlns:author="http://authors.org">
-    <book:title>XPath Guide</book:title>
-    <book:isbn>123-456</book:isbn>
-    <author:name>John Doe</author:name>
-  </root>
-XML
-
-doc = Taurus.parse(xml)
-
-# Direct namespace prefix support
-book_titles = doc.xpath('//book:title')
-# => [<book:title>XPath Guide</book:title>]
-
-# Wildcard with namespace prefix
-all_books = doc.xpath('//book:*')
-# => [<book:title>..., <book:isbn>...]
-
-# Multiple namespaces
-authors = doc.xpath('//author:name')
-# => [<author:name>John Doe</author:name>]
-----
-
-==== Automatic Namespace Detection
-
-Namespace prefixes are automatically detected from the document:
-
-[source,ruby]
-----
-xml = <<~XML
-  <catalog xmlns:product="http://products.org">
-    <product:item id="1">Widget</product:item>
-    <product:item id="2">Gadget</product:item>
-  </catalog>
-XML
-
-doc = Taurus.parse(xml)
-
-# Namespace 'product' automatically registered
-items = doc.xpath('//product:item')
-# => Returns both items
-
-# Works in predicates
-first = doc.xpath('//product:item[1]')
-# => Returns first item
-----
-
-==== Namespace Prefixes in Complex Queries
-
-[source,ruby]
-----
-xml = <<~XML
-  <catalog xmlns:book="http://books.org">
-    <book:publication year="2020">
-      <book:title>Learning XPath</book:title>
-      <book:author>Jane Smith</book:author>
-    </book:publication>
-    <book:publication year="2022">
-      <book:title>Advanced XPath</book:title>
-    </book:publication>
-  </catalog>
-XML
-
-doc = Taurus.parse(xml)
-
-# Combine with attribute filters
-pub_2020 = doc.xpath('//book:publication[@year="2020"]')
-# => Returns first publication
-
-# Chain namespace-aware queries
-all_titles = doc.xpath('//book:publication/book:title')
-# => Returns both titles
-
-# Use in predicates
-has_author = doc.xpath('//book:publication[book:author]')
-# => Returns first publication only
-----
-
-==== Nested Namespace Declarations
-
-Namespace declarations on any element are automatically discovered:
-
-[source,ruby]
-----
-xml = <<~XML
-  <root xmlns:outer="http://outer.org">
-    <outer:container xmlns:inner="http://inner.org">
-      <inner:item>Inner Item</inner:item>
-      <outer:item>Outer Item</outer:item>
-    </outer:container>
-  </root>
-XML
-
-doc = Taurus.parse(xml)
-
-# Both namespaces work
-inner = doc.xpath('//inner:item')  # Finds inner:item
-outer = doc.xpath('//outer:item')  # Finds outer:item
-----
-
-==== Backward Compatibility
-
-Queries without prefixes continue to match local names:
-
-[source,ruby]
-----
-xml = <<~XML
-  <root xmlns:ns="http://example.org">
-    <ns:item>Namespaced</ns:item>
-    <item>Not namespaced</item>
-  </root>
-XML
-
-doc = Taurus.parse(xml)
-
-# Without prefix: matches local name only
-all_items = doc.xpath('//item')
-# => Returns BOTH items (matches local name "item")
-
-# With prefix: matches namespace + local name
-ns_items = doc.xpath('//ns:item')
-# => Returns only <ns:item>Namespaced</ns:item>
-----
-
-=== XPath Queries
-
-[source,ruby]
-----
-xml = <<~XML
-  <library>
-    <book id="1">
-      <title>Ruby Programming</title>
-      <price>29.99</price>
-    </book>
-    <book id="2">
-      <title>Rails Guide</title>
-      <price>34.99</price>
-    </book>
-  </library>
-XML
-
-doc = Taurus.parse(xml)
-
-# Find all books
-books = doc.xpath('//book')
-puts books.size  # => 2
-
-# Find titles
-titles = doc.xpath('//book/title')
-titles.each { |t| puts t.text }
-# Output:
-# Ruby Programming
-# Rails Guide
-
-# Use predicates
-first_book = doc.xpath('//book[1]')  # Position
-books_with_id = doc.xpath('//book[@id]')  # Boolean
-
-# Use functions
-book_count = doc.xpath('count(//book)')  # => 2.0
-all_titles = doc.xpath('string(//book/title)')
-
-# Navigate with axes
-parent = doc.xpath('//title/parent::*').first  # => <book>
-siblings = doc.xpath('//title/following-sibling::*')
-----
-
-=== Attribute Selection with XPath
-
-Taurus fully supports XPath attribute selection with the attribute axis (`@`), enabling powerful attribute-based queries.
-
-==== Basic Attribute Selection
-
-[source,ruby]
-----
-xml = <<~XML
-  <library>
-    <book id="1" title="XPath Guide"/>
-    <book id="2" title="Ruby Guide"/>
-  </library>
-XML
-
-doc = Taurus.parse(xml)
-
-# Select all id attributes
-ids = doc.xpath('//@id')
-# => ["1", "2"]
-
-# Select specific attributes
-titles = doc.xpath('//book/@title')
-# => ["XPath Guide", "Ruby Guide"]
-
-# Select all attributes of books
-all_attrs = doc.xpath('//book/@*')
-# => ["1", "XPath Guide", "2", "Ruby Guide"]
-----
-
-==== Attribute Axis Syntax
-
-The attribute axis can be used in two forms:
-
-[source,ruby]
-----
-# Abbreviated syntax (recommended)
-doc.xpath('//book/@id')
-
-# Full axis syntax
-doc.xpath('//book/attribute::id')
-
-# Both return the same results
-----
-
-==== Attributes in Predicates
-
-Use attributes to filter elements:
-
-[source,ruby]
-----
-xml = <<~XML
-  <library>
-    <book id="1" price="29.99">Ruby Programming</book>
-    <book id="2" price="34.99">Rails Guide</book>
-    <book id="3">Free Book</book>
-  </library>
-XML
-
-doc = Taurus.parse(xml)
-
-# Filter by attribute existence
-books_with_id = doc.xpath('//book[@id]')
-# => Returns first two books
-
-# Filter by attribute value
-book_one = doc.xpath('//book[@id="1"]')
-# => Returns <book id="1"...>
-
-# Comparison predicates (NEW in v0.5.2)
-expensive_books = doc.xpath('//book[@price > 30]')
-# => Returns <book id="2"...>
-----
-
-==== Combining Attributes with Functions
-
-[source,ruby]
-----
-# Count books with prices
-count = doc.xpath('count(//book[@price])')
-# => 2.0
-
-# Get first book's id
-first_id = doc.xpath('string(//book[1]/@id)')
-# => "1"
-
-# Check if any book has price > 40
-has_expensive = doc.xpath('boolean(//book[@price > 40])')
-# => false
-----
-
-== Error Handling
-
-Taurus provides detailed error messages with context to help diagnose issues quickly.
-
-=== Error Types
-
-==== ParseError
-
-Raised when XML parsing fails due to malformed input:
+`SAX::Parser#parse` accepts a `String`, an `IO`, or any object responding
+to `#read`. The handler callbacks are:
+
+[horizontal]
+`start_document`, `end_document` :: document boundaries.
+`xmldecl(version, encoding, standalone)` :: XML declaration.
+`start_element(name, attrs)`, `end_element(name)` :: element events; `attrs` is an array of `[name, value]` pairs in source order.
+`characters(str)`, `comment(str)`, `cdata_block(str)` :: text-class events.
+`processing_instruction(name, content)` :: PI event.
+`start_prefix_mapping(prefix, uri)`, `end_prefix_mapping(prefix)` :: namespace events.
+`warning(str)`, `error(msg, line, col)` :: recoverable parser messages.
+
+== Memory model
+
+`Document` is the only object that owns C memory. Everything else
+(`Element`, `Text`, `Attr`, `NodeSet`, …) is a *borrowed handle* that
+is valid only while its Document is alive.
+
+* Free a document explicitly with `Document#free`. After `#free`, any
+  further method call on the document or its nodes raises
+  `Taurus::XML::UseAfterFreeError`.
+* If you don't call `#free`, GC will — a finalizer captures the raw
+  pointer address (not the Ruby wrapper) and calls
+  `taurus_document_free` exactly once.
+* `NodeSet`s holding XPath results own their own
+  `TaurusXPathResult` and free it on GC.
+* Don't hold a `Node` reference past the lifetime of its `Document`.
+  The C memory is gone; using the wrapper is undefined behaviour.
+
+== Errors
+
+All Taurus errors descend from `Taurus::XML::Error`:
+
+[horizontal]
+`ParseError` :: raised by `parse` / `parse_file` / SAX on malformed input.
+`XPathError` :: raised by `xpath` on malformed or unsupported expressions.
+`UseAfterFreeError` :: raised when calling methods on a freed `Document`.
+`Error` :: generic (mutation precondition failures, etc.).
 
 [source,ruby]
 ----
 begin
-  doc = Taurus.parse('<unclosed>')
-rescue Taurus::ParseError => e
-  puts e.message      # => "Failed to parse root element at line 1, column 1"
-  puts e.code         # => :parse_failed
-  puts e.line         # => 1
-  puts e.column       # => 1
-  puts e.byte_offset  # => 0
-  puts e.context      # => Shows error location with ^ marker
+  Taurus::XML.parse("<unclosed>")
+rescue Taurus::XML::ParseError => e
+  warn "parse failed: #{e.message}"
 end
 ----
 
-**Common Parse Errors**:
+== Migrating from Nokogiri
 
-* `:null_input` - NULL input provided to parser
-* `:empty_input` - Empty string provided
-* `:parse_failed` - Malformed XML structure
-* `:unclosed_tag` - Missing closing tag
-
-==== XPathError
-
-Raised when XPath evaluation fails:
+For most read-only XPath use cases the swap is mechanical:
 
 [source,ruby]
 ----
-begin
-  doc.xpath('//item[')
-rescue Taurus::XPathError => e
-  puts e.message   # => "Unexpected token in primary expression: EOF"
-  puts e.code      # => :xpath_syntax
-  puts e.line      # => 1
-  puts e.column    # => 8
-  puts e.context   # => "//item[\n       ^"
-end
+# Nokogiri
+require "nokogiri"
+doc = Nokogiri::XML(File.read("doc.xml"))
+doc.xpath("//item[@id='1']").each { |n| puts n.text }
+
+# Taurus
+require "taurus"
+doc = Taurus::XML.parse(File.read("doc.xml"))
+doc.xpath("//item[@id='1']").each { |n| puts n.content }
 ----
 
-**Common XPath Errors**:
+Notable differences:
 
-* `:xpath_syntax` - Invalid XPath expression syntax
-* `:xpath_function` - Unknown function name or invalid arguments
-* `:xpath_evaluation` - Runtime evaluation error
+* `Node#text` exists but the canonical name is `#content` (Nokogiri uses both).
+* `Node#children` includes whitespace text nodes (same as Nokogiri); use
+  `#element_children` or `#first_element_child` to skip them.
+* CSS support is intentionally minimal — for advanced selectors, drop to
+  `xpath`.
+* No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Taurus is XML-only.
+* No XSLT, no RelaxNG / DTD validation, no schema caching.
+* No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
 
-==== EvaluationError
+== Performance
 
-Raised when XPath evaluation encounters runtime issues:
+On the benchmark suite in `benchmark/taurus_vs_nokogiri.rb` (Ruby 3.3,
+libtaurus v0.13+, macOS arm64), Taurus matches or beats Nokogiri on
+parse, XPath, serialize, and full-tree traverse for the small and
+medium documents that dominate real-world XML workloads. Run the
+benchmark locally for numbers on your hardware:
 
-[source,ruby]
+[source,shell]
 ----
-begin
-  doc.xpath('unknown_func()')
-rescue Taurus::XPathError => e
-  puts e.message  # => "Unknown function 'unknown_func' at line 1, column 1"
-  puts e.code     # => :xpath_function
-  # May include suggestion: "Did you mean count(), concat(), or contains()?"
-end
+bundle exec ruby benchmark/taurus_vs_nokogiri.rb
 ----
-
-=== Error Context and Position Markers
-
-All errors include context snippets showing the exact error location with a position marker (`^`):
-
-[source,ruby]
-----
-# XPath syntax error
-doc.xpath('//book[@id = invalid]')
-# XPathError: Unexpected token in primary expression: NCNAME
-#   Line: 1, Column: 14
-#   Context:
-#     //book[@id = invalid]
-#                  ^
-
-# Parse error
-Taurus.parse('<root><item></root>')
-# ParseError: Mismatched closing tag at line 1, column 13
-#   Context:
-#     <root><item></root>
-#                 ^
-----
-
-The position marker precisely indicates where the error occurred, making it easy to locate and fix issues.
-
-=== Error Object Attributes
-
-All error exceptions provide comprehensive diagnostic information:
-
-[horizontal]
-`message`:: Human-readable error description
-`code`:: Symbol error code (`:parse_failed`, `:xpath_syntax`, etc.)
-`line`:: Line number where error occurred (1-based)
-`column`:: Column number where error occurred (1-based)
-`byte_offset`:: Byte offset in the input string
-`context`:: Code snippet showing error location with `^` marker
-
-=== Error Codes Reference
-
-==== Parse Error Codes
-
-[horizontal]
-`:null_input`:: NULL input provided to parser
-`:empty_input`:: Empty string provided to parser
-`:parse_failed`:: Generic parse failure (malformed XML)
-`:unclosed_tag`:: XML element not properly closed
-`:invalid_attribute`:: Invalid attribute syntax
-
-==== XPath Error Codes
-
-[horizontal]
-`:xpath_syntax`:: Invalid XPath expression syntax
-`:xpath_function`:: Unknown function name or invalid arguments
-`:xpath_evaluation`:: Runtime evaluation error
-`:xpath_type_error`:: Type conversion error
-`:xpath_divide_by_zero`:: Division by zero in arithmetic
-
-=== Handling Errors Gracefully
-
-[source,ruby]
-----
-# Validate XML before processing
-def parse_safe(xml)
-  Taurus.parse(xml)
-rescue Taurus::ParseError => e
-  warn "XML parsing failed: #{e.message}"
-  warn "Error code: #{e.code}"
-  warn "Location: line #{e.line}, column #{e.column}"
-  nil
-end
-
-# Validate XPath before execution
-def xpath_safe(doc, expression)
-  doc.xpath(expression)
-rescue Taurus::XPathError => e
-  warn "XPath evaluation failed: #{e.message}"
-  warn "Expression: #{expression}"
-  warn "Error at: line #{e.line}, column #{e.column}"
-  []
-end
-
-# Use with error handling
-doc = parse_safe(user_xml)
-if doc
-  results = xpath_safe(doc, user_xpath)
-  process_results(results) if results.any?
-end
-----
-
-=== Best Practices
-
-1. **Always handle errors** - Wrap parsing and XPath in begin/rescue blocks
-2. **Use error codes** - Check `e.code` for specific error types
-3. **Show context** - Display `e.context` to users for debugging
-4. **Log full details** - Log all error attributes for troubleshooting
-5. **Validate input** - Check XML and XPath expressions before processing
-
-For a complete catalog of all error messages and solutions, see link:docs/ERROR_MESSAGES.md[Error Messages Catalog].
-
-== Architecture
-
-=== Modular Design (All files <700 lines)
-
-**Core Parser**:
-
-* `taurus.c` (93 lines) - Module initialization
-* `parse.c` (670 lines) - XML parser with SIMD
-* `namespace.c` (104 lines) - Namespace management
-* `element.c` (98 lines) - Element structures
-* `taurus.h` (103 lines) - Shared declarations
-
-**XPath Engine** (Modularized in Session 15):
-
-* `lexer_xpath.c` (538 lines) - Tokenization
-* `parser_xpath.c` (230 lines) - Parser core
-* `xpath_parser_expressions.c` (425 lines) - Expression parsing
-* `xpath_parser_paths.c` (265 lines) - Path parsing
-* `xpath_parser_node_tests.c` (80 lines) - Node tests
-* `evaluator_xpath.c` (419 lines) - Evaluator core
-* `xpath_axes.c` (411 lines) - All 13 axes
-* `xpath_operators.c` (312 lines) - All operators
-* `xpath_node_test.c` (99 lines) - Node matching
-* `xpath_predicates.c` (110 lines) - Predicates
-* `xpath_functions.c` (189 lines) - Function library
-* `xpath_ast_cache.c` (173 lines) - AST caching system
-
-**Performance Optimizations**:
-
-* `simd_helpers.h` - SIMD utilities (ARM NEON, SSE2, scalar)
-* `xpath_ast_cache.h` - AST caching API
-
-**Ruby Layer**:
-
-* `node.rb` - Base Node class
-* `element.rb` - Element with full API
-* `document.rb` - Document container
-* `node_set.rb` - XPath result sets
-* `attributes_hash.rb` - Dual-key access
-
-=== Design Principles
-
-* **MECE** - Mutually Exclusive, Collectively Exhaustive
-* **Object-Oriented** - Model-driven architecture
-* **Separation of Concerns** - Clear module boundaries
-* **Open/Closed** - Extensible without modification
-* **Single Responsibility** - Each module has one job
-* **No Code Guards** - Architectural solutions, not `#ifdef`
-
-== Test Coverage
-
-**Overall**: 494/494 tests passing (100%)
-
-[cols="3,2,2",options="header"]
-|===
-|Test Suite |Tests |Status
-
-|XML Parser (Ruby)
-|86/86
-|✅ 100%
-
-|Namespaces (Ruby)
-|28/28
-|✅ 100%
-
-|XPath Lexer (Ruby)
-|21/21
-|✅ 100%
-
-|XPath Parser (Ruby)
-|60/60
-|✅ 100%
-
-|XPath Engine (Ruby)
-|250/250
-|✅ 100%
-
-|C Parser Tests
-|25/25
-|✅ 100%
-
-|C Evaluator Tests
-|57/57
-|✅ 100%
-
-|Integration Tests
-|Comprehensive
-|✅ 100%
-|===
-
-**Memory Safety**: Zero leaks verified with valgrind
-
-== Known Limitations
-
-None at this time. See link:docs/LIMITATIONS.md[Limitations] for a complete list.
-
-== Future Enhancements
-
-1. **XPath 2.0/3.0 features** - Only XPath 1.0 supported (long-term roadmap)
-2. **Custom namespace registration** - Currently auto-detected only (v0.9.0+)
 
 == Development
 
-=== Building from Source
-
 [source,shell]
 ----
-# Clone repository
-git clone https://github.com/lutaml/taurus.git
-cd taurus
-
-# Install dependencies
-bundle install
-
-# Compile C extension
-bundle exec rake compile
-
-# Run tests
-bundle exec rake spec      # Ruby tests
-bundle exec rake test_c    # C unit tests
-bundle exec rake test      # All tests
+bundle install                       # install Ruby deps
+bundle exec rspec                    # full test suite (176 specs)
+bundle exec rspec spec/xml/xpath_spec.rb:42   # one example by line
+bundle exec rubocop                  # lint
 ----
 
-=== Running Benchmarks
-
-[source,shell]
-----
-# Production benchmark suite (comprehensive)
-bundle exec ruby benchmark/production_suite.rb
-
-# Compare with Ox
-ruby benchmark/compare_ox.rb
-
-# XPath profiling
-ruby benchmark/xpath_profiling.rb
-----
-
-== Documentation
-
-=== API Reference
-
-**Complete YARD documentation** is available for all public APIs:
-
-* **HTML Documentation**: link:doc/index.html[View API Docs] (86.12% coverage, 134 methods documented)
-* **Serve Locally**: Run `yard server` and visit http://localhost:8808
-
-**Coverage**: All core classes fully documented with examples:
-* `Taurus` module - Main entry point and parsing
-* `Taurus::Document` - Document container with root access
-* `Taurus::Element` - Core element API (50+ methods)
-* `Taurus::Node` - Base class for all nodes
-* `Taurus::NodeSet` - XPath result collections
-* `Taurus::AttributesHash` - Dual string/symbol attribute access
-* `Taurus::XPath` - XPath utilities (tokenize, parse, evaluate)
-
-=== Guides & References
-
-* link:CHANGELOG.md[Changelog] - Version history and release notes
-* link:docs/XPATH_SPEC_COMPLIANCE.md[XPath 1.0 Spec Compliance] - Complete compliance matrix with test coverage
-* link:docs/PERFORMANCE.adoc[Performance Guide] - Comprehensive optimization analysis and benchmarking
-* link:docs/ARCHITECTURE.adoc[Architecture] - System design and component structure
-* link:docs/FUTURE_VISION.md[Future Vision] - Long-term roadmap and libtaurus vision
-* link:old-docs/sessions/[Development History] - Historical optimization analyses
-
-== Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feat/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feat/amazing-feature`)
-5. Open a Pull Request
-
-=== Development Principles
-
-* **Architecture First** - Prioritize clean design over hacks
-* **Test Religiously** - 100% pass rate is non-negotiable
-* **MECE Always** - Mutually Exclusive, Collectively Exhaustive
-* **Document Thoroughly** - Future developers will thank you
+CI pins libtaurus to a released tag (currently v0.18.5) and builds it
+from source on each runner; see `.github/workflows/build.yml`.
 
 == License
 
-MIT License - see link:LICENSE[LICENSE] file for details.
-
-== Credits
-
-* **pugixml** - Performance optimization techniques
-* **StAX** - Memory-efficient streaming patterns
-* **Ox** - API compatibility inspiration
-* **Nokogiri** - XPath
-
- feature completeness inspiration
-
-== Links
-
-* **RubyGems**: https://rubygems.org/gems/taurus
-* **GitHub**: https://github.com/lutaml/taurus
-* **Issues**: https://github.com/lutaml/taurus/issues
-* **Discussions**: https://github.com/lutaml/taurus/discussions
-== C Library
-
-This gem provides Ruby bindings for the https://github.com/lutaml/taurus[libtaurus] C library.
-
-The C library provides the core functionality:
-
-* **High-performance XML parsing** with SIMD optimizations
-* **Complete XPath 1.0 implementation** (27 functions, 13 axes)
-* **Full XML Namespaces 1.0** specification support
-* **Command-line interface** (taurus CLI)
-* **Zero external dependencies** (no libxml2)
-
-For C API documentation and CLI usage, see the https://github.com/lutaml/taurus[taurus repository].
-
-=== Building libtaurus from Source
-
-If you need to rebuild the C library:
-
-[source,bash]
-----
-git clone https://github.com/lutaml/taurus.git
-cd taurus
-mkdir build && cd build
-cmake ..
-make
-sudo make install  # Optional: system-wide installation
-----
-
-The Ruby gem includes a pre-built copy of `libtaurus.dylib` for convenience.
-
+MIT — see link:LICENSE[LICENSE].
