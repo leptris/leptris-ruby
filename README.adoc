@@ -397,7 +397,7 @@ bundle exec rspec spec/xml/xpath_spec.rb:42   # one example by line
 bundle exec rubocop                  # lint
 ----
 
-CI pins libtaurus to a released tag (currently v0.20.0) and builds it
+CI pins libtaurus to a released tag (currently v0.22.0) and builds it
 from source on each runner; see `.github/workflows/build.yml`.
 
 == License
