@@ -54,7 +54,7 @@ jobs:
           -DTAURUS_BUILD_MAN_PAGES=OFF \
           -DTAURUS_ENABLE_UTF8PROC=OFF \
           -DTAURUS_ENABLE_ICONV=OFF
-        cmake --build build -j 4
+        cmake --build build --config Release -j 4
         LIB=$(find build -type f -o -type l 2>/dev/null | grep -iE '(lib)?taurus\.(dylib|so|dll)$' | head -1)
         if [ -z "$LIB" ]; then
           echo "ERROR: libtaurus shared library not found after build"
