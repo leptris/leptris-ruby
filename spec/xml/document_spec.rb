@@ -173,3 +173,28 @@ RSpec.describe Taurus::XML::Node do
     end
   end
 end
+
+RSpec.describe "Taurus::XML module entry points" do
+  it "parses via Taurus::XML.parse" do
+    doc = Taurus::XML.parse("<root><child/></root>")
+    expect(doc).to be_a(Taurus::XML::Document)
+    expect(doc.root.name).to eq("root")
+    expect(doc.root.first_element_child.name).to eq("child")
+  end
+
+  it "parses an IO via Taurus::XML.parse" do
+    require "stringio"
+    doc = Taurus::XML.parse(StringIO.new("<root/>"))
+    expect(doc.root.name).to eq("root")
+  end
+
+  it "parses a file via Taurus::XML.parse_file" do
+    require "tmpdir"
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.xml")
+      File.write(path, "<root>data</root>")
+      doc = Taurus::XML.parse_file(path)
+      expect(doc.root.content).to eq("data")
+    end
+  end
+end

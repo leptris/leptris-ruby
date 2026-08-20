@@ -21,6 +21,16 @@ module Taurus
     autoload :SAX, "taurus/xml/sax"
     require "taurus/xml/c14n"  # module-level helper, eager load
 
+    # Nokogiri-style top-level entry points (Nokogiri::XML(...) /
+    # Nokogiri::XML.parse). Delegates to Document.parse.
+    def self.parse(xml_or_io)
+      Document.parse(xml_or_io)
+    end
+
+    def self.parse_file(path)
+      Document.parse_file(path)
+    end
+
     class Error < StandardError; end
     class ParseError < Error; end
     class XPathError < Error; end
