@@ -38,32 +38,32 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install libtaurus from source
+    - name: Install libleptris from source
       shell: bash
       run: |
         set -e
         mkdir -p /tmp/tb && cd /tmp/tb
-        curl -sL https://api.github.com/repos/lutaml/taurus/tarball/v0.26.7 | tar xz --strip-components=1
+        curl -sL https://api.github.com/repos/leptris/leptris/tarball/v1.0.0 | tar xz --strip-components=1
         cmake -B build -S . \
           -DCMAKE_BUILD_TYPE=Release \
-          -DTAURUS_BUILD_SHARED=ON \
-          -DTAURUS_BUILD_STATIC=OFF \
+          -DLEPTRIS_BUILD_SHARED=ON \
+          -DLEPTRIS_BUILD_STATIC=OFF \
           -DBUILD_TESTING=OFF \
-          -DTAURUS_BUILD_CLI=OFF \
-          -DTAURUS_BUILD_BENCHMARKS=OFF \
-          -DTAURUS_BUILD_MAN_PAGES=OFF \
-          -DTAURUS_ENABLE_UTF8PROC=OFF \
-          -DTAURUS_ENABLE_ICONV=OFF
+          -DLEPTRIS_BUILD_CLI=OFF \
+          -DLEPTRIS_BUILD_BENCHMARKS=OFF \
+          -DLEPTRIS_BUILD_MAN_PAGES=OFF \
+          -DLEPTRIS_ENABLE_UTF8PROC=OFF \
+          -DLEPTRIS_ENABLE_ICONV=OFF
         cmake --build build --config Release -j 4
-        LIB=$(find build -type f -o -type l 2>/dev/null | grep -iE '(lib)?taurus\.(dylib|so|dll)$' | head -1)
+        LIB=$(find build -type f -o -type l 2>/dev/null | grep -iE '(lib)?leptris\.(dylib|so|dll)$' | head -1)
         if [ -z "$LIB" ]; then
-          echo "ERROR: libtaurus shared library not found after build"
-          find build -name '*taurus*' -type f
+          echo "ERROR: libleptris shared library not found after build"
+          find build -name '*leptris*' -type f
           exit 1
         fi
         LIBPATH=$(cygpath -w "$(pwd)/$LIB" 2>/dev/null || echo "$(pwd)/$LIB")
-        echo "TAURUS_LIB_PATH=$LIBPATH" >> "$GITHUB_ENV"
-        echo "Installed libtaurus at: $LIBPATH"
+        echo "LEPTRIS_LIB_PATH=$LIBPATH" >> "$GITHUB_ENV"
+        echo "Installed libleptris at: $LIBPATH"
 
     - uses: ruby/setup-ruby@master
       with:
