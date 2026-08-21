@@ -21,3 +21,4 @@ jobs:
       next_version: ${{ github.event.inputs.next_version }}
       gated: false
       submodules: false
+      environment: release
