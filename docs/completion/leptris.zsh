@@ -1,8 +1,8 @@
-#compdef taurus
-# Zsh completion for taurus CLI
-# Install to: /usr/local/share/zsh/site-functions/_taurus
+#compdef leptris
+# Zsh completion for leptris CLI
+# Install to: /usr/local/share/zsh/site-functions/_leptris
 
-_taurus() {
+_leptris() {
     local -a commands
     commands=(
         'parse:Parse and validate XML documents'
@@ -71,4 +71,4 @@ _taurus() {
     esac
 }
 
-_taurus "$@"
+_leptris "$@"

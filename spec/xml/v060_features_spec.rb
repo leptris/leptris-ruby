@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
 RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doctype" do
   describe "Element#dup / Node#dup" do
-    let(:doc) { Taurus::XML::Document.parse("<r><a x='1'><b>text</b></a><c/></r>") }
+    let(:doc) { Leptris::XML::Document.parse("<r><a x='1'><b>text</b></a><c/></r>") }
 
     it "creates a detached deep copy of an element subtree" do
       a = doc.root.first_element_child
       copy = a.dup
-      expect(copy).to be_a(Taurus::XML::Element)
+      expect(copy).to be_a(Leptris::XML::Element)
       expect(copy["x"]).to eq("1")
       expect(copy.element_children.map(&:name)).to eq(%w[b])
       expect(copy.content).to eq("text")
@@ -44,15 +44,15 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
   describe "Document#dup / #clone" do
     it "produces a deep copy of the whole document" do
-      doc = Taurus::XML::Document.parse("<r><a/></r>")
+      doc = Leptris::XML::Document.parse("<r><a/></r>")
       copy = doc.dup
-      expect(copy).to be_a(Taurus::XML::Document)
+      expect(copy).to be_a(Leptris::XML::Document)
       expect(copy.c_ptr).not_to eq(doc.c_ptr)
       expect(copy.root.element_children.map(&:name)).to eq(%w[a])
     end
 
     it "mutations in the copy do not affect the original" do
-      doc = Taurus::XML::Document.parse("<r><a/></r>")
+      doc = Leptris::XML::Document.parse("<r><a/></r>")
       copy = doc.dup
       copy.root.first_element_child.name = "changed"
       expect(doc.root.first_element_child.name).to eq("a")
@@ -62,7 +62,7 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
   describe "Node#path / #css_path" do
     let(:doc) do
-      Taurus::XML::Document.parse("<r><list><item/><item/><item/></list></r>")
+      Leptris::XML::Document.parse("<r><list><item/><item/><item/></list></r>")
     end
 
     it "returns the canonical XPath to a node" do
@@ -84,14 +84,14 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
   describe "Document#fragment" do
     it "parses a fragment with multiple top-level nodes" do
-      doc = Taurus::XML::Document.parse("<root/>")
+      doc = Leptris::XML::Document.parse("<root/>")
       frag = doc.fragment("<a/><b/><c/>")
-      expect(frag).to be_a(Taurus::XML::DocumentFragment)
+      expect(frag).to be_a(Leptris::XML::DocumentFragment)
       expect(frag.children.map(&:name)).to eq(%w[a b c])
     end
 
     it "parses mixed content (elements + text + comment)" do
-      doc = Taurus::XML::Document.parse("<root/>")
+      doc = Leptris::XML::Document.parse("<root/>")
       frag = doc.fragment("hello<a>x</a><!-- c -->")
       types = frag.children.map { |n| [n.class.name.split("::").last, n.respond_to?(:name) ? n.name : nil] }
       expect(types.map(&:first)).to include("Text", "Element", "Comment")
@@ -100,14 +100,14 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
   describe "Element#add_child with String markup" do
     it "parses the markup and appends each top-level node" do
-      doc = Taurus::XML::Document.parse("<root/>")
+      doc = Leptris::XML::Document.parse("<root/>")
       result = doc.root.add_child("<a/><b/>")
-      expect(result).to be_a(Taurus::XML::NodeSet)
+      expect(result).to be_a(Leptris::XML::NodeSet)
       expect(doc.root.element_children.map(&:name)).to eq(%w[a b])
     end
 
     it "parses mixed-content strings" do
-      doc = Taurus::XML::Document.parse("<root/>")
+      doc = Leptris::XML::Document.parse("<root/>")
       doc.root.add_child("hello<a>x</a>")
       names = doc.root.children.map { |n| [n.class.name.split("::").last, n.respond_to?(:name) ? n.name : nil] }
       expect(names.map(&:first)).to include("Text", "Element")
@@ -116,15 +116,15 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
   describe "Document#doctype / #internal_subset" do
     it "returns nil when the document has no DOCTYPE" do
-      doc = Taurus::XML::Document.parse("<root/>")
+      doc = Leptris::XML::Document.parse("<root/>")
       expect(doc.doctype).to be_nil
       expect(doc.internal_subset).to be_nil
     end
 
     it "exposes the DOCTYPE name (root element name)" do
-      doc = Taurus::XML::Document.parse(%q{<!DOCTYPE html><html/>})
+      doc = Leptris::XML::Document.parse(%q{<!DOCTYPE html><html/>})
       dt = doc.doctype
-      expect(dt).to be_a(Taurus::XML::DocType)
+      expect(dt).to be_a(Leptris::XML::DocType)
       expect(dt.name).to eq("html")
       expect(dt.root_name).to eq("html")
     end
@@ -134,7 +134,7 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
         <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
         <html/>
       XML
-      doc = Taurus::XML::Document.parse(xml)
+      doc = Leptris::XML::Document.parse(xml)
       dt = doc.doctype
       expect(dt.public_id).to eq("-//W3C//DTD XHTML 1.0 Strict//EN")
       expect(dt.system_id).to eq("http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd")
@@ -142,7 +142,7 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
     it "exposes SYSTEM-only identifiers" do
       xml = %q{<!DOCTYPE config SYSTEM "config.dtd"><config/>}
-      doc = Taurus::XML::Document.parse(xml)
+      doc = Leptris::XML::Document.parse(xml)
       dt = doc.doctype
       expect(dt.public_id).to be_nil
       expect(dt.system_id).to eq("config.dtd")
@@ -150,7 +150,7 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
     it "exposes the internal subset (DTD declarations)" do
       xml = %q{<!DOCTYPE root [<!ELEMENT root (a,b)><!ELEMENT a EMPTY><!ELEMENT b EMPTY>]><root><a/><b/></root>}
-      doc = Taurus::XML::Document.parse(xml)
+      doc = Leptris::XML::Document.parse(xml)
       dt = doc.doctype
       subset = dt.internal_subset
       expect(subset).to include("<!ELEMENT root")
@@ -159,7 +159,7 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
 
     it "renders the full DOCTYPE declaration via #to_s" do
       xml = %q{<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html/>}
-      doc = Taurus::XML::Document.parse(xml)
+      doc = Leptris::XML::Document.parse(xml)
       expect(doc.doctype.to_s)
         .to include('PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"')
       expect(doc.doctype.to_s).to include("<!DOCTYPE html")

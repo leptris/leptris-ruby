@@ -1,14 +1,25 @@
 # Changelog
 
-All notable changes to Taurus will be documented in this file.
+All notable changes to Leptris will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-21
+
+The leptris rebrand, in lockstep with libleptris 1.0.0. Every
+module, file, gem name, and FFI symbol renamed (Taurus → Leptris,
+taurus_* C calls → leptris_*, libtaurus → libleptris). **This
+release requires libleptris ≥ 1.0.0** — the 0.x gem cannot load
+against the renamed library, and this gem cannot load against the
+0.x library.
+
+Previously 0.1.8 under the name `taurus`.
+
 ## [0.1.0] - 2026-08-08
 
 Complete rewrite as a Nokogiri-compatible FFI binding for
-[libtaurus](https://github.com/lutaml/taurus) v0.5.14. The C DOM is the
+[libleptris](https://github.com/leptris/leptris) v0.5.14. The C DOM is the
 single source of truth; Ruby objects are thin FFI wrappers (one Ruby
 method = one FFI call).
 
@@ -34,7 +45,7 @@ method = one FFI call).
 - `NodeSet`: Enumerable + Searchable
 
 ### Added — XML::Searchable
-- `#xpath`, `#at_xpath` via `taurus_xpath_eval`
+- `#xpath`, `#at_xpath` via `leptris_xpath_eval`
 - `#css`, `#at_css` via minimal CSS-to-XPath translator
   (`.class`, `#id`, `[attr]`, `[attr=val]`, descendant, child,
   comma-multi, `:first-child`, `:last-child`, `:only-child`,
@@ -51,25 +62,25 @@ method = one FFI call).
 - `Document#to_xml`, `Element#to_xml` with indent / xml_declaration /
   encoding options
 - `Document#canonicalize` (whole-doc) and `Element#canonicalize`
-  (subtree) via `taurus_c14n_canonicalize_ex` / `_subtree_ex`
+  (subtree) via `leptris_c14n_canonicalize_ex` / `_subtree_ex`
 - All four C14N modes: canonical 1.0, canonical 1.1, exclusive,
   with/without comments, inclusive namespace prefixes
 
 ### Removed
-- Pure-Ruby XML tree model (`lib/taurus/{document,element,node,
+- Pure-Ruby XML tree model (`lib/leptris/{document,element,node,
   node_set}.rb`) — replaced by thin FFI wrappers
-- Pure-Ruby XPath engine (`lib/taurus/xpath/`) — replaced by libtaurus
+- Pure-Ruby XPath engine (`lib/leptris/xpath/`) — replaced by libleptris
   XPath 1.0 evaluator
-- Stale bundled C source at `ext/taurus/lib/`
-- `taurus` CLI (`lib/taurus/cli.rb`, `lib/taurus/commands/`)
-- Pure-Ruby adapter framework (`lib/taurus/adapter*`)
+- Stale bundled C source at `ext/leptris/lib/`
+- `leptris` CLI (`lib/leptris/cli.rb`, `lib/leptris/commands/`)
+- Pure-Ruby adapter framework (`lib/leptris/adapter*`)
 - Thor runtime dependency
 
 ### Required external dependency
-- libtaurus v0.5.14 or later, installed separately. Get it from
-  https://github.com/lutaml/taurus/releases and place the shared
+- libleptris v0.5.14 or later, installed separately. Get it from
+  https://github.com/leptris/leptris/releases and place the shared
   library on your system's library search path, or set
-  `TAURUS_LIB_PATH` to point at it.
+  `LEPTRIS_LIB_PATH` to point at it.
 
 ## [1.1.0] - 2024-12-08
 
@@ -91,7 +102,7 @@ method = one FFI call).
 
 ### 🎉 First Production Release!
 
-Taurus v1.0.0 is production-ready with complete XPath 1.0 support, comprehensive error handling, and excellent performance.
+Leptris v1.0.0 is production-ready with complete XPath 1.0 support, comprehensive error handling, and excellent performance.
 
 ### Added
 
@@ -103,9 +114,9 @@ Taurus v1.0.0 is production-ready with complete XPath 1.0 support, comprehensive
   - Full error attributes: message, code, line, column, byte_offset, context
 
 - **Complete Error Types**
-  - `Taurus::ParseError` - XML parsing failures with line/column tracking
-  - `Taurus::XPathError` - XPath syntax and evaluation errors with context
-  - `Taurus::EvaluationError` - Runtime evaluation issues with diagnostics
+  - `Leptris::ParseError` - XML parsing failures with line/column tracking
+  - `Leptris::XPathError` - XPath syntax and evaluation errors with context
+  - `Leptris::EvaluationError` - Runtime evaluation issues with diagnostics
 
 - **Error Documentation**
   - New comprehensive error message catalog (`docs/ERROR_MESSAGES.md`)
@@ -188,15 +199,15 @@ No breaking changes! v1.0.0 is fully backward compatible with v0.9.0.
 ```ruby
 # Before: Generic rescue
 begin
-  doc = Taurus.parse(xml)
+  doc = Leptris.parse(xml)
 rescue => e
   puts "Error: #{e.message}"
 end
 
 # After: Specific error handling with context
 begin
-  doc = Taurus.parse(xml)
-rescue Taurus::ParseError => e
+  doc = Leptris.parse(xml)
+rescue Leptris::ParseError => e
   puts "Parse error at #{e.line}:#{e.column}"
   puts e.context  # Shows error location with ^ marker
   puts "Code: #{e.code}"  # Programmatic error handling
@@ -272,8 +283,8 @@ These limitations don't affect normal usage and will be addressed in future vers
 
 ### Technical Details
 - Optimized `xpath_context_resolve_prefix()` in `lib/src/xpath/evaluator.c`
-- Enhanced Ruby API in `lib/taurus/document.rb` and `lib/taurus/element.rb`
-- Updated `Taurus.xpath_evaluate()` signature for future namespace support
+- Enhanced Ruby API in `lib/leptris/document.rb` and `lib/leptris/element.rb`
+- Updated `Leptris.xpath_evaluate()` signature for future namespace support
 - Clean code: all files ≤670 lines, MECE architecture maintained
 
 ## [0.8.0] - 2024-12-05
@@ -468,7 +479,7 @@ See [docs/SESSION_114_SUMMARY.md](docs/SESSION_114_SUMMARY.md) for technical det
 - Full predicate support
 - Complete operator support
 - FFI architecture with Ruby bindings
-- Pure C library (libtaurus) with 44+ public functions
+- Pure C library (libleptris) with 44+ public functions
 - CLI tool with 4 commands
 
 ### Changed
@@ -506,13 +517,13 @@ See [docs/SESSION_114_SUMMARY.md](docs/SESSION_114_SUMMARY.md) for technical det
 - Basic DOM API
 - Ox-compatible interface
 
-[0.6.1]: https://github.com/lutaml/taurus/compare/v0.6.0...v0.6.1
-[0.6.0]: https://github.com/lutaml/taurus/compare/v0.5.2...v0.6.0
-[0.5.2]: https://github.com/lutaml/taurus/compare/v0.5.0...v0.5.2
-[0.5.0]: https://github.com/lutaml/taurus/compare/v0.3.0...v0.5.0
-[0.3.0]: https://github.com/lutaml/taurus/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/lutaml/taurus/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/lutaml/taurus/releases/tag/v0.1.0
+[0.6.1]: https://github.com/leptris/leptris/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/leptris/leptris/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/leptris/leptris/compare/v0.5.0...v0.5.2
+[0.5.0]: https://github.com/leptris/leptris/compare/v0.3.0...v0.5.0
+[0.3.0]: https://github.com/leptris/leptris/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/leptris/leptris/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/leptris/leptris/releases/tag/v0.1.0
 
-[0.8.0]: https://github.com/lutaml/taurus/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/lutaml/taurus/compare/v0.6.1...v0.7.0
+[0.8.0]: https://github.com/leptris/leptris/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/leptris/leptris/compare/v0.6.1...v0.7.0

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Taurus
+module Leptris
   module XML
     # Minimal CSS-to-XPath translator covering the common Nokogiri subset:
     #

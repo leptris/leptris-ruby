@@ -1,18 +1,18 @@
 # frozen_string_literal: true
 
-module Taurus::XML::Searchable
+module Leptris::XML::Searchable
   def xpath(*paths)
     handler, _ns, _vars = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
 
-    doc_ptr = is_a?(Taurus::XML::Document) ? c_ptr : document.c_ptr
-    context_ptr = is_a?(Taurus::XML::Document) ? nil : c_ptr
+    doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
+    context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 
-    result_ptr = Taurus::XML::FFI.taurus_xpath_eval(doc_ptr, context_ptr, expr)
+    result_ptr = Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
     if result_ptr.null?
-      raise Taurus::XML::XPathError,
-        Taurus::XML::FFI.taurus_status_string(Taurus::XML::FFI::TAURUS_ERROR_XPATH)
+      raise Leptris::XML::XPathError,
+        Leptris::XML::FFI.leptris_status_string(Leptris::XML::FFI::LEPTRIS_ERROR_XPATH)
     end
 
     wrap_xpath_result(result_ptr)
@@ -20,7 +20,7 @@ module Taurus::XML::Searchable
 
   def at_xpath(*paths)
     result = xpath(*paths)
-    result.is_a?(Taurus::XML::NodeSet) ? result.first : result
+    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
   end
 
   def search(*args)
@@ -31,7 +31,7 @@ module Taurus::XML::Searchable
 
   def at(*args)
     result = search(*args)
-    result.is_a?(Taurus::XML::NodeSet) ? result.first : result
+    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
   end
   alias_method :%, :at
 
@@ -39,13 +39,13 @@ module Taurus::XML::Searchable
     handler, ns, _ = parse_search_args(args)
     raise ArgumentError, "namespace bindings not supported in css" if ns && !ns.empty?
     raise ArgumentError, "custom CSS handlers not supported" if handler
-    expr = args.map { |r| Taurus::XML::CssToXPath.convert(r) }.join(" | ")
+    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r) }.join(" | ")
     xpath(expr)
   end
 
   def at_css(*args)
     result = css(*args)
-    result.is_a?(Taurus::XML::NodeSet) ? result.first : result
+    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
   end
 
   protected
@@ -67,27 +67,27 @@ module Taurus::XML::Searchable
   end
 
   def wrap_xpath_result(result_ptr)
-    type = Taurus::XML::FFI.taurus_xpath_result_type(result_ptr)
+    type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     case type
-    when Taurus::XML::FFI::XPATH_NODESET
-      Taurus::XML::NodeSet.send(:from_result, document, result_ptr)
-    when Taurus::XML::FFI::XPATH_BOOLEAN
-      v = Taurus::XML::FFI.taurus_xpath_result_boolean(result_ptr) != 0
-      Taurus::XML::FFI.taurus_xpath_result_free(result_ptr)
+    when Leptris::XML::FFI::XPATH_NODESET
+      Leptris::XML::NodeSet.send(:from_result, document, result_ptr)
+    when Leptris::XML::FFI::XPATH_BOOLEAN
+      v = Leptris::XML::FFI.leptris_xpath_result_boolean(result_ptr) != 0
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       v
-    when Taurus::XML::FFI::XPATH_NUMBER
-      v = Taurus::XML::FFI.taurus_xpath_result_number(result_ptr)
-      Taurus::XML::FFI.taurus_xpath_result_free(result_ptr)
+    when Leptris::XML::FFI::XPATH_NUMBER
+      v = Leptris::XML::FFI.leptris_xpath_result_number(result_ptr)
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       v
-    when Taurus::XML::FFI::XPATH_STRING
-      str_ptr = Taurus::XML::FFI.taurus_xpath_result_string(result_ptr)
+    when Leptris::XML::FFI::XPATH_STRING
+      str_ptr = Leptris::XML::FFI.leptris_xpath_result_string(result_ptr)
       v = str_ptr.null? ? "" : str_ptr.read_string
-      Taurus::XML::FFI.taurus_free_string(str_ptr) unless str_ptr.null?
-      Taurus::XML::FFI.taurus_xpath_result_free(result_ptr)
+      Leptris::XML::FFI.leptris_free_string(str_ptr) unless str_ptr.null?
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       v
     else
-      Taurus::XML::FFI.taurus_xpath_result_free(result_ptr)
-      raise Taurus::XML::XPathError, "unknown xpath result type #{type}"
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
+      raise Leptris::XML::XPathError, "unknown xpath result type #{type}"
     end
   end
 end

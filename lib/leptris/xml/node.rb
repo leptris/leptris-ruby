@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Taurus::XML::Node
+class Leptris::XML::Node
   attr_reader :c_ptr, :document
 
   def initialize(c_ptr, document, parent: nil)
@@ -19,17 +19,17 @@ class Taurus::XML::Node
     end
 
     node =
-      case Taurus::XML::FFI.taurus_node_get_type(c_ptr)
-      when Taurus::XML::FFI::NODE_ELEMENT
-        Taurus::XML::Element.new(c_ptr, document, parent: parent)
-      when Taurus::XML::FFI::NODE_TEXT
-        Taurus::XML::Text.new(c_ptr, document, parent: parent)
-      when Taurus::XML::FFI::NODE_COMMENT
-        Taurus::XML::Comment.new(c_ptr, document, parent: parent)
-      when Taurus::XML::FFI::NODE_CDATA
-        Taurus::XML::CDATA.new(c_ptr, document, parent: parent)
-      when Taurus::XML::FFI::NODE_PI
-        Taurus::XML::ProcessingInstruction.new(c_ptr, document, parent: parent)
+      case Leptris::XML::FFI.leptris_node_get_type(c_ptr)
+      when Leptris::XML::FFI::NODE_ELEMENT
+        Leptris::XML::Element.new(c_ptr, document, parent: parent)
+      when Leptris::XML::FFI::NODE_TEXT
+        Leptris::XML::Text.new(c_ptr, document, parent: parent)
+      when Leptris::XML::FFI::NODE_COMMENT
+        Leptris::XML::Comment.new(c_ptr, document, parent: parent)
+      when Leptris::XML::FFI::NODE_CDATA
+        Leptris::XML::CDATA.new(c_ptr, document, parent: parent)
+      when Leptris::XML::FFI::NODE_PI
+        Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent)
       else
         new(c_ptr, document, parent: parent)
       end
@@ -49,72 +49,72 @@ class Taurus::XML::Node
   alias_method :inner_text, :content
 
   def type
-    Taurus::XML::FFI.taurus_node_get_type(@c_ptr)
+    Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
   end
   alias_method :node_type, :type
 
-  def element?;  type == Taurus::XML::FFI::NODE_ELEMENT;  end
-  def text?;     type == Taurus::XML::FFI::NODE_TEXT;     end
-  def comment?;  type == Taurus::XML::FFI::NODE_COMMENT;  end
-  def cdata?;    type == Taurus::XML::FFI::NODE_CDATA;    end
+  def element?;  type == Leptris::XML::FFI::NODE_ELEMENT;  end
+  def text?;     type == Leptris::XML::FFI::NODE_TEXT;     end
+  def comment?;  type == Leptris::XML::FFI::NODE_COMMENT;  end
+  def cdata?;    type == Leptris::XML::FFI::NODE_CDATA;    end
   def processing_instruction?
-    type == Taurus::XML::FFI::NODE_PI
+    type == Leptris::XML::FFI::NODE_PI
   end
   alias_method :pi?, :processing_instruction?
 
   def parent
     return @parent if @parent
-    ptr = Taurus::XML::FFI.taurus_node_parent(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
     return nil if ptr.null?
-    Taurus::XML::Element.new(ptr, @document)
+    Leptris::XML::Element.new(ptr, @document)
   end
 
   def line
-    Taurus::XML::FFI.taurus_node_line(@c_ptr)
+    Leptris::XML::FFI.leptris_node_line(@c_ptr)
   end
 
   def <=>(other)
-    return nil unless other.is_a?(Taurus::XML::Node)
+    return nil unless other.is_a?(Leptris::XML::Node)
     return nil unless @document == other.document
-    Taurus::XML::FFI.taurus_node_compare(@c_ptr, other.c_ptr)
+    Leptris::XML::FFI.leptris_node_compare(@c_ptr, other.c_ptr)
   end
 
   def child
-    ptr = Taurus::XML::FFI.taurus_node_first_child(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     return nil if ptr.null?
-    Taurus::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
+    Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
   end
 
   def children
     nodes = []
-    ptr = Taurus::XML::FFI.taurus_node_first_child(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     until ptr.nil? || ptr.null?
-      nodes << Taurus::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
-      ptr = Taurus::XML::FFI.taurus_node_next_sibling(ptr)
+      nodes << Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
+      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
     end
-    Taurus::XML::NodeSet.new(@document, nodes)
+    Leptris::XML::NodeSet.new(@document, nodes)
   end
 
   def next_sibling
-    ptr = Taurus::XML::FFI.taurus_node_next_sibling(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_next_sibling(@c_ptr)
     return nil if ptr.null?
-    Taurus::XML::Node.wrap(ptr, @document, parent: @parent)
+    Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
   end
   alias_method :next, :next_sibling
 
   def previous_sibling
-    ptr = Taurus::XML::FFI.taurus_node_previous_sibling(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_previous_sibling(@c_ptr)
     return nil if ptr.null?
-    Taurus::XML::Node.wrap(ptr, @document, parent: @parent)
+    Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
   end
   alias_method :previous, :previous_sibling
 
   def first_element_child
-    ptr = Taurus::XML::FFI.taurus_node_first_child(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     until ptr.nil? || ptr.null?
-      node = Taurus::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
+      node = Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
       return node if node.element?
-      ptr = Taurus::XML::FFI.taurus_node_next_sibling(ptr)
+      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
     end
     nil
   end
@@ -141,9 +141,9 @@ class Taurus::XML::Node
   end
 
   def unlink
-    status = Taurus::XML::FFI.taurus_node_unlink(@c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_node_unlink(@c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     @parent = nil
     self
   end
@@ -159,21 +159,21 @@ class Taurus::XML::Node
   #
   # Still pays ~2 FFI calls per visited node (first_child + next_sibling).
   # Beating Nokogiri on this benchmark needs C-side traverse with a
-  # callback (libtaurus #273); the per-node FFI cost is the floor.
+  # callback (libleptris #273); the per-node FFI cost is the floor.
   def traverse
     return enum_for(:traverse) unless block_given?
     callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
-      yield Taurus::XML::Node.wrap(node_ptr, @document)
+      yield Leptris::XML::Node.wrap(node_ptr, @document)
       0
     end
-    Taurus::XML::FFI.taurus_node_traverse(
-      @c_ptr, Taurus::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
+    Leptris::XML::FFI.leptris_node_traverse(
+      @c_ptr, Leptris::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
   end
 
   def path
-    str_ptr = Taurus::XML::FFI.taurus_node_get_xpath(@c_ptr)
+    str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
     return nil if str_ptr.null?
-    str_ptr.read_string.tap { Taurus::XML::FFI.taurus_free_string(str_ptr) }
+    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
   end
 
   def css_path
@@ -185,16 +185,16 @@ class Taurus::XML::Node
   end
 
   def dup
-    elem_ptr = Taurus::XML::FFI.taurus_node_as_element(@c_ptr)
-    raise Taurus::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
-    copy_ptr = Taurus::XML::FFI.taurus_element_copy(elem_ptr, @document.c_ptr)
-    raise Taurus::XML::Error, "taurus_element_copy failed" if copy_ptr.null?
-    Taurus::XML::Element.new(copy_ptr, @document)
+    elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)
+    raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
+    copy_ptr = Leptris::XML::FFI.leptris_element_copy(elem_ptr, @document.c_ptr)
+    raise Leptris::XML::Error, "leptris_element_copy failed" if copy_ptr.null?
+    Leptris::XML::Element.new(copy_ptr, @document)
   end
   alias_method :clone, :dup
 
   def ==(other)
-    return false unless other.is_a?(Taurus::XML::Node)
+    return false unless other.is_a?(Leptris::XML::Node)
     @c_ptr == other.c_ptr
   end
 
@@ -205,7 +205,7 @@ class Taurus::XML::Node
   protected
 
   def as_element_or_self
-    is_a?(Taurus::XML::Element) ? self : nil
+    is_a?(Leptris::XML::Element) ? self : nil
   end
 
   private
@@ -217,5 +217,5 @@ class Taurus::XML::Node
   # calls and wrapping nodes directly. Saves one Array + one NodeSet
   # allocation per parent node.
   #
-  include Taurus::XML::Searchable
+  include Leptris::XML::Searchable
 end

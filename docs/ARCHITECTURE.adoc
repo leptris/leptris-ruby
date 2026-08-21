@@ -1,10 +1,10 @@
-= Taurus Architecture
+= Leptris Architecture
 :toc:
 :toclevels: 3
 
 == Overview
 
-Taurus is designed as a clean, modular XML parser and XPath engine implemented entirely in C for maximum performance. The architecture follows object-oriented principles with clear separation of concerns.
+Leptris is designed as a clean, modular XML parser and XPath engine implemented entirely in C for maximum performance. The architecture follows object-oriented principles with clear separation of concerns.
 
 == System Architecture
 
@@ -77,7 +77,7 @@ Taurus is designed as a clean, modular XML parser and XPath engine implemented e
 * Attribute storage
 * Memory management
 
-==== taurus.h (103 lines)
+==== leptris.h (103 lines)
 
 **Responsibility**: Shared declarations for parser
 
@@ -278,7 +278,7 @@ C Element Structures
     ↓
 Namespace-Aware DOM
     ↓
-[Ruby Conversion - taurus.c]
+[Ruby Conversion - leptris.c]
     ↓
 Ruby Document/Element Objects
 ----
@@ -461,7 +461,7 @@ xpath_function_registry_register(
 );
 ----
 
-3. **Test** in `spec/taurus/element_xpath_spec.rb`
+3. **Test** in `spec/leptris/element_xpath_spec.rb`
 
 === Adding a New Axis
 
@@ -485,7 +485,7 @@ static VALUE axis_myaxis(VALUE context_node, XPathASTNode* node_test) {
 [source]
 ----
 spec/                          - Ruby tests (RSpec)
-├── taurus/
+├── leptris/
 │   ├── element_xpath_spec.rb  - 250 XPath integration tests
 │   ├── namespace_spec.rb      - Namespace functionality
 │   ├── element_spec.rb        - Element API tests
@@ -541,14 +541,14 @@ XPathNodeSet → Ruby Array
 
 === Possible (v0.3.0+)
 
-* XSLT 1.0 support (separate gem: taurus-xslt)
+* XSLT 1.0 support (separate gem: leptris-xslt)
 * XML Schema validation
 * XPath 3.0 features
 * JRuby support
 
 == Conclusion
 
-Taurus achieves its performance through careful architectural design:
+Leptris achieves its performance through careful architectural design:
 
 * **Modular structure** - All files under 700 lines, clear responsibilities
 * **SIMD optimization** - Leverages modern CPU features

@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
-module Taurus
-  VERSION = "0.1.8"
+module Leptris
+  VERSION = "1.0.0"
 end

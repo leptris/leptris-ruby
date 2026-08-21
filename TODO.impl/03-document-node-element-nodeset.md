@@ -3,56 +3,56 @@
 ## Goal
 
 Implement the core Nokogiri-compatible Ruby classes backed by FFI
-calls to libtaurus. Each Ruby method = one C function call.
+calls to libleptris. Each Ruby method = one C function call.
 
 ## File layout
 
 ```
-lib/taurus.rb                          # autoload + version
-lib/taurus/xml.rb                      # XML module + parse entry points
-lib/taurus/xml/ffi.rb                  # FFI declarations (TODO 2)
-lib/taurus/xml/document.rb             # Document class
-lib/taurus/xml/node.rb                 # Node base class
-lib/taurus/xml/element.rb              # Element < Node
-lib/taurus/xml/text.rb                 # Text < Node
-lib/taurus/xml/comment.rb             # Comment < Node
-lib/taurus/xml/cdata.rb               # CDATA < Node
-lib/taurus/xml/processing_instruction.rb  # ProcessingInstruction < Node
-lib/taurus/xml/attr.rb                 # Attr class
-lib/taurus/xml/node_set.rb            # NodeSet class
-lib/taurus/xml/searchable.rb          # Searchable mixin (xpath/css/search)
-lib/taurus/xml/parse_options.rb       # ParseOptions class
+lib/leptris.rb                          # autoload + version
+lib/leptris/xml.rb                      # XML module + parse entry points
+lib/leptris/xml/ffi.rb                  # FFI declarations (TODO 2)
+lib/leptris/xml/document.rb             # Document class
+lib/leptris/xml/node.rb                 # Node base class
+lib/leptris/xml/element.rb              # Element < Node
+lib/leptris/xml/text.rb                 # Text < Node
+lib/leptris/xml/comment.rb             # Comment < Node
+lib/leptris/xml/cdata.rb               # CDATA < Node
+lib/leptris/xml/processing_instruction.rb  # ProcessingInstruction < Node
+lib/leptris/xml/attr.rb                 # Attr class
+lib/leptris/xml/node_set.rb            # NodeSet class
+lib/leptris/xml/searchable.rb          # Searchable mixin (xpath/css/search)
+lib/leptris/xml/parse_options.rb       # ParseOptions class
 ```
 
 ## Autoload pattern
 
 ```ruby
-# lib/taurus.rb
-module Taurus
-  autoload :XML, 'taurus/xml'
+# lib/leptris.rb
+module Leptris
+  autoload :XML, 'leptris/xml'
 end
 
-# lib/taurus/xml.rb
-module Taurus
+# lib/leptris/xml.rb
+module Leptris
   module XML
-    autoload :FFI,            'taurus/xml/ffi'
-    autoload :Document,       'taurus/xml/document'
-    autoload :Node,           'taurus/xml/node'
-    autoload :Element,        'taurus/xml/element'
-    autoload :Text,           'taurus/xml/text'
-    autoload :Comment,        'taurus/xml/comment'
-    autoload :CDATA,          'taurus/xml/cdata'
-    autoload :ProcessingInstruction, 'taurus/xml/processing_instruction'
-    autoload :Attr,           'taurus/xml/attr'
-    autoload :NodeSet,        'taurus/xml/node_set'
-    autoload :Searchable,     'taurus/xml/searchable'
-    autoload :ParseOptions,   'taurus/xml/parse_options'
+    autoload :FFI,            'leptris/xml/ffi'
+    autoload :Document,       'leptris/xml/document'
+    autoload :Node,           'leptris/xml/node'
+    autoload :Element,        'leptris/xml/element'
+    autoload :Text,           'leptris/xml/text'
+    autoload :Comment,        'leptris/xml/comment'
+    autoload :CDATA,          'leptris/xml/cdata'
+    autoload :ProcessingInstruction, 'leptris/xml/processing_instruction'
+    autoload :Attr,           'leptris/xml/attr'
+    autoload :NodeSet,        'leptris/xml/node_set'
+    autoload :Searchable,     'leptris/xml/searchable'
+    autoload :ParseOptions,   'leptris/xml/parse_options'
 
     def self.parse(string_or_io, options = nil)
       xml = string_or_io.respond_to?(:read) ? string_or_io.read : string_or_io
       status = ::FFI::MemoryPointer.new(:int)
-      ptr = FFI.taurus_parse_string(xml, xml.bytesize, status)
-      raise ParseError, "taurus_parse_string failed (status=#{status.read_int})" if ptr.nil? || ptr.null?
+      ptr = FFI.leptris_parse_string(xml, xml.bytesize, status)
+      raise ParseError, "leptris_parse_string failed (status=#{status.read_int})" if ptr.nil? || ptr.null?
       Document.wrap(ptr)
     end
   end
@@ -62,7 +62,7 @@ end
 ## Document
 
 ```ruby
-class Taurus::XML::Document < Taurus::XML::Node
+class Leptris::XML::Document < Leptris::XML::Node
   def self.wrap(c_ptr)
     doc = allocate
     doc.instance_variable_set(:@c_ptr, c_ptr)
@@ -70,13 +70,13 @@ class Taurus::XML::Document < Taurus::XML::Node
   end
 
   def root
-    ptr = FFI.taurus_document_root(@c_ptr)
+    ptr = FFI.leptris_document_root(@c_ptr)
     return nil if ptr.nil? || ptr.null?
-    Taurus::XML::Element.wrap(ptr, self)
+    Leptris::XML::Element.wrap(ptr, self)
   end
 
   def xpath(expr)
-    Taurus::XML::XPath.evaluate(@c_ptr, nil, expr)
+    Leptris::XML::XPath.evaluate(@c_ptr, nil, expr)
   end
 
   def at_xpath(expr)
@@ -88,16 +88,16 @@ class Taurus::XML::Document < Taurus::XML::Node
     opts = SerializeOptions.new
     opts[:indent] = options[:indent] || 0
     opts[:xml_declaration] = options[:no_decl] ? 0 : 1
-    ptr = FFI.taurus_serialize_document(@c_ptr, opts.pointer)
+    ptr = FFI.leptris_serialize_document(@c_ptr, opts.pointer)
     return '' if ptr.nil? || ptr.null?
     str = ptr.read_string
-    FFI.taurus_free_string(ptr)
+    FFI.leptris_free_string(ptr)
     str
   end
 
   def free
     return unless @c_ptr
-    FFI.taurus_document_free(@c_ptr)
+    FFI.leptris_document_free(@c_ptr)
     @c_ptr = nil
   end
 end
@@ -106,7 +106,7 @@ end
 ## Node (base class)
 
 ```ruby
-class Taurus::XML::Node
+class Leptris::XML::Node
   attr_reader :c_ptr, :document
 
   def initialize(c_ptr, document)
@@ -115,13 +115,13 @@ class Taurus::XML::Node
   end
 
   def self.wrap(c_ptr, document)
-    type = FFI.taurus_node_get_type(c_ptr)
+    type = FFI.leptris_node_get_type(c_ptr)
     case type
-    when NODE_ELEMENT then Taurus::XML::Element.new(c_ptr, document)
-    when NODE_TEXT    then Taurus::XML::Text.new(c_ptr, document)
-    when NODE_COMMENT then Taurus::XML::Comment.new(c_ptr, document)
-    when NODE_CDATA   then Taurus::XML::CDATA.new(c_ptr, document)
-    when NODE_PI      then Taurus::XML::ProcessingInstruction.new(c_ptr, document)
+    when NODE_ELEMENT then Leptris::XML::Element.new(c_ptr, document)
+    when NODE_TEXT    then Leptris::XML::Text.new(c_ptr, document)
+    when NODE_COMMENT then Leptris::XML::Comment.new(c_ptr, document)
+    when NODE_CDATA   then Leptris::XML::CDATA.new(c_ptr, document)
+    when NODE_PI      then Leptris::XML::ProcessingInstruction.new(c_ptr, document)
     else new(c_ptr, document)
     end
   end
@@ -135,7 +135,7 @@ class Taurus::XML::Node
   end
 
   def type
-    FFI.taurus_node_get_type(@c_ptr)
+    FFI.leptris_node_get_type(@c_ptr)
   end
 
   def element?; type == NODE_ELEMENT; end
@@ -145,19 +145,19 @@ class Taurus::XML::Node
   def processing_instruction?; type == NODE_PI; end
 
   def next_sibling
-    ptr = FFI.taurus_node_next_sibling(@c_ptr)
+    ptr = FFI.leptris_node_next_sibling(@c_ptr)
     return nil if ptr.null?
     Node.wrap(ptr, @document)
   end
 
   def previous_sibling
-    ptr = FFI.taurus_node_previous_sibling(@c_ptr)
+    ptr = FFI.leptris_node_previous_sibling(@c_ptr)
     return nil if ptr.null?
     Node.wrap(ptr, @document)
   end
 
   def parent
-    ptr = FFI.taurus_element_parent(@c_ptr) # only works for elements
+    ptr = FFI.leptris_element_parent(@c_ptr) # only works for elements
     return nil if ptr.null?
     Element.wrap(ptr, @document)
   end
@@ -167,7 +167,7 @@ class Taurus::XML::Node
   end
 
   def child
-    ptr = FFI.taurus_node_first_child(@c_ptr)
+    ptr = FFI.leptris_node_first_child(@c_ptr)
     return nil if ptr.null?
     Node.wrap(ptr, @document)
   end
@@ -185,32 +185,32 @@ end
 ## Element
 
 ```ruby
-class Taurus::XML::Element < Taurus::XML::Node
+class Leptris::XML::Element < Leptris::XML::Node
   def name
-    FFI.taurus_element_name(@c_ptr)
+    FFI.leptris_element_name(@c_ptr)
   end
 
   def name=(n)
-    FFI.taurus_element_set_name(@c_ptr, n)
+    FFI.leptris_element_set_name(@c_ptr, n)
   end
 
   def content
-    FFI.taurus_element_text(@c_ptr)
+    FFI.leptris_element_text(@c_ptr)
   end
   alias_method :text, :content
 
   def [](attr_name)
-    FFI.taurus_element_attribute(@c_ptr, attr_name, nil)
+    FFI.leptris_element_attribute(@c_ptr, attr_name, nil)
   end
 
   def []=(attr_name, value)
-    FFI.taurus_element_set_attribute(@c_ptr, attr_name, value.to_s)
+    FFI.leptris_element_set_attribute(@c_ptr, attr_name, value.to_s)
   end
 
   def attributes
     # Walk the C attribute list, build a hash of Attr objects
     result = {}
-    count = FFI.taurus_element_attribute_count(@c_ptr)
+    count = FFI.leptris_element_attribute_count(@c_ptr)
     # ... iterate attribute linked list ...
     result
   end
@@ -224,13 +224,13 @@ class Taurus::XML::Element < Taurus::XML::Node
   end
 
   def first_element_child
-    ptr = FFI.taurus_element_first_child_any(@c_ptr)
+    ptr = FFI.leptris_element_first_child_any(@c_ptr)
     return nil if ptr.null?
     Element.wrap(ptr, @document)
   end
 
   def add_child(node)
-    FFI.taurus_element_append_child(@c_ptr, node.c_ptr)
+    FFI.leptris_element_append_child(@c_ptr, node.c_ptr)
     node
   end
 
@@ -245,25 +245,25 @@ end
 ## NodeSet
 
 ```ruby
-class Taurus::XML::NodeSet
+class Leptris::XML::NodeSet
   include Enumerable
   include Searchable
 
   def initialize(document, result_ptr = nil)
     @document = document
-    @result_ptr = result_ptr  # TaurusXPathResult pointer
+    @result_ptr = result_ptr  # LeptrisXPathResult pointer
   end
 
   def length
     return @cached_length if @cached_length
     @cached_length =
-      @result_ptr ? FFI.taurus_xpath_result_count(@result_ptr) : 0
+      @result_ptr ? FFI.leptris_xpath_result_count(@result_ptr) : 0
   end
   alias_method :size, :length
 
   def [](index)
     return nil if index < 0 || index >= length
-    ptr = FFI.taurus_xpath_result_get(@result_ptr, index)
+    ptr = FFI.leptris_xpath_result_get(@result_ptr, index)
     return nil if ptr.null?
     Node.wrap(ptr, @document)
   end
@@ -296,7 +296,7 @@ class Taurus::XML::NodeSet
 
   def free
     return unless @result_ptr
-    FFI.taurus_xpath_result_free(@result_ptr)
+    FFI.leptris_xpath_result_free(@result_ptr)
     @result_ptr = nil
   end
 end
@@ -305,31 +305,31 @@ end
 ## Searchable (mixin for xpath/css)
 
 ```ruby
-module Taurus::XML::Searchable
+module Leptris::XML::Searchable
   def xpath(*paths)
     expr = paths.join(' | ')
-    result_ptr = FFI.taurus_xpath_eval(
+    result_ptr = FFI.leptris_xpath_eval(
       document.c_ptr,
       respond_to?(:c_ptr) ? c_ptr : nil,
       expr
     )
     return nil if result_ptr.null?
 
-    result_type = FFI.taurus_xpath_result_type(result_ptr)
+    result_type = FFI.leptris_xpath_result_type(result_ptr)
     case result_type
     when XPATH_NODESET
       NodeSet.new(@document, result_ptr)
     when XPATH_NUMBER
-      n = FFI.taurus_xpath_result_number(result_ptr)
-      FFI.taurus_xpath_result_free(result_ptr)
+      n = FFI.leptris_xpath_result_number(result_ptr)
+      FFI.leptris_xpath_result_free(result_ptr)
       n
     when XPATH_STRING
-      s = FFI.taurus_xpath_result_string(result_ptr)
-      FFI.taurus_xpath_result_free(result_ptr)
+      s = FFI.leptris_xpath_result_string(result_ptr)
+      FFI.leptris_xpath_result_free(result_ptr)
       s
     when XPATH_BOOLEAN
-      b = FFI.taurus_xpath_result_boolean(result_ptr)
-      FFI.taurus_xpath_result_free(result_ptr)
+      b = FFI.leptris_xpath_result_boolean(result_ptr)
+      FFI.leptris_xpath_result_free(result_ptr)
       b == 1
     end
   end
@@ -369,7 +369,7 @@ end
 ## Implementation notes
 
 - **No `require_relative`** anywhere. Use `autoload` defined in the
-  immediate parent namespace's file (e.g., `lib/taurus/xml.rb`).
+  immediate parent namespace's file (e.g., `lib/leptris/xml.rb`).
 - **No `instance_variable_set`/`instance_variable_get`** on other
   objects. Use public accessor methods.
 - **No `send`** to call private methods.

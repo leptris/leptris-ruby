@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Bash completion for taurus CLI
-# Install to: /etc/bash_completion.d/taurus or ~/.bash_completion.d/taurus
+# Bash completion for leptris CLI
+# Install to: /etc/bash_completion.d/leptris or ~/.bash_completion.d/leptris
 
-_taurus() {
+_leptris() {
     local cur prev words cword
     _init_completion || return
     
@@ -83,4 +83,4 @@ _taurus() {
     esac
 }
 
-complete -F _taurus taurus
+complete -F _leptris leptris

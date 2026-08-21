@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"

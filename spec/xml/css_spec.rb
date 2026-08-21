@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
-RSpec.describe "Taurus::XML CSS selectors (minimal Nokogiri subset)" do
+RSpec.describe "Leptris::XML CSS selectors (minimal Nokogiri subset)" do
   let(:doc) do
-    Taurus::XML::Document.parse(<<~HTML)
+    Leptris::XML::Document.parse(<<~HTML)
       <html>
         <body>
           <div id="main" class="container">

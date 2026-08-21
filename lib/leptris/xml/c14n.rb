@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-module Taurus
+module Leptris
   module XML
     # @api private
     #
     # Builds a NULL-terminated `const char**` from a Ruby array of strings,
-    # suitable for passing to taurus_c14n_canonicalize_ex's
+    # suitable for passing to leptris_c14n_canonicalize_ex's
     # `inclusive_ns_prefixes` argument. Returns [pointer, anchor] where
     # anchor is the underlying MemoryPointer that the caller must keep
     # alive (e.g. via local variable) for the duration of the FFI call.

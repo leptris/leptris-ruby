@@ -2,17 +2,17 @@
 
 require "ffi"
 
-class Taurus::XML::NodeSet
+class Leptris::XML::NodeSet
   include Enumerable
-  include Taurus::XML::Searchable
+  include Leptris::XML::Searchable
 
   attr_reader :document
 
   # Two construction modes:
   # - eager: pass an Array of Nodes (e.g. Element#children builds one)
-  # - lazy:  pass an FFI::Pointer to a TaurusXPathResult that this NodeSet
+  # - lazy:  pass an FFI::Pointer to a LeptrisXPathResult that this NodeSet
   #          will keep alive and free on GC. Each [i] / each call goes
-  #          through taurus_xpath_result_get instead of pre-materializing.
+  #          through leptris_xpath_result_get instead of pre-materializing.
   def initialize(document, source = nil)
     @document = document
     case source
@@ -24,7 +24,7 @@ class Taurus::XML::NodeSet
         # Wrap in AutoPointer for automatic GC-time cleanup. NodeSet has no
         # explicit #free method (Nokogiri doesn't either), so the AutoPointer
         # double-free risk that Document#free hit doesn't apply here.
-        @result_ptr = ::FFI::AutoPointer.new(source, Taurus::XML::FFI.method(:taurus_xpath_result_free))
+        @result_ptr = ::FFI::AutoPointer.new(source, Leptris::XML::FFI.method(:leptris_xpath_result_free))
         @array = nil
       end
     when nil
@@ -41,7 +41,7 @@ class Taurus::XML::NodeSet
   end
 
   def length
-    @result_ptr ? Taurus::XML::FFI.taurus_xpath_result_count(@result_ptr) : @array.length
+    @result_ptr ? Leptris::XML::FFI.leptris_xpath_result_count(@result_ptr) : @array.length
   end
   alias_method :size, :length
 
@@ -52,9 +52,9 @@ class Taurus::XML::NodeSet
   def [](idx)
     if @result_ptr
       return nil if idx < 0 || idx >= length
-      ptr = Taurus::XML::FFI.taurus_xpath_result_get(@result_ptr, idx)
+      ptr = Leptris::XML::FFI.leptris_xpath_result_get(@result_ptr, idx)
       return nil if ptr.null?
-      Taurus::XML::Node.wrap(ptr, @document)
+      Leptris::XML::Node.wrap(ptr, @document)
     else
       @array[idx]
     end
@@ -63,19 +63,19 @@ class Taurus::XML::NodeSet
   def each
     return enum_for(:each) unless block_given?
     if @result_ptr
-      # Batch-fetch all node pointers in one FFI call (taurus_xpath_result_get_nodes,
-      # libtaurus v0.11.4) and wrap each. Saves N-1 FFI calls vs the per-index
-      # taurus_xpath_result_get loop. Wrappers are still cached per-Document via
+      # Batch-fetch all node pointers in one FFI call (leptris_xpath_result_get_nodes,
+      # libleptris v0.11.4) and wrap each. Saves N-1 FFI calls vs the per-index
+      # leptris_xpath_result_get loop. Wrappers are still cached per-Document via
       # Node.wrap, so a re-iteration of the same NodeSet hits the cache.
       n = length
       if n > 0
         buf = ::FFI::MemoryPointer.new(:pointer, n)
         begin
-          copied = Taurus::XML::FFI.taurus_xpath_result_get_nodes(@result_ptr, buf, n)
+          copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes(@result_ptr, buf, n)
           copied.times do |i|
             ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
             next if ptr.null?
-            yield Taurus::XML::Node.wrap(ptr, @document)
+            yield Leptris::XML::Node.wrap(ptr, @document)
           end
         ensure
           buf.free
@@ -119,13 +119,13 @@ class Taurus::XML::NodeSet
     handler, _ns, _vars = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
-    accumulated = Taurus::XML::NodeSet.new(@document)
+    accumulated = Leptris::XML::NodeSet.new(@document)
     each do |node|
-      next unless node.is_a?(Taurus::XML::Element)
-      result_ptr = Taurus::XML::FFI.taurus_xpath_eval(
+      next unless node.is_a?(Leptris::XML::Element)
+      result_ptr = Leptris::XML::FFI.leptris_xpath_eval(
         @document.c_ptr, node.c_ptr, expr)
       next if result_ptr.null?
-      sub = Taurus::XML::NodeSet.send(:from_result, @document, result_ptr)
+      sub = Leptris::XML::NodeSet.send(:from_result, @document, result_ptr)
       accumulated = merge_node_sets(accumulated, sub)
     end
     accumulated
@@ -138,6 +138,6 @@ class Taurus::XML::NodeSet
   private
 
   def merge_node_sets(a, b)
-    Taurus::XML::NodeSet.new(@document, a.to_a + b.to_a)
+    Leptris::XML::NodeSet.new(@document, a.to_a + b.to_a)
   end
 end

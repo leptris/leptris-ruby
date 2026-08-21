@@ -1,8 +1,8 @@
-.TH TAURUS-PARSE 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.TH LEPTRIS-PARSE 1 "January 2025" "Leptris 0.5.0" "User Commands"
 .SH NAME
-taurus-parse \- Parse and validate XML documents
+leptris-parse \- Parse and validate XML documents
 .SH SYNOPSIS
-.B taurus parse
+.B leptris parse
 .RI [ OPTIONS ]
 .I FILE
 .SH DESCRIPTION
@@ -129,25 +129,25 @@ Invalid arguments. Incorrect command-line options.
 .SH EXAMPLES
 .TP
 Parse a file and display as XML:
-.B taurus parse document.xml
+.B leptris parse document.xml
 .TP
 Parse and display as JSON:
-.B taurus parse --format json document.xml
+.B leptris parse --format json document.xml
 .TP
 Parse and display as text tree:
-.B taurus parse --format text document.xml
+.B leptris parse --format text document.xml
 .TP
 Parse from stdin:
-.B cat document.xml | taurus parse -
+.B cat document.xml | leptris parse -
 .TP
 Validate XML without output:
-.B taurus parse --noout document.xml
+.B leptris parse --noout document.xml
 .TP
 Parse malformed XML with recovery:
-.B taurus parse --recover broken.xml
+.B leptris parse --recover broken.xml
 .TP
 Check if XML is valid (exit code only):
-.B taurus parse --noout document.xml && echo "Valid" || echo "Invalid"
+.B leptris parse --noout document.xml && echo "Valid" || echo "Invalid"
 .SH PERFORMANCE
 The parser achieves high performance through:
 .TP
@@ -163,13 +163,13 @@ O(n) parsing time relative to document size
 .B Lazy evaluation
 Namespaces resolved only when accessed
 .SH SEE ALSO
-.BR taurus (1),
-.BR taurus-xpath (1),
-.BR taurus-format (1),
+.BR leptris (1),
+.BR leptris-xpath (1),
+.BR leptris-format (1),
 .BR xmllint (1)
 .SH BUGS
 Report bugs at:
-.UR https://github.com/lutaml/taurus/issues
+.UR https://github.com/leptris/leptris/issues
 .UE
 .SH AUTHORS
 Written by the Lutaml team at Ribose Inc.

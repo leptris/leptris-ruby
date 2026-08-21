@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
 RSpec.describe "Element mutation: replace / swap / wrap / children=" do
-  let(:doc) { Taurus::XML::Document.parse("<r><a/><b/><c/></r>") }
+  let(:doc) { Leptris::XML::Document.parse("<r><a/><b/><c/></r>") }
   let(:root) { doc.root }
 
   describe "#replace" do
@@ -18,7 +18,7 @@ RSpec.describe "Element mutation: replace / swap / wrap / children=" do
     it "raises when self has no parent" do
       elem = doc.create_element("orphan")
       expect { elem.replace(doc.create_element("X")) }
-        .to raise_error(Taurus::XML::Error, /no parent/)
+        .to raise_error(Leptris::XML::Error, /no parent/)
     end
   end
 
@@ -55,7 +55,7 @@ RSpec.describe "Element mutation: replace / swap / wrap / children=" do
 
     it "raises when self has no parent" do
       orphan = doc.create_element("orphan")
-      expect { orphan.wrap("<x/>") }.to raise_error(Taurus::XML::Error, /no parent/)
+      expect { orphan.wrap("<x/>") }.to raise_error(Leptris::XML::Error, /no parent/)
     end
   end
 end

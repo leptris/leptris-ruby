@@ -42,5 +42,5 @@ CMakeFiles/
 Thumbs.db
 
 # Keep the shared library
-!lib/libtaurus.dylib
-!lib/libtaurus.so
+!lib/libleptris.dylib
+!lib/libleptris.so

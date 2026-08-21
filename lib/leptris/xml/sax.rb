@@ -2,11 +2,11 @@
 
 require "ffi"
 
-module Taurus
+module Leptris
   module XML
     module SAX
-      autoload :Document, "taurus/xml/sax/document"
-      autoload :Parser, "taurus/xml/sax/parser"
+      autoload :Document, "leptris/xml/sax/document"
+      autoload :Parser, "leptris/xml/sax/parser"
     end
   end
 end

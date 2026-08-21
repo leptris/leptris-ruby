@@ -1,10 +1,10 @@
-# Taurus Performance Benchmarks
+# Leptris Performance Benchmarks
 
-This document provides comprehensive performance benchmarks for Taurus v1.0.0 compared to other popular Ruby XML parsers.
+This document provides comprehensive performance benchmarks for Leptris v1.0.0 compared to other popular Ruby XML parsers.
 
 ## Executive Summary
 
-**Taurus v1.0.0 Performance Profile**:
+**Leptris v1.0.0 Performance Profile**:
 - **XML Parsing**: 2.45× slower than Ox (still very fast at 5.87µs)
 - **XPath Queries**: Competitive with Nokogiri (~2-3× slower for simple queries)
 - **Memory Usage**: Only 7% more than Ox, 23% less than Nokogiri
@@ -19,7 +19,7 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 
 **Software**:
 - Ruby: 3.0.0+
-- Taurus: v1.0.0
+- Leptris: v1.0.0
 - Ox: Latest stable
 - Nokogiri: Latest stable
 
@@ -38,12 +38,12 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 | Parser | Time (µs) | Relative | Memory | Notes |
 |--------|-----------|----------|--------|-------|
 | **Ox** | 2.4 | 1.00× (baseline) | 45KB | Fastest, no XPath |
-| **Taurus** | 5.87 | 2.45× slower | 48KB | +18% FFI overhead |
+| **Leptris** | 5.87 | 2.45× slower | 48KB | +18% FFI overhead |
 | **Nokogiri** | 10.0 | 4.17× slower | 62KB | Full features, libxml2 |
 | **Oga** | 15.0 | 6.25× slower | 68KB | Pure Ruby parser |
 
 **Key Insights**:
-- Taurus achieves **2.45× slower than Ox** while providing complete XPath support
+- Leptris achieves **2.45× slower than Ox** while providing complete XPath support
 - Only **18% FFI overhead** compared to C library (5.3µs → 5.87µs)
 - **2× faster than Nokogiri** for XML parsing alone
 - Memory usage only **7% higher than Ox**
@@ -55,12 +55,12 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 | Parser | Time (ms) | Relative | Memory (MB) | Notes |
 |--------|-----------|----------|-------------|-------|
 | **Ox** | 0.24 | 1.00× | 0.45 | Linear scaling |
-| **Taurus** | 0.59 | 2.46× | 0.48 | Consistent overhead |
+| **Leptris** | 0.59 | 2.46× | 0.48 | Consistent overhead |
 | **Nokogiri** | 1.00 | 4.17× | 0.62 | Good scaling |
 | **Oga** | 1.50 | 6.25× | 0.70 | Ruby overhead |
 
 **Scaling Characteristics**:
-- Taurus scales linearly with document size
+- Leptris scales linearly with document size
 - FFI overhead remains constant (~18%)
 - Memory footprint grows proportionally
 
@@ -71,7 +71,7 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 | Parser | Time (ms) | Relative | Memory (MB) | Notes |
 |--------|-----------|----------|-------------|-------|
 | **Ox** | 2.4 | 1.00× | 4.5 | Excellent |
-| **Taurus** | 5.9 | 2.46× | 4.8 | Stable |
+| **Leptris** | 5.9 | 2.46× | 4.8 | Stable |
 | **Nokogiri** | 10.0 | 4.17× | 6.2 | Mature |
 | **Oga** | 15.0 | 6.25× | 7.0 | Slower |
 
@@ -89,12 +89,12 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 | Parser | Time (µs) | Relative | Notes |
 |--------|-----------|----------|-------|
 | **Nokogiri** | 3.87 | 1.00× (fastest) | libxml2 C implementation |
-| **Taurus** | 9.00 | 2.33× slower | Pure C XPath engine |
+| **Leptris** | 9.00 | 2.33× slower | Pure C XPath engine |
 | **Ox** | N/A | N/A | No XPath support |
 | **Oga** | ~300 | ~77× slower | Pure Ruby XPath |
 
 **Analysis**:
-- Taurus is **competitive with Nokogiri** (2-3× slower is excellent for v1.0)
+- Leptris is **competitive with Nokogiri** (2-3× slower is excellent for v1.0)
 - **77× faster than Oga** demonstrates value of C implementation
 - Trade-off: Slightly slower than libxml2, but zero external dependencies
 
@@ -105,11 +105,11 @@ This document provides comprehensive performance benchmarks for Taurus v1.0.0 co
 | Parser | Time (µs) | Relative | Notes |
 |--------|-----------|----------|-------|
 | **Nokogiri** | 15.2 | 1.00× | Optimized |
-| **Taurus** | 42.0 | 2.76× | Good for v1.0 |
+| **Leptris** | 42.0 | 2.76× | Good for v1.0 |
 | **Oga** | ~1200 | ~79× | Ruby penalty |
 
 **Key Points**:
-- Taurus handles complex predicates efficiently
+- Leptris handles complex predicates efficiently
 - C implementation shows clear advantage
 - Room for optimization in future versions
 
@@ -189,7 +189,7 @@ All 13 XPath axes tested on 100-element document:
 | Parser | Memory (bytes) | Relative | Notes |
 |--------|----------------|----------|-------|
 | **Ox** | ~100 | 1.00× | Minimal overhead |
-| **Taurus** | ~110 | 1.10× | Slightly higher |
+| **Leptris** | ~110 | 1.10× | Slightly higher |
 | **Nokogiri** | ~150 | 1.50× | libxml2 structs |
 
 ### Document Memory (100KB XML)
@@ -197,11 +197,11 @@ All 13 XPath axes tested on 100-element document:
 | Parser | Parsing | DOM | Total | Relative |
 |--------|---------|-----|-------|----------|
 | **Ox** | 45KB | 120KB | 165KB | 1.00× |
-| **Taurus** | 48KB | 125KB | 173KB | 1.05× |
+| **Leptris** | 48KB | 125KB | 173KB | 1.05× |
 | **Nokogiri** | 62KB | 160KB | 222KB | 1.35× |
 
 **Memory Efficiency**:
-- Taurus uses only **5% more memory than Ox**
+- Leptris uses only **5% more memory than Ox**
 - **22% less memory than Nokogiri**
 - String interning reduces duplication
 - Zero memory leaks (valgrind verified)
@@ -292,15 +292,15 @@ All 13 XPath axes tested on 100-element document:
 | Parser | Parsing | XPath | Memory | Features | Dependencies |
 |--------|---------|-------|--------|----------|--------------|
 | **Ox** | ⭐⭐⭐⭐⭐ | ❌ None | ⭐⭐⭐⭐⭐ | Basic | None |
-| **Taurus** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Complete | None |
+| **Leptris** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Complete | None |
 | **Nokogiri** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | Complete | libxml2 |
 | **Oga** | ⭐⭐ | ⭐ | ⭐⭐ | Complete | None |
 
-**Taurus Sweet Spot**: Near Ox parsing + Full XPath + Zero dependencies
+**Leptris Sweet Spot**: Near Ox parsing + Full XPath + Zero dependencies
 
 ### Use Case Recommendations
 
-**Choose Taurus When**:
+**Choose Leptris When**:
 - ✅ You need XPath 1.0 queries
 - ✅ You want Ox-level parsing speed
 - ✅ You can't use libxml2 (licensing, size, portability)
@@ -323,7 +323,7 @@ All 13 XPath axes tested on 100-element document:
 
 ```ruby
 require 'benchmark/ips'
-require 'taurus'
+require 'leptris'
 require 'ox'
 require 'nokogiri'
 
@@ -332,7 +332,7 @@ xml = File.read('test.xml')
 Benchmark.ips do |x|
   x.config(time: 10, warmup: 2)
   
-  x.report('Taurus') { Taurus.parse(xml) }
+  x.report('Leptris') { Leptris.parse(xml) }
   x.report('Ox') { Ox.parse(xml) }
   x.report('Nokogiri') { Nokogiri::XML(xml) }
   
@@ -346,13 +346,13 @@ end
 require 'benchmark/ips'
 
 xml = File.read('books.xml')
-doc_taurus = Taurus.parse(xml)
+doc_leptris = Leptris.parse(xml)
 doc_nokogiri = Nokogiri::XML(xml)
 
 Benchmark.ips do |x|
   x.config(time: 10, warmup: 2)
   
-  x.report('Taurus') { doc_taurus.xpath('//book') }
+  x.report('Leptris') { doc_leptris.xpath('//book') }
   x.report('Nokogiri') { doc_nokogiri.xpath('//book') }
   
   x.compare!
@@ -365,7 +365,7 @@ end
 require 'memory_profiler'
 
 report = MemoryProfiler.report do
-  doc = Taurus.parse(xml)
+  doc = Leptris.parse(xml)
   100.times { doc.xpath('//book') }
 end
 
@@ -379,10 +379,10 @@ report.pretty_print
 1. **Cache Parsed Documents**
    ```ruby
    # Good: Parse once
-   @doc ||= Taurus.parse(xml)
+   @doc ||= Leptris.parse(xml)
    
    # Bad: Re-parse every time
-   Taurus.parse(xml).xpath('//item')
+   Leptris.parse(xml).xpath('//item')
    ```
 
 2. **Use Symbol Keys for Attributes**
@@ -425,7 +425,7 @@ report.pretty_print
 
 ## Conclusion
 
-Taurus v1.0.0 achieves its design goal: **Ox-level parsing performance with complete XPath 1.0 support**.
+Leptris v1.0.0 achieves its design goal: **Ox-level parsing performance with complete XPath 1.0 support**.
 
 **Key Achievements**:
 - ✅ **2.45× slower than Ox** for parsing (excellent for feature parity)
@@ -434,7 +434,7 @@ Taurus v1.0.0 achieves its design goal: **Ox-level parsing performance with comp
 - ✅ **Memory efficient** (only 7% more than Ox)
 - ✅ **Zero dependencies** (no libxml2 required)
 
-**Performance Positioning**: Taurus fills the gap between Ox (fast, no XPath) and Nokogiri (complete, slower, libxml2).
+**Performance Positioning**: Leptris fills the gap between Ox (fast, no XPath) and Nokogiri (complete, slower, libxml2).
 
 For detailed optimization history and techniques, see:
 - [Optimizations Implemented](OPTIMIZATIONS_IMPLEMENTED.adoc)
@@ -444,5 +444,5 @@ For detailed optimization history and techniques, see:
 ---
 
 **Benchmarks run on**: 2024-12-07  
-**Taurus version**: v1.0.0  
+**Leptris version**: v1.0.0  
 **Test environment**: macOS Sequoia, Apple M1, Ruby 3.2.0

@@ -1,16 +1,16 @@
-= Taurus Performance Guide
+= Leptris Performance Guide
 :toc:
 :toclevels: 3
 
 == Overview
 
-Taurus v0.2.0 achieves exceptional DOM access performance through five targeted optimizations. This guide explains each optimization in detail, provides usage examples, and documents best practices for both users and contributors.
+Leptris v0.2.0 achieves exceptional DOM access performance through five targeted optimizations. This guide explains each optimization in detail, provides usage examples, and documents best practices for both users and contributors.
 
 == v0.2.0 DOM Performance Achievements
 
 [cols="3,2,2,2",options="header"]
 |===
-|Operation |Taurus v0.2.0 |Ox |Status
+|Operation |Leptris v0.2.0 |Ox |Status
 
 |Root access
 |0.09µs
@@ -76,7 +76,7 @@ end
 
 [source,ruby]
 ----
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 
 # First call: scans nodes array
 root = doc.root  # ~0.09µs
@@ -94,8 +94,8 @@ root.nodes.each { |child| ... }  # Use cached reference
 
 **Files Modified**:
 
-* `lib/taurus/document.rb` - Ruby-level `@root` ivar
-* `ext/taurus/taurus.c` - C-level caching support
+* `lib/leptris/document.rb` - Ruby-level `@root` ivar
+* `ext/leptris/leptris.c` - C-level caching support
 
 **Backwards Compatibility**: ✅ 100% compatible, no breaking changes
 
@@ -124,7 +124,7 @@ Automatically intern all element names at parse time in C:
 
 [source,c]
 ----
-// In ext/taurus/parse.c:36
+// In ext/leptris/parse.c:36
 VALUE name_str = rb_str_new(name_start, name_len);
 name_str = rb_str_to_interned_str(name_str);  // Intern!
 ----
@@ -140,7 +140,7 @@ name_str = rb_str_to_interned_str(name_str);  // Intern!
 
 [source,ruby]
 ----
-doc = Taurus.parse('<root><item>A</item><item>B</item></root>')
+doc = Leptris.parse('<root><item>A</item><item>B</item></root>')
 
 # All "item" strings share the same memory
 items = doc.xpath('//item')
@@ -158,8 +158,8 @@ name1.upcase!  # => FrozenError (immutable)
 
 **Files Modified**:
 
-* `ext/taurus/parse.c:36` - C-level string interning
-* `lib/taurus/element.rb:23` - Direct `@value` access
+* `ext/leptris/parse.c:36` - C-level string interning
+* `lib/leptris/element.rb:23` - Direct `@value` access
 
 **Backwards Compatibility**: ✅ 100% compatible (strings still work, just optimized)
 
@@ -223,7 +223,7 @@ end
 
 **Files Modified**:
 
-* `lib/taurus/element.rb:94-100` - Symbol fast-path logic
+* `lib/leptris/element.rb:94-100` - Symbol fast-path logic
 
 **Backwards Compatibility**: ✅ 100% compatible (string keys still work)
 
@@ -257,8 +257,8 @@ end
 
 **Safety**: `@nodes` is guaranteed initialized by:
 
-* Ruby `initialize` (lib/taurus/element.rb:14)
-* C `create_element` (ext/taurus/parse.c:58)
+* Ruby `initialize` (lib/leptris/element.rb:14)
+* C `create_element` (ext/leptris/parse.c:58)
 
 **Benefit**: 2.3× faster (0.16µs → 0.069µs), **beats Ox!** 🚀
 
@@ -286,8 +286,8 @@ nodes.select { |n| ... }
 
 **Files Modified**:
 
-* `lib/taurus/element.rb:47` - Direct `@nodes` access
-* `lib/taurus/element.rb:53,63` - Removed lazy init in `<<`, `prepend_child`
+* `lib/leptris/element.rb:47` - Direct `@nodes` access
+* `lib/leptris/element.rb:53,63` - Removed lazy init in `<<`, `prepend_child`
 
 **Backwards Compatibility**: ✅ 100% compatible (behavior identical)
 
@@ -320,7 +320,7 @@ node = doc.root
   
   # Fast path: Check if first is Element (common for deeply nested)
   child = node.nodes.first
-  child = node.nodes.find { |n| n.is_a?(Taurus::Element) } unless child.is_a?(Taurus::Element)
+  child = node.nodes.find { |n| n.is_a?(Leptris::Element) } unless child.is_a?(Leptris::Element)
   
   break unless child
   node = child
@@ -346,7 +346,7 @@ while node
   
   # Fast-path: Try .first, fall back to .find
   child = node.nodes.first
-  child = node.nodes.find { |n| n.is_a?(Taurus::Element) } unless child.is_a?(Taurus::Element)
+  child = node.nodes.find { |n| n.is_a?(Leptris::Element) } unless child.is_a?(Leptris::Element)
   
   node = child
 end
@@ -422,7 +422,7 @@ node = root
 while node
   # Fast: Check .first first (O(1))
   child = node.nodes.first
-  child = node.nodes.find { |n| n.is_a?(Taurus::Element) } unless child.is_a?(Taurus::Element)
+  child = node.nodes.find { |n| n.is_a?(Leptris::Element) } unless child.is_a?(Leptris::Element)
   break unless child
   node = child
 end
@@ -498,9 +498,9 @@ Deep traversal:    2.12µs (472.3k i/s)  - On par with Ox
 
 [source,text]
 ----
-Taurus:      5.87µs (170.4k i/s)  - 2.2× slower than Ox
+Leptris:      5.87µs (170.4k i/s)  - 2.2× slower than Ox
 Ox:          2.4µs (416.7k i/s)   - Baseline
-Nokogiri:    ~10µs (100k i/s)     - 1.7× slower than Taurus
+Nokogiri:    ~10µs (100k i/s)     - 1.7× slower than Leptris
 ----
 
 === XPath Queries (v0.1.0)
@@ -509,13 +509,13 @@ Nokogiri:    ~10µs (100k i/s)     - 1.7× slower than Taurus
 ----
 //book (5-element document):
   Nokogiri:  3.87µs (258.4k i/s)  - Fastest (libxml2)
-  Taurus:    9.00µs (111.1k i/s)  - 2.3× slower (zero dependencies)
+  Leptris:    9.00µs (111.1k i/s)  - 2.3× slower (zero dependencies)
   Oga:       ~300µs (3.3k i/s)    - 77× slower (pure Ruby)
 ----
 
 == Performance Philosophy
 
-Taurus achieves performance through **architectural solutions** rather than micro-optimizations:
+Leptris achieves performance through **architectural solutions** rather than micro-optimizations:
 
 === What Works ✅
 
@@ -655,7 +655,7 @@ Process documents without loading entire DOM
 
 == Conclusion
 
-Taurus v0.2.0 achieves exceptional DOM performance through five targeted optimizations, with children access now **faster than Ox**. The key to success was:
+Leptris v0.2.0 achieves exceptional DOM performance through five targeted optimizations, with children access now **faster than Ox**. The key to success was:
 
 1. **Profile first** - Identify real bottlenecks
 2. **Verify benchmarks** - Ensure accurate measurement

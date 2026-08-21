@@ -2,11 +2,11 @@
 
 ## Serialization
 
-Wrap `taurus_serialize_document` and `taurus_c14n_canonicalize`.
+Wrap `leptris_serialize_document` and `leptris_c14n_canonicalize`.
 
 ```ruby
-# lib/taurus/xml/serialize_options.rb
-class Taurus::XML::SerializeOptions < FFI::Struct
+# lib/leptris/xml/serialize_options.rb
+class Leptris::XML::SerializeOptions < FFI::Struct
   layout \
     :indent,            :int,
     :xml_declaration,   :int,
@@ -21,10 +21,10 @@ def to_xml(options = {})
   opts[:xml_declaration] = options[:no_decl] ? 0 : 1
   opts[:no_empty_tags]   = options[:no_empty_tags] ? 1 : 0
   opts[:preserve_whitespace] = options[:preserve_whitespace] ? 1 : 0
-  ptr = FFI.taurus_serialize_document(@c_ptr, opts.pointer)
+  ptr = FFI.leptris_serialize_document(@c_ptr, opts.pointer)
   return '' if ptr.nil? || ptr.null?
   str = ptr.read_string
-  FFI.taurus_free_string(ptr)
+  FFI.leptris_free_string(ptr)
   str
 end
 
@@ -45,18 +45,18 @@ end
 ## C14N (Canonical XML)
 
 ```ruby
-# lib/taurus/xml/c14n.rb
-module Taurus::XML
+# lib/leptris/xml/c14n.rb
+module Leptris::XML
   C14N_1_0 = 0
   C14N_1_1 = 1
   C14N_EXCLUSIVE = 2
 
   class Document
     def canonicalize(mode = C14N_1_0, with_comments = false)
-      ptr = FFI.taurus_c14n_canonicalize(@c_ptr, mode, with_comments ? 1 : 0)
+      ptr = FFI.leptris_c14n_canonicalize(@c_ptr, mode, with_comments ? 1 : 0)
       return '' if ptr.nil? || ptr.null?
       str = ptr.read_string
-      FFI.taurus_free_string(ptr)
+      FFI.leptris_free_string(ptr)
       str
     end
   end
@@ -69,15 +69,15 @@ end
 
 | Ruby class  | Owns C memory? | Free function |
 |-------------|----------------|---------------|
-| Document    | YES            | `taurus_document_free` |
+| Document    | YES            | `leptris_document_free` |
 | Node/Element| NO (borrowed)  | none (freed by Document) |
-| NodeSet     | YES (XPath result) | `taurus_xpath_result_free` |
+| NodeSet     | YES (XPath result) | `leptris_xpath_result_free` |
 | Attr        | NO (borrowed)  | none |
 
 ### Explicit free pattern
 
 ```ruby
-doc = Taurus::XML.parse(xml)
+doc = Leptris::XML.parse(xml)
 begin
   # ... work with doc ...
 ensure
@@ -88,7 +88,7 @@ end
 ### GC safety net
 
 ```ruby
-class Taurus::XML::Document
+class Leptris::XML::Document
   def self.wrap(ptr)
     obj = allocate
     obj.instance_variable_set(:@c_ptr, ptr)
@@ -97,12 +97,12 @@ class Taurus::XML::Document
   end
 
   def self.finalizer(ptr)
-    proc { FFI.taurus_document_free(ptr) if ptr && !ptr.null? }
+    proc { FFI.leptris_document_free(ptr) if ptr && !ptr.null? }
   end
 
   def free
     return unless @c_ptr
-    FFI.taurus_document_free(@c_ptr)
+    FFI.leptris_document_free(@c_ptr)
     @c_ptr = nil
     # The finalizer still holds the old pointer but Document#free
     # already freed it. Add a "freed" flag to detect double-free.
@@ -117,7 +117,7 @@ in the finalizer closure.
 ### Prevent use-after-free
 
 ```ruby
-class Taurus::XML::Node
+class Leptris::XML::Node
   def c_ptr
     raise UseAfterFreeError, "document has been freed" unless @document.c_ptr
     @c_ptr
@@ -156,56 +156,56 @@ specs should test:
 
 ```ruby
 # Parse
-doc = Taurus::XML.parse('<root><child id="1">text</child></root>')
+doc = Leptris::XML.parse('<root><child id="1">text</child></root>')
 expect(doc.root.name).to eq('root')
 expect(doc.root.children.first['id']).to eq('1')
 
 # XPath
-doc = Taurus::XML.parse('<lib><book/><book/></lib>')
+doc = Leptris::XML.parse('<lib><book/><book/></lib>')
 expect(doc.xpath('count(//book)')).to eq(2.0)
 expect(doc.xpath('//book').length).to eq(2)
-expect(doc.at_xpath('//book')).to be_a(Taurus::XML::Element)
+expect(doc.at_xpath('//book')).to be_a(Leptris::XML::Element)
 
 # Search
-doc = Taurus::XML.parse('<root><a class="x"/><a class="y"/></root>')
+doc = Leptris::XML.parse('<root><a class="x"/><a class="y"/></root>')
 expect(doc.search('a').length).to eq(2)
 expect(doc.at('a')['class']).to eq('x')
 
 # SAX
-class Handler < Taurus::XML::SAX::Document
+class Handler < Leptris::XML::SAX::Document
   attr_reader :elements
   def initialize; @elements = []; end
   def start_element(name, attrs = []); @elements << name; end
 end
 
 h = Handler.new
-Taurus::XML::SAX::Parser.new(h).parse('<r><a/><b/></r>')
+Leptris::XML::SAX::Parser.new(h).parse('<r><a/><b/></r>')
 expect(h.elements).to eq(['r', 'a', 'b'])
 
 # Serialize
-doc = Taurus::XML.parse('<r/>')
+doc = Leptris::XML.parse('<r/>')
 expect(doc.to_xml).to match(/<r\/>/)
 
 # C14N
 expect(doc.canonicalize).to include('<r></r>')
 
 # Memory
-doc = Taurus::XML.parse('<r/>')
+doc = Leptris::XML.parse('<r/>')
 doc.free
-expect { doc.root }.to raise_error(Taurus::XML::UseAfterFreeError)
+expect { doc.root }.to raise_error(Leptris::XML::UseAfterFreeError)
 ```
 
 ### Conformance
 
-Run Nokogiri's own test suite against the Taurus binding where
-possible. Skip tests for features Taurus doesn't support (HTML5,
-XSLT, RelaxNG, DTD validation beyond what libtaurus provides).
+Run Nokogiri's own test suite against the Leptris binding where
+possible. Skip tests for features Leptris doesn't support (HTML5,
+XSLT, RelaxNG, DTD validation beyond what libleptris provides).
 
 ## CSS-to-XPath converter (minimal)
 
 ```ruby
-# lib/taurus/xml/css_to_xpath.rb
-module Taurus::XML
+# lib/leptris/xml/css_to_xpath.rb
+module Leptris::XML
   module CssToXPath
     def self.convert(rule)
       parts = rule.strip.split(/\s+/)
@@ -252,9 +252,9 @@ This is a minimal converter. For full CSS3 support, integrate the
 ## File layout summary
 
 ```
-lib/taurus.rb
-lib/taurus/xml.rb
-lib/taurus/xml/
+lib/leptris.rb
+lib/leptris/xml.rb
+lib/leptris/xml/
   ffi.rb
   document.rb
   node.rb

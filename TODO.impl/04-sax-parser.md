@@ -2,7 +2,7 @@
 
 ## Goal
 
-Wrap libtaurus's C SAX parser (`taurus_sax_parse`, `taurus_sax_parser_feed`)
+Wrap libleptris's C SAX parser (`leptris_sax_parse`, `leptris_sax_parser_feed`)
 behind a Nokogiri-compatible Ruby SAX API.
 
 ## Nokogiri SAX API (target)
@@ -27,12 +27,12 @@ parser.parse(File.read('file.xml'))
 parser.parse(io)  # reads in chunks
 ```
 
-## Taurus SAX API (source)
+## Leptris SAX API (source)
 
-From `src/include/taurus/sax/sax.h`:
+From `src/include/leptris/sax/sax.h`:
 
 ```c
-struct TaurusSAXHandler {
+struct LeptrisSAXHandler {
   void (*start_document)(void* user_data);
   void (*end_document)(void* user_data);
   void (*start_element)(void* user_data, const char* name, const char** attrs);
@@ -46,18 +46,18 @@ struct TaurusSAXHandler {
   void (*error)(void* user_data, const char* message, int line, int column);
 };
 
-int taurus_sax_parse(const char* xml, size_t len,
-                     TaurusSAXHandler* handler, void* user_data);
-TaurusSAXParser* taurus_sax_parser_create(TaurusSAXHandler* handler, void* user_data);
-int taurus_sax_parser_feed(TaurusSAXParser* parser, const char* xml,
+int leptris_sax_parse(const char* xml, size_t len,
+                     LeptrisSAXHandler* handler, void* user_data);
+LeptrisSAXParser* leptris_sax_parser_create(LeptrisSAXHandler* handler, void* user_data);
+int leptris_sax_parser_feed(LeptrisSAXParser* parser, const char* xml,
                            size_t len, int is_final);
-void taurus_sax_parser_free(TaurusSAXParser* parser);
+void leptris_sax_parser_free(LeptrisSAXParser* parser);
 ```
 
 ## Implementation
 
 ```ruby
-module Taurus
+module Leptris
   module XML
     module SAX
       class Document
@@ -84,7 +84,7 @@ module Taurus
           xml = io_or_string.respond_to?(:read) ? io_or_string.read : io_or_string
 
           handler_struct = build_handler_struct(@handler)
-          rc = FFI.taurus_sax_parse(xml, xml.bytesize, handler_struct, nil)
+          rc = FFI.leptris_sax_parse(xml, xml.bytesize, handler_struct, nil)
           raise ParseError, "SAX parse failed (rc=#{rc})" if rc != 0
           self
         end
@@ -160,43 +160,43 @@ end
 
 ## Streaming (incremental) parsing
 
-For large documents, use `taurus_sax_parser_create` + `feed`:
+For large documents, use `leptris_sax_parser_create` + `feed`:
 
 ```ruby
 def parse(io)
   return parse(io.read) unless io.respond_to?(:read)
 
   handler_struct = build_handler_struct(@handler)
-  parser = FFI.taurus_sax_parser_create(handler_struct, nil)
+  parser = FFI.leptris_sax_parser_create(handler_struct, nil)
 
   io.each_chunk(4096) do |chunk|
-    rc = FFI.taurus_sax_parser_feed(parser, chunk, chunk.bytesize, 0)
+    rc = FFI.leptris_sax_parser_feed(parser, chunk, chunk.bytesize, 0)
     break if rc != 0
   end
   # Final flush
-  FFI.taurus_sax_parser_feed(parser, '', 0, 1)
+  FFI.leptris_sax_parser_feed(parser, '', 0, 1)
 ensure
-  FFI.taurus_sax_parser_free(parser) if parser
+  FFI.leptris_sax_parser_free(parser) if parser
 end
 ```
 
 ## File
 
 ```
-lib/taurus/xml/sax.rb
-lib/taurus/xml/sax/parser.rb
-lib/taurus/xml/sax/document.rb
+lib/leptris/xml/sax.rb
+lib/leptris/xml/sax/parser.rb
+lib/leptris/xml/sax/document.rb
 ```
 
 ## Autoload
 
 ```ruby
-# lib/taurus/xml/sax.rb
-module Taurus
+# lib/leptris/xml/sax.rb
+module Leptris
   module XML
     module SAX
-      autoload :Parser,  'taurus/xml/sax/parser'
-      autoload :Document, 'taurus/xml/sax/document'
+      autoload :Parser,  'leptris/xml/sax/parser'
+      autoload :Document, 'leptris/xml/sax/document'
     end
   end
 end

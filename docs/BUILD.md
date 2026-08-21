@@ -1,6 +1,6 @@
-# Building Taurus
+# Building Leptris
 
-This guide explains how to build the Taurus C library and run tests.
+This guide explains how to build the Leptris C library and run tests.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ ctest --output-on-failure
 sudo cmake --install build
 
 # Or install to custom location
-cmake --install build --prefix /opt/taurus
+cmake --install build --prefix /opt/leptris
 ```
 
 ## Build Options
@@ -52,7 +52,7 @@ Configure with custom options:
 cmake .. \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_TESTING=ON \
-    -DTAURUS_BUILD_CLI=OFF \
+    -DLEPTRIS_BUILD_CLI=OFF \
     -DCMAKE_BUILD_TYPE=Release
 ```
 
@@ -62,7 +62,7 @@ cmake .. \
 |--------|---------|-------------|
 | `BUILD_SHARED_LIBS` | `ON` | Build shared libraries (.so/.dylib/.dll) |
 | `BUILD_TESTING` | `ON` | Build C unit tests |
-| `TAURUS_BUILD_CLI` | `OFF` | Build CLI tool (future) |
+| `LEPTRIS_BUILD_CLI` | `OFF` | Build CLI tool (future) |
 | `CMAKE_BUILD_TYPE` | - | Build type: `Debug`, `Release`, `RelWithDebInfo` |
 | `CMAKE_INSTALL_PREFIX` | `/usr/local` | Installation directory |
 
@@ -167,36 +167,36 @@ cmake --install .
 ### Install via vcpkg
 
 ```bash
-# Clone taurus repository
-git clone https://github.com/lutaml/taurus.git
+# Clone leptris repository
+git clone https://github.com/leptris/leptris.git
 
 # Install using local port
-vcpkg install taurus --overlay-ports=./taurus/ports
+vcpkg install leptris --overlay-ports=./leptris/ports
 
 # Or after submission to vcpkg registry:
-vcpkg install taurus
+vcpkg install leptris
 ```
 
 ### Use in CMake Project
 
 ```cmake
-# Find taurus package
-find_package(taurus CONFIG REQUIRED)
+# Find leptris package
+find_package(leptris CONFIG REQUIRED)
 
 # Link to your target
-target_link_libraries(your_app PRIVATE taurus::taurus)
+target_link_libraries(your_app PRIVATE leptris::leptris)
 ```
 
 ### Use with pkg-config
 
 ```bash
 # Check installation
-pkg-config --modversion taurus
-pkg-config --cflags taurus
-pkg-config --libs taurus
+pkg-config --modversion leptris
+pkg-config --cflags leptris
+pkg-config --libs leptris
 
 # Compile with pkg-config
-gcc main.c $(pkg-config --cflags --libs taurus) -o myapp
+gcc main.c $(pkg-config --cflags --libs leptris) -o myapp
 ```
 
 ## Running Tests
@@ -239,21 +239,21 @@ After installation, the following files are available:
 ```
 /usr/local/
 ├── include/
-│   └── taurus/
-│       └── taurus.h          # Public API header
+│   └── leptris/
+│       └── leptris.h          # Public API header
 ├── lib/
-│   ├── libtaurus.so          # Shared library (Linux)
-│   ├── libtaurus.dylib       # Shared library (macOS)
-│   ├── libtaurus.a           # Static library
+│   ├── libleptris.so          # Shared library (Linux)
+│   ├── libleptris.dylib       # Shared library (macOS)
+│   ├── libleptris.a           # Static library
 │   ├── pkgconfig/
-│   │   └── taurus.pc         # pkg-config file
+│   │   └── leptris.pc         # pkg-config file
 │   └── cmake/
-│       └── taurus/
-│           ├── taurus-config.cmake
-│           ├── taurus-config-version.cmake
-│           └── taurus-targets.cmake
+│       └── leptris/
+│           ├── leptris-config.cmake
+│           ├── leptris-config-version.cmake
+│           └── leptris-targets.cmake
 └── share/
-    └── taurus/
+    └── leptris/
         └── copyright         # License file
 ```
 
@@ -262,30 +262,30 @@ After installation, the following files are available:
 ### C Example
 
 ```c
-#include <taurus/taurus.h>
+#include <leptris/leptris.h>
 #include <stdio.h>
 
 int main() {
     const char* xml = "<root><item>Hello</item></root>";
     
     // Parse XML
-    struct taurus_document* doc = taurus_parse(xml, strlen(xml));
+    struct leptris_document* doc = leptris_parse(xml, strlen(xml));
     if (!doc) {
         fprintf(stderr, "Parse failed\n");
         return 1;
     }
     
     // Get root element
-    struct taurus_element* root = taurus_document_root(doc);
-    printf("Root: %s\n", taurus_element_name(root));
+    struct leptris_element* root = leptris_document_root(doc);
+    printf("Root: %s\n", leptris_element_name(root));
     
     // Evaluate XPath
-    struct taurus_xpath_result* result = 
-        taurus_xpath_eval(doc, "//item", 6);
+    struct leptris_xpath_result* result = 
+        leptris_xpath_eval(doc, "//item", 6);
     
     // Cleanup
-    taurus_xpath_result_free(result);
-    taurus_document_free(doc);
+    leptris_xpath_result_free(result);
+    leptris_document_free(doc);
     
     return 0;
 }
@@ -295,7 +295,7 @@ int main() {
 
 ```bash
 # Using pkg-config
-gcc example.c $(pkg-config --cflags --libs taurus) -o example
+gcc example.c $(pkg-config --cflags --libs leptris) -o example
 
 # Using CMake find_package
 # See CMakeLists.txt example above
@@ -390,6 +390,6 @@ cmake --build .
 
 ## Support
 
-- **Issues**: https://github.com/lutaml/taurus/issues
-- **Documentation**: https://github.com/lutaml/taurus/tree/main/docs
+- **Issues**: https://github.com/leptris/leptris/issues
+- **Documentation**: https://github.com/leptris/leptris/tree/main/docs
 - **License**: BSD-2-Clause

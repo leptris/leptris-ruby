@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
-RSpec.describe Taurus::XML::Document do
+RSpec.describe Leptris::XML::Document do
   describe ".parse" do
     it "parses a simple XML string into a Document" do
       doc = described_class.parse("<root>Hello</root>")
@@ -11,7 +11,7 @@ RSpec.describe Taurus::XML::Document do
     end
 
     it "raises ParseError on malformed input" do
-      expect { described_class.parse("<unclosed>") }.to raise_error(Taurus::XML::ParseError)
+      expect { described_class.parse("<unclosed>") }.to raise_error(Leptris::XML::ParseError)
     end
 
     it "accepts an IO object (responds to :read)" do
@@ -26,12 +26,12 @@ RSpec.describe Taurus::XML::Document do
     it "returns the root element" do
       doc = described_class.parse("<library><book/></library>")
       root = doc.root
-      expect(root).to be_a(Taurus::XML::Element)
+      expect(root).to be_a(Leptris::XML::Element)
       expect(root.name).to eq("library")
     end
 
     it "returns nil for empty document" do
-      # libtaurus parses an empty/whitespace doc to no root
+      # libleptris parses an empty/whitespace doc to no root
       doc = described_class.parse("<x/>")
       expect(doc.root.name).to eq("x")
     end
@@ -51,8 +51,8 @@ RSpec.describe Taurus::XML::Document do
   end
 end
 
-RSpec.describe Taurus::XML::Element do
-  let(:doc) { Taurus::XML::Document.parse(<<~XML) }
+RSpec.describe Leptris::XML::Element do
+  let(:doc) { Leptris::XML::Document.parse(<<~XML) }
     <library version="2.0">
       <book id="1"><title>Ruby</title></book>
       <book id="2"><title>XML</title></book>
@@ -81,7 +81,7 @@ RSpec.describe Taurus::XML::Element do
   it "exposes the attributes hash" do
     expect(root.attributes).to be_a(Hash)
     expect(root.attributes.keys).to eq(["version"])
-    expect(root.attributes["version"]).to be_a(Taurus::XML::Attr)
+    expect(root.attributes["version"]).to be_a(Leptris::XML::Attr)
     expect(root.attributes["version"].value).to eq("2.0")
   end
 
@@ -94,7 +94,7 @@ RSpec.describe Taurus::XML::Element do
   it "iterates all children (elements + text)" do
     all = root.children.to_a
     expect(all.length).to be >= 2
-    expect(all.first).to be_a(Taurus::XML::Text)  # whitespace before first <book>
+    expect(all.first).to be_a(Leptris::XML::Text)  # whitespace before first <book>
   end
 
   it "exposes first_element_child and last_element_child" do
@@ -115,48 +115,48 @@ RSpec.describe Taurus::XML::Element do
   end
 end
 
-RSpec.describe Taurus::XML::Node do
+RSpec.describe Leptris::XML::Node do
   describe "type predicates" do
     it "recognizes element nodes" do
-      doc = Taurus::XML::Document.parse("<x/>")
+      doc = Leptris::XML::Document.parse("<x/>")
       expect(doc.root.element?).to be true
       expect(doc.root.text?).to be false
     end
 
     it "recognizes text nodes" do
-      doc = Taurus::XML::Document.parse("<x>hello</x>")
+      doc = Leptris::XML::Document.parse("<x>hello</x>")
       text = doc.root.child
-      expect(text).to be_a(Taurus::XML::Text)
+      expect(text).to be_a(Leptris::XML::Text)
       expect(text.text?).to be true
       expect(text.element?).to be false
       expect(text.content).to eq("hello")
     end
 
     it "recognizes comment nodes" do
-      doc = Taurus::XML::Document.parse("<x><!-- hi --></x>")
+      doc = Leptris::XML::Document.parse("<x><!-- hi --></x>")
       comment = doc.root.children.find { |n| n.comment? }
-      expect(comment).to be_a(Taurus::XML::Comment)
+      expect(comment).to be_a(Leptris::XML::Comment)
       expect(comment.content).to eq(" hi ")
     end
 
     it "recognizes CDATA nodes" do
-      doc = Taurus::XML::Document.parse("<x><![CDATA[<raw>]]></x>")
+      doc = Leptris::XML::Document.parse("<x><![CDATA[<raw>]]></x>")
       cdata = doc.root.children.find { |n| n.cdata? }
-      expect(cdata).to be_a(Taurus::XML::CDATA)
+      expect(cdata).to be_a(Leptris::XML::CDATA)
       expect(cdata.content).to eq("<raw>")
     end
 
     it "recognizes processing instruction nodes" do
-      doc = Taurus::XML::Document.parse("<x><?xml-stylesheet type='text/xsl'?></x>")
+      doc = Leptris::XML::Document.parse("<x><?xml-stylesheet type='text/xsl'?></x>")
       pi = doc.root.children.find { |n| n.processing_instruction? }
-      expect(pi).to be_a(Taurus::XML::ProcessingInstruction)
+      expect(pi).to be_a(Leptris::XML::ProcessingInstruction)
       expect(pi.name).to eq("xml-stylesheet")
     end
   end
 
   describe "navigation" do
     it "walks siblings via next_sibling" do
-      doc = Taurus::XML::Document.parse("<x><a/><b/><c/></x>")
+      doc = Leptris::XML::Document.parse("<x><a/><b/><c/></x>")
       root = doc.root
       a = root.first_element_child
       b = a.next_sibling
@@ -166,7 +166,7 @@ RSpec.describe Taurus::XML::Node do
     end
 
     it "walks all children via children.each" do
-      doc = Taurus::XML::Document.parse("<x><a/><b/><c/></x>")
+      doc = Leptris::XML::Document.parse("<x><a/><b/><c/></x>")
       root = doc.root
       names = root.children.select(&:element?).map(&:name)
       expect(names).to eq(%w[a b c])
@@ -174,26 +174,26 @@ RSpec.describe Taurus::XML::Node do
   end
 end
 
-RSpec.describe "Taurus::XML module entry points" do
-  it "parses via Taurus::XML.parse" do
-    doc = Taurus::XML.parse("<root><child/></root>")
-    expect(doc).to be_a(Taurus::XML::Document)
+RSpec.describe "Leptris::XML module entry points" do
+  it "parses via Leptris::XML.parse" do
+    doc = Leptris::XML.parse("<root><child/></root>")
+    expect(doc).to be_a(Leptris::XML::Document)
     expect(doc.root.name).to eq("root")
     expect(doc.root.first_element_child.name).to eq("child")
   end
 
-  it "parses an IO via Taurus::XML.parse" do
+  it "parses an IO via Leptris::XML.parse" do
     require "stringio"
-    doc = Taurus::XML.parse(StringIO.new("<root/>"))
+    doc = Leptris::XML.parse(StringIO.new("<root/>"))
     expect(doc.root.name).to eq("root")
   end
 
-  it "parses a file via Taurus::XML.parse_file" do
+  it "parses a file via Leptris::XML.parse_file" do
     require "tmpdir"
     Dir.mktmpdir do |dir|
       path = File.join(dir, "t.xml")
       File.write(path, "<root>data</root>")
-      doc = Taurus::XML.parse_file(path)
+      doc = Leptris::XML.parse_file(path)
       expect(doc.root.content).to eq("data")
     end
   end

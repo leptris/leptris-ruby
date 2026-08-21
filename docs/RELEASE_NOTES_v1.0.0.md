@@ -1,4 +1,4 @@
-# Taurus v1.0.0 Release Notes
+# Leptris v1.0.0 Release Notes
 
 **Release Date**: December 7, 2024  
 **Version**: 1.0.0  
@@ -6,11 +6,11 @@
 
 ## Overview
 
-Taurus v1.0.0 is the first production-ready release of Taurus, a high-performance XML parser for Ruby with complete XPath 1.0 support. This release represents a major milestone with comprehensive error handling, excellent performance, and 100% test coverage.
+Leptris v1.0.0 is the first production-ready release of Leptris, a high-performance XML parser for Ruby with complete XPath 1.0 support. This release represents a major milestone with comprehensive error handling, excellent performance, and 100% test coverage.
 
-## What is Taurus?
+## What is Leptris?
 
-Taurus is a next-generation XML parser that combines:
+Leptris is a next-generation XML parser that combines:
 
 - **Ox-level parsing speed** - Fast C-based XML parsing (2.45× slower than Ox)
 - **Complete XPath 1.0** - All 27 functions, 13 axes, 100% spec compliance
@@ -18,13 +18,13 @@ Taurus is a next-generation XML parser that combines:
 - **Zero dependencies** - Pure C implementation, no libxml2 required
 - **Helpful error messages** - Context snippets, position markers, suggestions
 
-**The name "Taurus"** is a pun on "Ox" (both are cattle breeds), representing an enhanced version with capabilities Ox lacks.
+**The name "Leptris"** is a pun on "Ox" (both are cattle breeds), representing an enhanced version with capabilities Ox lacks.
 
 ## Key Features in v1.0.0
 
 ### 🆕 Comprehensive Error Handling
 
-Taurus provides industry-leading error diagnostics:
+Leptris provides industry-leading error diagnostics:
 
 - **Context-aware errors** - Show code snippet around error position
 - **Position markers** - Exact error location with `^` indicator
@@ -93,7 +93,7 @@ All XPath 1.0 features implemented in C:
 Add to your `Gemfile`:
 
 ```ruby
-gem 'taurus', '~> 1.0'
+gem 'leptris', '~> 1.0'
 ```
 
 Then run:
@@ -105,7 +105,7 @@ bundle install
 ### Using RubyGems
 
 ```bash
-gem install taurus
+gem install leptris
 ```
 
 ### Requirements
@@ -119,11 +119,11 @@ gem install taurus
 ### Basic Usage
 
 ```ruby
-require 'taurus'
+require 'leptris'
 
 # Parse XML
 xml = '<library><book><title>Ruby Guide</title></book></library>'
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 
 # Access elements
 root = doc.root
@@ -154,7 +154,7 @@ xml = <<~XML
   </library>
 XML
 
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 
 # Find all books
 books = doc.xpath('//book')
@@ -174,8 +174,8 @@ title = doc.xpath('string(//book/title)')  # => "Ruby Programming"
 ```ruby
 # Graceful error handling
 begin
-  doc = Taurus.parse(invalid_xml)
-rescue Taurus::ParseError => e
+  doc = Leptris.parse(invalid_xml)
+rescue Leptris::ParseError => e
   puts "Parse error at #{e.line}:#{e.column}"
   puts e.context  # Shows error location with ^ marker
   puts "Code: #{e.code}"
@@ -184,7 +184,7 @@ end
 # XPath error handling
 begin
   doc.xpath('invalid[')
-rescue Taurus::XPathError => e
+rescue Leptris::XPathError => e
   puts e.message  # => "Unexpected token..."
   puts e.context  # => Shows where error occurred
 end
@@ -200,7 +200,7 @@ xml = <<~XML
   </root>
 XML
 
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 
 # Direct namespace prefix support
 titles = doc.xpath('//book:title')
@@ -219,7 +219,7 @@ uri = doc.xpath('namespace-uri(//book:title)')
 
 ### From Nokogiri
 
-Taurus provides an Ox-compatible API, which differs slightly from Nokogiri:
+Leptris provides an Ox-compatible API, which differs slightly from Nokogiri:
 
 **Nokogiri**:
 ```ruby
@@ -228,21 +228,21 @@ doc.root.name
 doc.xpath('//book')
 ```
 
-**Taurus**:
+**Leptris**:
 ```ruby
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 doc.root.name
 doc.xpath('//book')
 ```
 
 **Key Differences**:
-- Use `Taurus.parse()` instead of `Nokogiri::XML()`
+- Use `Leptris.parse()` instead of `Nokogiri::XML()`
 - Node access via `.nodes` instead of `.children`
 - Attributes accessible via symbols: `elem[:id]` (recommended for performance)
 
 ### From Ox
 
-Taurus is API-compatible with Ox:
+Leptris is API-compatible with Ox:
 
 **Ox**:
 ```ruby
@@ -251,14 +251,14 @@ doc.root.name
 doc.root.nodes.first
 ```
 
-**Taurus** (same API!):
+**Leptris** (same API!):
 ```ruby
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 doc.root.name
 doc.root.nodes.first
 ```
 
-**New in Taurus**:
+**New in Leptris**:
 - XPath support: `doc.xpath('//book')`
 - Full namespace API
 - Comprehensive error handling
@@ -378,8 +378,8 @@ These don't affect normal usage and will be addressed in v1.1+.
 - **Documentation**: [README.adoc](../README.adoc)
 - **Error Reference**: [Error Messages Catalog](ERROR_MESSAGES.md)
 - **Performance**: [Performance Benchmarks](PERFORMANCE.md)
-- **Issues**: [GitHub Issues](https://github.com/lutaml/taurus/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/lutaml/taurus/discussions)
+- **Issues**: [GitHub Issues](https://github.com/leptris/leptris/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/leptris/leptris/discussions)
 
 ### Contributing
 
@@ -394,7 +394,7 @@ We welcome contributions! See [Contributing Guide](../CONTRIBUTING.md) for detai
 ### Reporting Issues
 
 When reporting issues, please include:
-- Taurus version (`Taurus::VERSION`)
+- Leptris version (`Leptris::VERSION`)
 - Ruby version (`ruby -v`)
 - Minimal reproduction case
 - Error message with full context
@@ -403,7 +403,7 @@ When reporting issues, please include:
 
 ### Credits
 
-Taurus builds on the shoulders of giants:
+Leptris builds on the shoulders of giants:
 
 - **pugixml** - Performance optimization techniques
 - **StAX** - Memory-efficient streaming patterns
@@ -416,7 +416,7 @@ Special thanks to all contributors who made v1.0.0 possible!
 
 ### Optimization Journey
 
-Taurus v1.0.0 represents:
+Leptris v1.0.0 represents:
 - **115+ development sessions**
 - **300% performance improvements** through SIMD
 - **Zero memory leaks** achieved and maintained
@@ -485,9 +485,9 @@ See [session summaries](../old-docs/sessions/) for detailed optimization history
 
 ## Conclusion
 
-Taurus v1.0.0 delivers on its promise: **Ox-level parsing with complete XPath 1.0 support**.
+Leptris v1.0.0 delivers on its promise: **Ox-level parsing with complete XPath 1.0 support**.
 
-**Why Choose Taurus?**
+**Why Choose Leptris?**
 - ✅ Need XPath 1.0 queries with fast parsing
 - ✅ Want zero external dependencies
 - ✅ Value helpful error messages
@@ -496,20 +496,20 @@ Taurus v1.0.0 delivers on its promise: **Ox-level parsing with complete XPath 1.
 
 **Get Started Today**:
 ```bash
-gem install taurus
+gem install leptris
 ```
 
-Thank you for choosing Taurus! We're excited to see what you build with it.
+Thank you for choosing Leptris! We're excited to see what you build with it.
 
 ---
 
-**Questions?** Join our [GitHub Discussions](https://github.com/lutaml/taurus/discussions)  
-**Found a bug?** Open an [issue](https://github.com/lutaml/taurus/issues)  
+**Questions?** Join our [GitHub Discussions](https://github.com/leptris/leptris/discussions)  
+**Found a bug?** Open an [issue](https://github.com/leptris/leptris/issues)  
 **Want to contribute?** Check our [Contributing Guide](../CONTRIBUTING.md)
 
 **Happy parsing!** 🚀
 
 ---
 
-*Released with ❤️ by the Taurus team*  
+*Released with ❤️ by the Leptris team*  
 *December 7, 2024*

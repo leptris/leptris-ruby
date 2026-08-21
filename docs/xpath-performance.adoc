@@ -13,7 +13,7 @@ To update, run the appropriate rake task (see footer).
 
 * **Ruby Version**: 3.1.1
 * **Platform**: arm64-darwin21
-* **Taurus Version**: 0.1.0
+* **Leptris Version**: 0.1.0
 * **Libraries Available**: 
 * **Nokogiri**: Available
 * **Timestamp**: 2025-11-27T18:27:43+0800
@@ -35,7 +35,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Child
 |1.39µs
@@ -108,7 +108,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Absolute Path
 |6.01µs
@@ -146,7 +146,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |First
 |38.24µs
@@ -174,7 +174,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Attribute Exists
 |11.91µs
@@ -202,7 +202,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Two Predicates
 |16.65µs
@@ -225,7 +225,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Count
 |10.64µs
@@ -258,7 +258,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |String
 |13.64µs
@@ -291,7 +291,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Boolean
 |10.76µs
@@ -314,7 +314,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Number
 |12.6µs
@@ -342,7 +342,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Nokogiri |vs Nokogiri
+|Test |Leptris |Nokogiri |vs Nokogiri
 
 |Multi Axis
 |12.58µs
@@ -371,7 +371,7 @@ Based on 50 comprehensive tests (vs Nokogiri):
 * **Best result**: 0.32×
 * **Worst result**: 10.38×
 
-❌ **Taurus performance needs optimization** - Significantly slower than Nokogiri (2.34× average).
+❌ **Leptris performance needs optimization** - Significantly slower than Nokogiri (2.34× average).
 
 ---
 

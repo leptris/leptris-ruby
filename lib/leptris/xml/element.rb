@@ -1,126 +1,126 @@
 # frozen_string_literal: true
 
-class Taurus::XML::Element < Taurus::XML::Node
+class Leptris::XML::Element < Leptris::XML::Node
   def name
-    Taurus::XML::FFI.taurus_element_name(@c_ptr)
+    Leptris::XML::FFI.leptris_element_name(@c_ptr)
   end
   alias_method :node_name, :name
 
   def name=(new_name)
-    status = Taurus::XML::FFI.taurus_element_set_name(@c_ptr, new_name)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_set_name(@c_ptr, new_name)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     new_name
   end
   alias_method :node_name=, :name=
 
   def content
-    Taurus::XML::FFI.taurus_element_text(@c_ptr)
+    Leptris::XML::FFI.leptris_element_text(@c_ptr)
   end
 
   def content=(new_content)
-    status = Taurus::XML::FFI.taurus_element_set_text(@c_ptr, new_content.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_set_text(@c_ptr, new_content.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     new_content
   end
 
   def [](key)
-    Taurus::XML::FFI.taurus_element_attribute(@c_ptr, key.to_s)
+    Leptris::XML::FFI.leptris_element_attribute(@c_ptr, key.to_s)
   end
   alias_method :attr, :[]
   alias_method :get_attribute, :[]
 
   def []=(key, value)
-    status = Taurus::XML::FFI.taurus_element_set_attribute(@c_ptr, key.to_s, value.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     value
   end
   alias_method :set_attribute, :[]=
 
   def key?(name)
-    !Taurus::XML::FFI.taurus_element_attribute(@c_ptr, name.to_s).nil?
+    !Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name.to_s).nil?
   end
   alias_method :has_attribute?, :key?
 
   def remove_attribute(name)
-    status = Taurus::XML::FFI.taurus_element_remove_attribute(@c_ptr, name.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_remove_attribute(@c_ptr, name.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     self
   end
   alias_method :delete, :remove_attribute
 
   def keys
-    count = Taurus::XML::FFI.taurus_element_attribute_count(@c_ptr)
-    count.times.map { |i| Taurus::XML::FFI.taurus_element_attribute_name_at(@c_ptr, i) }
+    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
+    count.times.map { |i| Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i) }
   end
 
   def values
-    count = Taurus::XML::FFI.taurus_element_attribute_count(@c_ptr)
-    count.times.map { |i| Taurus::XML::FFI.taurus_element_attribute_value_at(@c_ptr, i) }
+    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
+    count.times.map { |i| Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i) }
   end
 
   def attributes
-    count = Taurus::XML::FFI.taurus_element_attribute_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
     result = {}
     count.times do |i|
-      name = Taurus::XML::FFI.taurus_element_attribute_name_at(@c_ptr, i)
-      value = Taurus::XML::FFI.taurus_element_attribute_value_at(@c_ptr, i)
-      result[name] = Taurus::XML::Attr.new(name, value, self)
+      name = Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i)
+      value = Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i)
+      result[name] = Leptris::XML::Attr.new(name, value, self)
     end
     result
   end
 
   def attribute_nodes
-    count = Taurus::XML::FFI.taurus_element_attribute_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
     count.times.map do |i|
-      name = Taurus::XML::FFI.taurus_element_attribute_name_at(@c_ptr, i)
-      value = Taurus::XML::FFI.taurus_element_attribute_value_at(@c_ptr, i)
-      Taurus::XML::Attr.new(name, value, self)
+      name = Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i)
+      value = Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i)
+      Leptris::XML::Attr.new(name, value, self)
     end
   end
 
   def add_child(node)
-    status = Taurus::XML::FFI.taurus_element_append_child(@c_ptr, node.c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node.c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     node
   end
   alias_method :<<, :add_child
 
   def prepend_child(node)
-    status = Taurus::XML::FFI.taurus_element_prepend_child(@c_ptr, node.c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     node
   end
 
   def add_next_sibling(node)
-    status = Taurus::XML::FFI.taurus_element_insert_after(@c_ptr, node.c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     node
   end
 
   def add_previous_sibling(node)
-    status = Taurus::XML::FFI.taurus_element_insert_before(@c_ptr, node.c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     node
   end
 
   def remove_child(node)
-    status = Taurus::XML::FFI.taurus_element_remove_child(@c_ptr, node.c_ptr)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_remove_child(@c_ptr, node.c_ptr)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     node
   end
 
   def children=(node_or_nodes)
     # Remove existing children, then attach the new ones in source order.
-    Taurus::XML::FFI.taurus_element_remove_children(@c_ptr)
+    Leptris::XML::FFI.leptris_element_remove_children(@c_ptr)
     Array(node_or_nodes).each { |n| add_child(n) }
   end
 
@@ -128,7 +128,7 @@ class Taurus::XML::Element < Taurus::XML::Node
   # +new_node+ must belong to the same document. Returns +new_node+.
   def replace(new_node)
     parent = self.parent
-    raise Taurus::XML::Error, "cannot replace a node with no parent" unless parent
+    raise Leptris::XML::Error, "cannot replace a node with no parent" unless parent
     add_next_sibling(new_node)
     parent.remove_child(self)
     new_node
@@ -146,74 +146,74 @@ class Taurus::XML::Element < Taurus::XML::Node
   def wrap(node_or_markup)
     wrapper =
       case node_or_markup
-      when Taurus::XML::Element then node_or_markup.dup
+      when Leptris::XML::Element then node_or_markup.dup
       when String
-        frag_doc = Taurus::XML::Document.parse(node_or_markup)
-        frag_doc.root or raise Taurus::XML::Error, "wrap markup has no root element"
+        frag_doc = Leptris::XML::Document.parse(node_or_markup)
+        frag_doc.root or raise Leptris::XML::Error, "wrap markup has no root element"
       else
         raise ArgumentError, "wrap expects a String or Element, got #{node_or_markup.class}"
       end
 
     parent = self.parent
-    raise Taurus::XML::Error, "cannot wrap a node with no parent" unless parent
+    raise Leptris::XML::Error, "cannot wrap a node with no parent" unless parent
 
     # Insert wrapper at self's position, then move self into wrapper.
     # add_child moves self (unlinks from old parent first), so no explicit
     # remove_child needed — and trying to remove after the move corrupts
-    # the C tree (libtaurus silently handles non-child args badly).
+    # the C tree (libleptris silently handles non-child args badly).
     add_next_sibling(wrapper)
     wrapper.add_child(self)
     self
   end
 
   def dup
-    copy_ptr = Taurus::XML::FFI.taurus_element_copy(@c_ptr, @document.c_ptr)
-    raise Taurus::XML::Error, "taurus_element_copy failed" if copy_ptr.null?
-    Taurus::XML::Element.new(copy_ptr, @document)
+    copy_ptr = Leptris::XML::FFI.leptris_element_copy(@c_ptr, @document.c_ptr)
+    raise Leptris::XML::Error, "leptris_element_copy failed" if copy_ptr.null?
+    Leptris::XML::Element.new(copy_ptr, @document)
   end
   alias_method :clone, :dup
 
   def add_child(node_or_markup)
     case node_or_markup
-    when Taurus::XML::Node
-      status = Taurus::XML::FFI.taurus_element_append_child(@c_ptr, node_or_markup.c_ptr)
-      raise Taurus::XML::Error,
-        Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    when Leptris::XML::Node
+      status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr)
+      raise Leptris::XML::Error,
+        Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
       node_or_markup
     when String
-      frag = Taurus::XML::DocumentFragment.parse(node_or_markup, @document)
+      frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       added = []
       frag.children.each do |n|
-        status = Taurus::XML::FFI.taurus_element_append_child(@c_ptr, n.c_ptr)
-        raise Taurus::XML::Error,
-          Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+        status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, n.c_ptr)
+        raise Leptris::XML::Error,
+          Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
         added << n
       end
-      Taurus::XML::NodeSet.new(@document, added)
+      Leptris::XML::NodeSet.new(@document, added)
     else
       raise ArgumentError, "add_child expects a Node or String, got #{node_or_markup.class}"
     end
   end
 
   def namespace
-    uri = Taurus::XML::FFI.taurus_element_namespace(@c_ptr)
+    uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
     return nil if uri.nil? || uri.empty?
-    Taurus::XML::Namespace.new(self, uri)
+    Leptris::XML::Namespace.new(self, uri)
   end
 
   def namespace_definitions
-    count = Taurus::XML::FFI.taurus_element_namespace_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_element_namespace_count(@c_ptr)
     count.times.map do |i|
-      prefix = Taurus::XML::FFI.taurus_element_namespace_decl_prefix(@c_ptr, i)
-      uri = Taurus::XML::FFI.taurus_element_namespace_decl_uri(@c_ptr, i)
-      Taurus::XML::Namespace.new(self, uri, prefix: prefix)
+      prefix = Leptris::XML::FFI.leptris_element_namespace_decl_prefix(@c_ptr, i)
+      uri = Leptris::XML::FFI.leptris_element_namespace_decl_uri(@c_ptr, i)
+      Leptris::XML::Namespace.new(self, uri, prefix: prefix)
     end
   end
 
   def namespaces
     scopes = {}
     node = self
-    while node.is_a?(Taurus::XML::Element)
+    while node.is_a?(Leptris::XML::Element)
       node.namespace_definitions.each do |ns|
         key = ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns"
         scopes[key] ||= ns.href
@@ -224,7 +224,7 @@ class Taurus::XML::Element < Taurus::XML::Node
   end
 
   def to_xml(indent: 0, no_decl: false, encoding: nil)
-    opts = Taurus::XML::FFI::SerializeOptions.new
+    opts = Leptris::XML::FFI::SerializeOptions.new
     opts[:indent] = indent.to_i
     opts[:xml_declaration] = no_decl ? 0 : 1
     enc_ptr = nil
@@ -232,47 +232,47 @@ class Taurus::XML::Element < Taurus::XML::Node
       enc_ptr = ::FFI::MemoryPointer.from_string(encoding.to_s)
       opts[:encoding] = enc_ptr
     end
-    str_ptr = Taurus::XML::FFI.taurus_element_serialize(@c_ptr, opts.pointer)
+    str_ptr = Leptris::XML::FFI.leptris_element_serialize(@c_ptr, opts.pointer)
     return "" if str_ptr.null?
-    str_ptr.read_string.tap { Taurus::XML::FFI.taurus_free_string(str_ptr) }
+    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
   end
 
-  def canonicalize(version = Taurus::XML::FFI::C14N_1_0,
+  def canonicalize(version = Leptris::XML::FFI::C14N_1_0,
                    inclusive_namespaces = nil,
                    with_comments: false,
                    exclusive: false,
                    mode: nil)
-    resolved_mode = mode || (exclusive ? Taurus::XML::FFI::C14N_MODE_EXCLUSIVE
-                                       : Taurus::XML::FFI::C14N_MODE_CANONICAL)
-    ns_ptr, _anchor = Taurus::XML.c14n_build_ns_pointer(inclusive_namespaces)
+    resolved_mode = mode || (exclusive ? Leptris::XML::FFI::C14N_MODE_EXCLUSIVE
+                                       : Leptris::XML::FFI::C14N_MODE_CANONICAL)
+    ns_ptr, _anchor = Leptris::XML.c14n_build_ns_pointer(inclusive_namespaces)
     flags = with_comments ? 1 : 0
-    str_ptr = Taurus::XML::FFI.taurus_c14n_canonicalize_subtree_ex(
+    str_ptr = Leptris::XML::FFI.leptris_c14n_canonicalize_subtree_ex(
       @c_ptr, version, resolved_mode, ns_ptr, flags)
     return "" if str_ptr.null?
-    str_ptr.read_string.tap { Taurus::XML::FFI.taurus_free_string(str_ptr) }
+    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
   end
   alias_method :c14n, :canonicalize
 
   def add_namespace_definition(prefix, href)
-    status = Taurus::XML::FFI.taurus_element_add_namespace_definition(
+    status = Leptris::XML::FFI.leptris_element_add_namespace_definition(
       @c_ptr, prefix.to_s, href.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
-    Taurus::XML::Namespace.new(self, href.to_s, prefix: prefix.nil? ? nil : prefix.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::Namespace.new(self, href.to_s, prefix: prefix.nil? ? nil : prefix.to_s)
   end
   alias_method :add_namespace, :add_namespace_definition
 
   def default_namespace=(href)
-    status = Taurus::XML::FFI.taurus_element_set_default_namespace(@c_ptr, href.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_set_default_namespace(@c_ptr, href.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     href
   end
 
   def remove_namespace_definition(prefix)
-    status = Taurus::XML::FFI.taurus_element_remove_namespace_definition(@c_ptr, prefix.to_s)
-    raise Taurus::XML::Error,
-      Taurus::XML::FFI.taurus_status_string(status) unless status == Taurus::XML::FFI::TAURUS_OK
+    status = Leptris::XML::FFI.leptris_element_remove_namespace_definition(@c_ptr, prefix.to_s)
+    raise Leptris::XML::Error,
+      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
     self
   end
 end
