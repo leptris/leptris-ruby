@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-# Lightweight attribute wrapper. libtaurus v0.4.4 doesn't expose per-attribute
-# pointers (no TaurusAttribute accessors in the public API), so an Attr is a
+# Lightweight attribute wrapper. libleptris v0.4.4 doesn't expose per-attribute
+# pointers (no LeptrisAttribute accessors in the public API), so an Attr is a
 # (name, value, parent_element) triple. Mutation goes through the parent
 # element via #[]. Once upstream adds attribute-level accessors, this can
 # become a pointer-backed wrapper.
 
-class Taurus::XML::Attr
+class Leptris::XML::Attr
   attr_reader :name, :value, :element
 
   def initialize(name, value, element)
@@ -32,7 +32,7 @@ class Taurus::XML::Attr
   def to_str; @value; end
 
   def ==(other)
-    other.is_a?(Taurus::XML::Attr) &&
+    other.is_a?(Leptris::XML::Attr) &&
       @name == other.name && @value == other.value &&
       @element == other.element
   end

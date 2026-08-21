@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require "taurus/version"
+require "leptris/version"
 
-module Taurus
-  autoload :XML, "taurus/xml"
+module Leptris
+  autoload :XML, "leptris/xml"
 end

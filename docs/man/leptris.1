@@ -1,18 +1,18 @@
-.TH TAURUS 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.TH LEPTRIS 1 "January 2025" "Leptris 0.5.0" "User Commands"
 .SH NAME
-taurus \- Fast XML parser with complete XPath 1.0 support
+leptris \- Fast XML parser with complete XPath 1.0 support
 .SH SYNOPSIS
-.B taurus
+.B leptris
 .RI [ OPTIONS ]
 .I COMMAND
 .RI [ ARGS... ]
 .SH DESCRIPTION
-.B Taurus
+.B Leptris
 is a high-performance XML parser implemented in C with complete XPath 1.0
 support. It provides Ox-level parsing speed (5.87µs per document) with full
 XML Namespaces 1.0 specification compliance and all 27 XPath 1.0 functions.
 .PP
-Taurus beats Nokogiri on parsing speed across all document sizes while
+Leptris beats Nokogiri on parsing speed across all document sizes while
 maintaining full XML and XPath specification compliance. It offers a
 command-line interface for parsing, querying, and formatting XML documents.
 .SH COMMANDS
@@ -20,17 +20,17 @@ command-line interface for parsing, querying, and formatting XML documents.
 .B parse
 Parse and validate XML documents. Supports recovery mode for malformed XML
 and multiple output formats (XML, JSON, text). See
-.BR taurus-parse (1).
+.BR leptris-parse (1).
 .TP
 .B xpath
 Execute XPath 1.0 queries against XML documents. Supports all 13 axes, 27
 functions, predicates, and operators. See
-.BR taurus-xpath (1).
+.BR leptris-xpath (1).
 .TP
 .B format
 Pretty-print XML documents with configurable indentation. Supports multiple
 output formats and can compact or expand whitespace. See
-.BR taurus-format (1).
+.BR leptris-format (1).
 .TP
 .B version
 Show version information and build details.
@@ -72,37 +72,37 @@ Invalid arguments. Command-line options or arguments are incorrect.
 .SH EXAMPLES
 .TP
 Parse an XML document and display in default format:
-.B taurus parse document.xml
+.B leptris parse document.xml
 .TP
 Parse XML from stdin:
-.B cat document.xml | taurus parse -
+.B cat document.xml | leptris parse -
 .TP
 Parse with error recovery for malformed XML:
-.B taurus parse --recover broken.xml
+.B leptris parse --recover broken.xml
 .TP
 Execute XPath query to find all books with price > 20:
-.B taurus xpath books.xml "//book[@price > 20]"
+.B leptris xpath books.xml "//book[@price > 20]"
 .TP
 Count matching nodes:
-.B taurus xpath --count library.xml "//book"
+.B leptris xpath --count library.xml "//book"
 .TP
 Pretty-print with 4-space indentation:
-.B taurus format --indent 4 document.xml
+.B leptris format --indent 4 document.xml
 .TP
 Convert XML to JSON format:
-.B taurus format --format json document.xml
+.B leptris format --format json document.xml
 .TP
 Pipeline example - parse, query, format:
-.B taurus parse data.xml | taurus xpath - "//item[@status='active']" | taurus format --compact -
+.B leptris parse data.xml | leptris xpath - "//item[@status='active']" | leptris format --compact -
 .SH FILES
 .TP
-.I /etc/bash_completion.d/taurus
+.I /etc/bash_completion.d/leptris
 System-wide bash completion script
 .TP
-.I ~/.bash_completion.d/taurus
+.I ~/.bash_completion.d/leptris
 User-specific bash completion script
 .TP
-.I /usr/local/share/zsh/site-functions/_taurus
+.I /usr/local/share/zsh/site-functions/_leptris
 Zsh completion script
 .SH ENVIRONMENT
 .TP
@@ -112,7 +112,7 @@ If set to any value, disables colored output (overridden by --color).
 .B FORCE_COLOR
 If set to any value, enables colored output even for non-TTY (overridden by --no-color).
 .SH PERFORMANCE
-.B Taurus
+.B Leptris
 is optimized for speed and memory efficiency:
 .TP
 .B Parsing
@@ -127,7 +127,7 @@ is optimized for speed and memory efficiency:
 .B Memory
 Comparable to Ox, significantly less than Nokogiri
 .SH STANDARDS
-.B Taurus
+.B Leptris
 implements the following specifications:
 .TP
 .B XML
@@ -139,15 +139,15 @@ Namespaces in XML 1.0 (Third Edition) - complete implementation
 .B XPath
 XML Path Language (XPath) Version 1.0 - all 13 axes, 27 functions
 .SH SEE ALSO
-.BR taurus-parse (1),
-.BR taurus-xpath (1),
-.BR taurus-format (1),
+.BR leptris-parse (1),
+.BR leptris-xpath (1),
+.BR leptris-format (1),
 .BR xmllint (1),
 .BR xpath (1),
 .BR xml (5)
 .SH BUGS
 Report bugs at:
-.UR https://github.com/lutaml/taurus/issues
+.UR https://github.com/leptris/leptris/issues
 .UE
 .SH AUTHORS
 Written by the Lutaml team at Ribose Inc.

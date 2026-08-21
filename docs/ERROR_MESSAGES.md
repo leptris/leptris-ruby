@@ -1,16 +1,16 @@
-# Taurus Error Message Catalog
+# Leptris Error Message Catalog
 
-This document provides a comprehensive reference for all error types, codes, causes, and solutions in Taurus.
+This document provides a comprehensive reference for all error types, codes, causes, and solutions in Leptris.
 
 ## Error Types Overview
 
-Taurus provides three main error types:
+Leptris provides three main error types:
 
 | Error Type | Purpose | Common Codes |
 |------------|---------|--------------|
-| `Taurus::ParseError` | XML parsing failures | `:parse_failed`, `:unclosed_tag`, `:empty_input` |
-| `Taurus::XPathError` | XPath syntax and evaluation errors | `:xpath_syntax`, `:xpath_function` |
-| `Taurus::EvaluationError` | Runtime evaluation issues | `:xpath_evaluation`, `:xpath_type_error` |
+| `Leptris::ParseError` | XML parsing failures | `:parse_failed`, `:unclosed_tag`, `:empty_input` |
+| `Leptris::XPathError` | XPath syntax and evaluation errors | `:xpath_syntax`, `:xpath_function` |
+| `Leptris::EvaluationError` | Runtime evaluation issues | `:xpath_evaluation`, `:xpath_type_error` |
 
 All errors inherit from `StandardError` and provide comprehensive diagnostic information.
 
@@ -20,12 +20,12 @@ All errors inherit from `StandardError` and provide comprehensive diagnostic inf
 
 **Code**: `:empty_input`
 
-**Cause**: Empty string passed to `Taurus.parse()`
+**Cause**: Empty string passed to `Leptris.parse()`
 
 **Example**:
 ```ruby
-Taurus.parse('')
-# => Taurus::ParseError: Empty input provided
+Leptris.parse('')
+# => Leptris::ParseError: Empty input provided
 #    code: :empty_input
 ```
 
@@ -46,8 +46,8 @@ Taurus.parse('')
 
 **Example**:
 ```ruby
-Taurus.parse(nil)
-# => Taurus::ParseError: NULL input provided
+Leptris.parse(nil)
+# => Leptris::ParseError: NULL input provided
 #    code: :null_input
 ```
 
@@ -56,7 +56,7 @@ Taurus.parse(nil)
 ```ruby
 # Good practice
 xml = fetch_xml_data()
-doc = Taurus.parse(xml) if xml && !xml.empty?
+doc = Leptris.parse(xml) if xml && !xml.empty?
 ```
 
 ---
@@ -70,15 +70,15 @@ doc = Taurus.parse(xml) if xml && !xml.empty?
 **Examples**:
 ```ruby
 # Missing closing bracket
-Taurus.parse('<root')
+Leptris.parse('<root')
 # => ParseError: Expected '>' at line 1, column 6
 
 # Invalid tag name
-Taurus.parse('<123invalid>')
+Leptris.parse('<123invalid>')
 # => ParseError: Invalid tag name at line 1, column 2
 
 # Malformed attribute
-Taurus.parse('<root attr=value>')
+Leptris.parse('<root attr=value>')
 # => ParseError: Expected quoted attribute value
 ```
 
@@ -103,14 +103,14 @@ Taurus.parse('<root attr=value>')
 **Examples**:
 ```ruby
 # Missing closing tag
-Taurus.parse('<root><item></root>')
+Leptris.parse('<root><item></root>')
 # => ParseError: Unclosed tag 'item' at line 1, column 7
 #    Context:
 #      <root><item></root>
 #            ^
 
 # Mismatched tags
-Taurus.parse('<root><item></items></root>')
+Leptris.parse('<root><item></items></root>')
 # => ParseError: Mismatched closing tag at line 1, column 13
 ```
 
@@ -275,7 +275,7 @@ All error objects provide these attributes:
 
 Example:
 ```ruby
-rescue Taurus::ParseError => e
+rescue Leptris::ParseError => e
   puts e.message
   # => "Failed to parse root element at line 1, column 1"
 end
@@ -287,7 +287,7 @@ end
 
 Example:
 ```ruby
-rescue Taurus::XPathError => e
+rescue Leptris::XPathError => e
   case e.code
   when :xpath_syntax
     # Handle syntax errors
@@ -315,7 +315,7 @@ end
 
 Example:
 ```ruby
-rescue Taurus::XPathError => e
+rescue Leptris::XPathError => e
   puts e.context
   # =>  //book[@id = invalid]
   #                  ^
@@ -330,8 +330,8 @@ end
 def safe_parse(xml)
   return nil if xml.nil? || xml.empty?
   
-  Taurus.parse(xml)
-rescue Taurus::ParseError => e
+  Leptris.parse(xml)
+rescue Leptris::ParseError => e
   logger.error("XML parse failed: #{e.message}")
   logger.debug("Error code: #{e.code}")
   logger.debug("Location: #{e.line}:#{e.column}")
@@ -344,9 +344,9 @@ end
 ```ruby
 def validate_xpath(expression)
   # Try to parse (without document context)
-  Taurus::XPath.parse(expression)
+  Leptris::XPath.parse(expression)
   true
-rescue Taurus::XPathError => e
+rescue Leptris::XPathError => e
   warn "Invalid XPath: #{e.message}"
   warn "At: #{e.line}:#{e.column}"
   false
@@ -358,7 +358,7 @@ end
 ```ruby
 def execute_query(doc, xpath)
   doc.xpath(xpath)
-rescue Taurus::XPathError => e
+rescue Leptris::XPathError => e
   case e.code
   when :xpath_syntax
     "XPath syntax error at position #{e.column}: #{e.message}"
@@ -375,8 +375,8 @@ end
 ```ruby
 def parse_with_logging(xml, source_name)
   logger.info("Parsing XML from: #{source_name}")
-  Taurus.parse(xml)
-rescue Taurus::ParseError => e
+  Leptris.parse(xml)
+rescue Leptris::ParseError => e
   logger.error("Parse failed for #{source_name}")
   logger.error("  Message: #{e.message}")
   logger.error("  Code: #{e.code}")
@@ -442,7 +442,7 @@ Error context generation is optimized but has minimal overhead:
 
 - [XPath 1.0 Specification](https://www.w3.org/TR/xpath/)
 - [XML 1.0 Specification](https://www.w3.org/TR/xml/)
-- [Taurus README](../README.adoc) - Main documentation
+- [Leptris README](../README.adoc) - Main documentation
 - [XPath Spec Compliance](XPATH_SPEC_COMPLIANCE.md) - Feature matrix
 
 ## Version History
@@ -455,4 +455,4 @@ Error context generation is optimized but has minimal overhead:
 
 ---
 
-*For implementation details, see `lib/src/error.c` and `lib/taurus/ffi/errors.rb`*
+*For implementation details, see `lib/src/error.c` and `lib/leptris/ffi/errors.rb`*

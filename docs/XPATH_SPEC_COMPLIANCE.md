@@ -2,13 +2,13 @@
 
 **Reference**: [W3C XPath 1.0 Recommendation](https://www.w3.org/TR/1999/REC-xpath-19991116/)
 
-**Project**: Taurus XML Parser
+**Project**: Leptris XML Parser
 **Version**: 0.1.0
 **Last Updated**: 2025-01-27
 
 ## Overview
 
-This document tracks Taurus's compliance with the XPath 1.0 specification. The goal is 100% compliance with all mandatory features of XPath 1.0.
+This document tracks Leptris's compliance with the XPath 1.0 specification. The goal is 100% compliance with all mandatory features of XPath 1.0.
 
 **Current Status**: 95%+ compliant (pending namespace prefix support in queries)
 
@@ -245,7 +245,7 @@ All 13 axes are implemented and tested.
 
 ### Test Files
 
-1. **`spec/taurus/element_xpath_spec.rb`** - 1918 lines
+1. **`spec/leptris/element_xpath_spec.rb`** - 1918 lines
    - 250+ XPath tests
    - 100% pass rate
    - Covers all axes, functions, operators
@@ -278,8 +278,8 @@ All 13 axes are implemented and tested.
 
 - [XPath 1.0 Specification](https://www.w3.org/TR/1999/REC-xpath-19991116/)
 - [XML Namespaces 1.0](https://www.w3.org/TR/REC-xml-names/)
-- [Taurus Implementation Status](./IMPLEMENTATION_STATUS_V0.1.0.md)
-- [Taurus Performance Guide](./PERFORMANCE.adoc)
+- [Leptris Implementation Status](./IMPLEMENTATION_STATUS_V0.1.0.md)
+- [Leptris Performance Guide](./PERFORMANCE.adoc)
 
 ---
 
@@ -295,4 +295,4 @@ All 13 axes are implemented and tested.
 
 ---
 
-**Note**: This document is maintained alongside implementation. All claims are backed by passing tests in `spec/taurus/element_xpath_spec.rb` and C unit tests.
+**Note**: This document is maintained alongside implementation. All claims are backed by passing tests in `spec/leptris/element_xpath_spec.rb` and C unit tests.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Taurus uses GitHub Actions for continuous integration, testing, and automated releases across multiple platforms and Ruby versions.
+Leptris uses GitHub Actions for continuous integration, testing, and automated releases across multiple platforms and Ruby versions.
 
 ## Workflows
 
@@ -104,7 +104,7 @@ Required GitHub secrets:
 
 ### Automatic (Recommended)
 
-1. Update version in `lib/taurus/version.rb`
+1. Update version in `lib/leptris/version.rb`
 2. Update `CHANGELOG.md`
 3. Commit changes: `git commit -m "chore: bump version to X.Y.Z"`
 4. Create and push tag:
@@ -202,7 +202,7 @@ bundle exec rake test_c  # C tests
 - Check if gem published successfully
 - Verify gem installs manually:
   ```bash
-  gem install taurus -v X.Y.Z
+  gem install leptris -v X.Y.Z
   ```
 
 ## Best Practices
@@ -221,8 +221,8 @@ bundle exec rake test_c  # C tests
 3. Bump version number
 4. Test installation from local gem:
    ```bash
-   gem build taurus.gemspec
-   gem install taurus-X.Y.Z.gem
+   gem build leptris.gemspec
+   gem install leptris-X.Y.Z.gem
    ```
 5. Create tag and push
 

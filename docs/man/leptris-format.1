@@ -1,8 +1,8 @@
-.TH TAURUS-FORMAT 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.TH LEPTRIS-FORMAT 1 "January 2025" "Leptris 0.5.0" "User Commands"
 .SH NAME
-taurus-format \- Pretty-print and format XML documents
+leptris-format \- Pretty-print and format XML documents
 .SH SYNOPSIS
-.B taurus format
+.B leptris format
 .RI [ OPTIONS ]
 .I FILE
 .SH DESCRIPTION
@@ -24,7 +24,7 @@ Converting XML to other formats (JSON, text)
 Compacting XML by removing unnecessary whitespace
 .TP
 .B \(bu
-Pipeline processing with other Taurus commands
+Pipeline processing with other Leptris commands
 .SH OPTIONS
 .TP
 .BR \-f ", " \-\-format " " \fIFORMAT\fR
@@ -149,37 +149,37 @@ Invalid arguments. Incorrect command-line options.
 .SH EXAMPLES
 .TP
 Pretty-print with default 2-space indentation:
-.B taurus format document.xml
+.B leptris format document.xml
 .TP
 Use 4-space indentation:
-.B taurus format --indent 4 document.xml
+.B leptris format --indent 4 document.xml
 .TP
 Use 8-space indentation (tab-like):
-.B taurus format --indent 8 document.xml
+.B leptris format --indent 8 document.xml
 .TP
 Compact XML (remove whitespace):
-.B taurus format --compact document.xml
+.B leptris format --compact document.xml
 .TP
 Convert to JSON:
-.B taurus format --format json document.xml
+.B leptris format --format json document.xml
 .TP
 Convert to text tree:
-.B taurus format --format text document.xml
+.B leptris format --format text document.xml
 .TP
 Write to file:
-.B taurus format --indent 4 --output formatted.xml document.xml
+.B leptris format --indent 4 --output formatted.xml document.xml
 .TP
 Format from stdin:
-.B cat document.xml | taurus format --indent 4 -
+.B cat document.xml | leptris format --indent 4 -
 .TP
 Pipeline with parse:
-.B taurus parse data.xml | taurus format --compact -
+.B leptris parse data.xml | leptris format --compact -
 .TP
 Pipeline with xpath:
-.B taurus xpath doc.xml "//item" | taurus format --indent 4 -
+.B leptris xpath doc.xml "//item" | leptris format --indent 4 -
 .TP
 Multi-format conversion:
-.B taurus format --format json document.xml > document.json
+.B leptris format --format json document.xml > document.json
 .SH STDIN/STDOUT PIPELINE
 The format command works well in Unix pipelines:
 .PP
@@ -195,9 +195,9 @@ to write to a file.
 .PP
 .B Combine with other commands:
 Chain with
-.B taurus parse
+.B leptris parse
 and
-.B taurus xpath
+.B leptris xpath
 for powerful XML processing pipelines.
 .SH PERFORMANCE
 The format command is optimized for speed and memory efficiency:
@@ -211,14 +211,14 @@ Output is generated incrementally where possible
 .B Fast conversion
 JSON and text conversion use efficient algorithms
 .SH SEE ALSO
-.BR taurus (1),
-.BR taurus-parse (1),
-.BR taurus-xpath (1),
+.BR leptris (1),
+.BR leptris-parse (1),
+.BR leptris-xpath (1),
 .BR xmllint (1),
 .BR jq (1)
 .SH BUGS
 Report bugs at:
-.UR https://github.com/lutaml/taurus/issues
+.UR https://github.com/leptris/leptris/issues
 .UE
 .SH AUTHORS
 Written by the Lutaml team at Ribose Inc.

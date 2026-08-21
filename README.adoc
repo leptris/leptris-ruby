@@ -1,12 +1,12 @@
-= taurus-ruby
+= leptris-ruby
 :toc:
 :toclevels: 3
 
-image:https://img.shields.io/gem/v/taurus.svg[RubyGems Version,link=https://rubygems.org/gems/taurus]
-image:https://github.com/lutaml/taurus-ruby/actions/workflows/build.yml/badge.svg[CI,link=https://github.com/lutaml/taurus-ruby/actions/workflows/build.yml]
+image:https://img.shields.io/gem/v/leptris.svg[RubyGems Version,link=https://rubygems.org/gems/leptris]
+image:https://github.com/leptris/leptris-ruby/actions/workflows/build.yml/badge.svg[CI,link=https://github.com/leptris/leptris-ruby/actions/workflows/build.yml]
 
 A Nokogiri-compatible Ruby binding for
-https://github.com/lutaml/taurus[libtaurus], a pure-C99 XML 1.0 parser
+https://github.com/leptris/leptris[libleptris], a pure-C99 XML 1.0 parser
 with full https://www.w3.org/TR/1999/REC-xpath-19991116/[XPath 1.0],
 XML Namespaces 1.0, SAX, and C14N (1.0 / 1.1 / Exclusive).
 
@@ -20,52 +20,52 @@ Add to your Gemfile:
 
 [source,ruby]
 ----
-gem "taurus"
+gem "leptris"
 ----
 
 Then `bundle install`.
 
-=== Runtime requirement: libtaurus
+=== Runtime requirement: libleptris
 
-`taurus` shells out to the native `libtaurus` shared library via FFI.
-You need `libtaurus.{dylib,so,dll}` installed on the host. Options:
+`leptris` shells out to the native `libleptris` shared library via FFI.
+You need `libleptris.{dylib,so,dll}` installed on the host. Options:
 
-1. **Homebrew (macOS, easiest):** `brew install lutaml/tap/libtaurus`
+1. **Homebrew (macOS, easiest):** `brew install lutaml/tap/libleptris`
    (if packaged) or build from source (see below).
 2. **Build from source** (Linux/macOS/Windows):
 +
 [source,shell]
 ----
-git clone https://github.com/lutaml/taurus.git
-cd taurus
+git clone https://github.com/leptris/leptris.git
+cd leptris
 cmake -B build -S . \
   -DCMAKE_BUILD_TYPE=Release \
-  -DTAURUS_BUILD_SHARED=ON \
-  -DTAURUS_BUILD_STATIC=OFF \
+  -DLEPTRIS_BUILD_SHARED=ON \
+  -DLEPTRIS_BUILD_STATIC=OFF \
   -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON
 cmake --build build -j
 sudo cmake --install build   # optional, system-wide
 ----
 
-3. **Point Taurus at a specific path** by setting `TAURUS_LIB_PATH`:
+3. **Point Leptris at a specific path** by setting `LEPTRIS_LIB_PATH`:
 +
 [source,shell]
 ----
-export TAURUS_LIB_PATH=/usr/local/lib/libtaurus.dylib
+export LEPTRIS_LIB_PATH=/usr/local/lib/libleptris.dylib
 ----
 
-If Taurus can't find the library at startup, every `parse` call raises
+If Leptris can't find the library at startup, every `parse` call raises
 `LoadError`.
 
 == Parsing
 
-The top-level entry point is `Taurus::XML`. Parse a string or an IO:
+The top-level entry point is `Leptris::XML`. Parse a string or an IO:
 
 [source,ruby]
 ----
-require "taurus"
+require "leptris"
 
-doc = Taurus::XML.parse(<<~XML)
+doc = Leptris::XML.parse(<<~XML)
   <library xmlns="http://example.org/ns">
     <book id="b1" lang="en">
       <title>Refactoring</title>
@@ -85,11 +85,11 @@ Or a file:
 
 [source,ruby]
 ----
-doc = Taurus::XML.parse_file("books.xml")
+doc = Leptris::XML.parse_file("books.xml")
 ----
 
 This is the direct Nokogiri equivalent of `Nokogiri::XML(...)`. The
-returned object is a `Taurus::XML::Document`.
+returned object is a `Leptris::XML::Document`.
 
 == Reading nodes
 
@@ -129,16 +129,16 @@ callback (one FFI call for the whole traversal, not one per node):
 ----
 doc.root.traverse do |node|
   case node
-  when Taurus::XML::Element   then puts "E  #{node.name}"
-  when Taurus::XML::Text      then puts "T  #{node.content.inspect}"
-  when Taurus::XML::Comment   then puts "C  #{node.content.inspect}"
+  when Leptris::XML::Element   then puts "E  #{node.name}"
+  when Leptris::XML::Text      then puts "T  #{node.content.inspect}"
+  when Leptris::XML::Comment   then puts "C  #{node.content.inspect}"
   end
 end
 ----
 
 == Searching: XPath and CSS
 
-`Document` and `Element` (via `Taurus::XML::Searchable`) support:
+`Document` and `Element` (via `Leptris::XML::Searchable`) support:
 
 [horizontal]
 `#xpath(*exprs)` :: evaluate XPath; returns `NodeSet`, `true`/`false`, `Float`, or `String` depending on the expression.
@@ -163,11 +163,11 @@ doc.css("book:first-child")               # first <book>
 
 XPath result type follows XPath 1.0 semantics:
 `count(...)` → `Float`, `boolean(...)` → `true`/`false`,
-`string(...)` → `String`, otherwise a `Taurus::XML::NodeSet`.
+`string(...)` → `String`, otherwise a `Leptris::XML::NodeSet`.
 
 === Supported CSS selectors
 
-Minimal subset (translated to XPath via `Taurus::XML::CssToXPath`):
+Minimal subset (translated to XPath via `Leptris::XML::CssToXPath`):
 
 * Type/universal: `book`, `*`
 * Class/ID: `.highlight`, `#b1`
@@ -184,7 +184,7 @@ Documents expose factory methods; elements expose mutation methods:
 
 [source,ruby]
 ----
-doc  = Taurus::XML.parse("<root/>")
+doc  = Leptris::XML.parse("<root/>")
 book = doc.create_element("book")
 book[:id] = "b3"
 book.add_child(doc.create_element("title")).content = "New book"
@@ -218,7 +218,7 @@ puts doc.to_xml
 ----
 # Create an empty Document by parsing a sentinel and replacing the root,
 # or build incrementally on a one-element seed.
-doc = Taurus::XML.parse("<root/>")
+doc = Leptris::XML.parse("<root/>")
 doc.root.name = "catalog"
 # ... then create_element / add_child as above.
 ----
@@ -240,7 +240,7 @@ root.add_namespace_definition("t", "https://example.org/types")
 puts root.namespaces
 # {"xmlns"=>"http://example.org/ns", "xmlns:t"=>"https://example.org/types"}
 
-# XPath with prefixes is dispatched straight to libtaurus, which resolves
+# XPath with prefixes is dispatched straight to libleptris, which resolves
 # prefixes using the in-scope namespace declarations.
 doc.xpath("//t:title")
 ----
@@ -259,7 +259,7 @@ doc.xpath("//t:title")
 doc.to_xml                       # one-line, no indent
 doc.to_xml(indent: 2)            # pretty-printed
 doc.canonicalize                # C14N 1.0
-doc.canonicalize(Taurus::XML::FFI::C14N_1_1)              # C14N 1.1
+doc.canonicalize(Leptris::XML::FFI::C14N_1_1)              # C14N 1.1
 doc.canonicalize(exclusive: true)                         # Exclusive C14N
 doc.canonicalize(with_comments: true)                     # keep comments
 doc.canonicalize(exclusive: true, inclusive_namespaces: ["ds"])  # InclusiveNamespaces
@@ -268,11 +268,11 @@ doc.canonicalize(exclusive: true, inclusive_namespaces: ["ds"])  # InclusiveName
 == SAX parsing
 
 For very large documents, use the streaming SAX parser. Subclass
-`Taurus::XML::SAX::Document` and override the events you care about:
+`Leptris::XML::SAX::Document` and override the events you care about:
 
 [source,ruby]
 ----
-class Counter < Taurus::XML::SAX::Document
+class Counter < Leptris::XML::SAX::Document
   attr_reader :elements, :depth
   def initialize
     @elements = 0
@@ -294,7 +294,7 @@ class Counter < Taurus::XML::SAX::Document
   end
 end
 
-parser = Taurus::XML::SAX::Parser.new(Counter.new)
+parser = Leptris::XML::SAX::Parser.new(Counter.new)
 parser.parse(File.open("huge.xml"))   # streams in 4 KB chunks
 ----
 
@@ -318,18 +318,18 @@ is valid only while its Document is alive.
 
 * Free a document explicitly with `Document#free`. After `#free`, any
   further method call on the document or its nodes raises
-  `Taurus::XML::UseAfterFreeError`.
+  `Leptris::XML::UseAfterFreeError`.
 * If you don't call `#free`, GC will — a finalizer captures the raw
   pointer address (not the Ruby wrapper) and calls
-  `taurus_document_free` exactly once.
+  `leptris_document_free` exactly once.
 * `NodeSet`s holding XPath results own their own
-  `TaurusXPathResult` and free it on GC.
+  `LeptrisXPathResult` and free it on GC.
 * Don't hold a `Node` reference past the lifetime of its `Document`.
   The C memory is gone; using the wrapper is undefined behaviour.
 
 == Errors
 
-All Taurus errors descend from `Taurus::XML::Error`:
+All Leptris errors descend from `Leptris::XML::Error`:
 
 [horizontal]
 `ParseError` :: raised by `parse` / `parse_file` / SAX on malformed input.
@@ -340,8 +340,8 @@ All Taurus errors descend from `Taurus::XML::Error`:
 [source,ruby]
 ----
 begin
-  Taurus::XML.parse("<unclosed>")
-rescue Taurus::XML::ParseError => e
+  Leptris::XML.parse("<unclosed>")
+rescue Leptris::XML::ParseError => e
   warn "parse failed: #{e.message}"
 end
 ----
@@ -357,9 +357,9 @@ require "nokogiri"
 doc = Nokogiri::XML(File.read("doc.xml"))
 doc.xpath("//item[@id='1']").each { |n| puts n.text }
 
-# Taurus
-require "taurus"
-doc = Taurus::XML.parse(File.read("doc.xml"))
+# Leptris
+require "leptris"
+doc = Leptris::XML.parse(File.read("doc.xml"))
 doc.xpath("//item[@id='1']").each { |n| puts n.content }
 ----
 
@@ -370,21 +370,21 @@ Notable differences:
   `#element_children` or `#first_element_child` to skip them.
 * CSS support is intentionally minimal — for advanced selectors, drop to
   `xpath`.
-* No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Taurus is XML-only.
+* No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Leptris is XML-only.
 * No XSLT, no RelaxNG / DTD validation, no schema caching.
 * No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
 
 == Performance
 
-On the benchmark suite in `benchmark/taurus_vs_nokogiri.rb` (Ruby 3.3,
-libtaurus v0.13+, macOS arm64), Taurus matches or beats Nokogiri on
+On the benchmark suite in `benchmark/leptris_vs_nokogiri.rb` (Ruby 3.3,
+libleptris v0.13+, macOS arm64), Leptris matches or beats Nokogiri on
 parse, XPath, serialize, and full-tree traverse for the small and
 medium documents that dominate real-world XML workloads. Run the
 benchmark locally for numbers on your hardware:
 
 [source,shell]
 ----
-bundle exec ruby benchmark/taurus_vs_nokogiri.rb
+bundle exec ruby benchmark/leptris_vs_nokogiri.rb
 ----
 
 == Development
@@ -397,7 +397,7 @@ bundle exec rspec spec/xml/xpath_spec.rb:42   # one example by line
 bundle exec rubocop                  # lint
 ----
 
-CI pins libtaurus to a released tag (currently v0.26.7) and builds it
+CI pins libleptris to a released tag (currently v0.26.7) and builds it
 from source on each runner; see `.github/workflows/build.yml`.
 
 == License

@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
-RSpec.describe "Taurus::XML Searchable via XPath" do
+RSpec.describe "Leptris::XML Searchable via XPath" do
   let(:doc) do
-    Taurus::XML::Document.parse(<<~XML)
+    Leptris::XML::Document.parse(<<~XML)
       <library version="2.0">
         <book id="1"><title>Ruby</title></book>
         <book id="2"><title>XML</title></book>
@@ -19,7 +19,7 @@ RSpec.describe "Taurus::XML Searchable via XPath" do
 
   it "returns a NodeSet for //element queries" do
     books = doc.xpath("//book")
-    expect(books).to be_a(Taurus::XML::NodeSet)
+    expect(books).to be_a(Leptris::XML::NodeSet)
     expect(books.length).to eq(3)
   end
 
@@ -29,13 +29,13 @@ RSpec.describe "Taurus::XML Searchable via XPath" do
   end
 
   it "returns a Boolean for predicate-only queries" do
-    # Uses boolean() which libtaurus v0.5.5+ flat XPath dispatcher
+    # Uses boolean() which libleptris v0.5.5+ flat XPath dispatcher
     # correctly supports.
     expect(doc.xpath("boolean(//book)")).to be true
     expect(doc.xpath("boolean(//missing)")).to be false
   end
 
-  # Regression for upstream libtaurus #201 (fixed in v0.5.7): the v0.5.5
+  # Regression for upstream libleptris #201 (fixed in v0.5.7): the v0.5.5
   # flat XPath dispatcher over-matched expressions starting with count(...),
   # returning the inner number rather than evaluating the full comparison.
   it "returns a Boolean for count(...) > N expressions" do
@@ -53,13 +53,13 @@ RSpec.describe "Taurus::XML Searchable via XPath" do
   it "supports xpath on Element receiver (context-relative)" do
     second_book = doc.at_xpath("//book[@id='2']")
     title = second_book.xpath("title")
-    expect(title).to be_a(Taurus::XML::NodeSet)
+    expect(title).to be_a(Leptris::XML::NodeSet)
     expect(title.first.content).to eq("XML")
   end
 
   it "supports . at context node" do
     first_book = doc.at_xpath("//book")
-    expect(first_book.xpath(".")).to be_a(Taurus::XML::NodeSet)
+    expect(first_book.xpath(".")).to be_a(Leptris::XML::NodeSet)
   end
 
   it "supports XPath on NodeSet (search each member)" do

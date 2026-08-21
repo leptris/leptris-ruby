@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
 # Real W3C Exclusive XML Canonicalization 1.0 (https://www.w3.org/2001/10/xml-exc-c14n#)
 # coverage. v0.5.3 shipped the real algorithm; v0.5.2 was a stub routed to
@@ -25,7 +25,7 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
       </a>
     XML
   end
-  let(:doc) { Taurus::XML::Document.parse(xml) }
+  let(:doc) { Leptris::XML::Document.parse(xml) }
   let(:b)   { doc.root.first_element_child }
 
   describe "visibly-used prefix emission" do
@@ -57,13 +57,13 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
 
   describe "canonical vs exclusive output differs" do
     it "produces different output for the same namespace-heavy input" do
-      canonical = b.canonicalize(mode: Taurus::XML::FFI::C14N_MODE_CANONICAL)
-      exclusive = b.canonicalize(mode: Taurus::XML::FFI::C14N_MODE_EXCLUSIVE)
+      canonical = b.canonicalize(mode: Leptris::XML::FFI::C14N_MODE_CANONICAL)
+      exclusive = b.canonicalize(mode: Leptris::XML::FFI::C14N_MODE_EXCLUSIVE)
       expect(canonical).not_to eq(exclusive)
     end
 
     it "matches via the exclusive: true shortcut" do
-      explicit = b.canonicalize(mode: Taurus::XML::FFI::C14N_MODE_EXCLUSIVE)
+      explicit = b.canonicalize(mode: Leptris::XML::FFI::C14N_MODE_EXCLUSIVE)
       shortcut = b.canonicalize(exclusive: true)
       expect(shortcut).to eq(explicit)
     end
@@ -73,16 +73,16 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
     it "force-includes a prefix the subtree doesn't visibly use" do
       # <b> only visibly uses n1. Force-include n2 in the output of <b>
       # via the inclusive list — useful for enveloped-signature cases.
-      out = b.canonicalize(Taurus::XML::FFI::C14N_1_0, %w[n2], exclusive: true)
+      out = b.canonicalize(Leptris::XML::FFI::C14N_1_0, %w[n2], exclusive: true)
       b_open = out[/<b[^>]*>/]
       expect(b_open).to include("xmlns:n1=")
       expect(b_open).to include("xmlns:n2=")
     end
 
     it "force-includes a prefix not declared anywhere in scope" do
-      # 'undeclared' isn't in the document at all. libtaurus should still
+      # 'undeclared' isn't in the document at all. libleptris should still
       # produce output (the prefix just won't resolve, but it shouldn't crash).
-      out = b.canonicalize(Taurus::XML::FFI::C14N_1_0, %w[undeclared], exclusive: true)
+      out = b.canonicalize(Leptris::XML::FFI::C14N_1_0, %w[undeclared], exclusive: true)
       expect(out).to be_a(String)
       expect(out).to include("<b")
     end
@@ -90,10 +90,10 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
     # Regression for upstream issue #194 (v0.5.4 and earlier): when a prefix
     # is BOTH visibly used by the element AND in the caller's inclusive list,
     # the output should declare that prefix exactly once. Prior to v0.5.5
-    # libtaurus emitted it twice, producing invalid XML.
+    # libleptris emitted it twice, producing invalid XML.
     it "does not duplicate xmlns when a prefix is both visibly used and inclusive" do
       # n1 is visibly used by <b> (its attribute) AND we ask to force-include n1.
-      out = b.canonicalize(Taurus::XML::FFI::C14N_1_0, %w[n1], exclusive: true)
+      out = b.canonicalize(Leptris::XML::FFI::C14N_1_0, %w[n1], exclusive: true)
       b_open = out[/<b[^>]*>/]
       expect(b_open.scan(/xmlns:n1=/).length).to eq(1),
         "expected exactly one xmlns:n1= on <b>, got: #{b_open}"
@@ -105,7 +105,7 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
       # of the canonicalized subtree, so both xmlns:n1 and xmlns:n2 land on <b>.
       # <c> then does NOT re-declare xmlns:n2 because the ancestor in the
       # output already has it.
-      out = b.canonicalize(Taurus::XML::FFI::C14N_1_0, %w[n1 n2], exclusive: true)
+      out = b.canonicalize(Leptris::XML::FFI::C14N_1_0, %w[n1 n2], exclusive: true)
       b_open = out[/<b[^>]*>/]
       c_open = out[/<c[^>]*>/]
       expect(b_open.scan(/xmlns:n1=/).length).to eq(1),
@@ -150,7 +150,7 @@ RSpec.describe "Exclusive C14N (v0.5.3 #183 real implementation)" do
           </soap:Body>
         </soap:Envelope>
       XML
-      doc = Taurus::XML::Document.parse(xml)
+      doc = Leptris::XML::Document.parse(xml)
       body = doc.at_xpath("//soap:Body",
         { "soap" => "http://schemas.xmlsoap.org/soap/envelope/" })
       expect(body).not_to be_nil

@@ -2,18 +2,18 @@
 
 ## Goal
 
-Rewrite `taurus-ruby` to be a **thin FFI wrapper** around libtaurus v0.4.2,
+Rewrite `leptris-ruby` to be a **thin FFI wrapper** around libleptris v0.4.2,
 exposing a **Nokogiri-compatible API**. The C DOM is the single source of
 truth — no Ruby-side tree copy.
 
 ## Current state (problem)
 
-The existing `taurus-ruby` has:
+The existing `leptris-ruby` has:
 - A **pure-Ruby** XML tree model (Document < Element, Node, NodeSet)
 - A FFI bridge that does a **one-shot copy** from C to Ruby on parse
 - A **pure-Ruby XPath engine** (lexer, parser, compiler, VM in Ruby)
 
-This defeats libtaurus's performance: the C library's optimized bytecode
+This defeats libleptris's performance: the C library's optimized bytecode
 VM + element index are never used. XPath goes through the slow Ruby engine.
 
 ## Target architecture
@@ -21,9 +21,9 @@ VM + element index are never used. XPath goes through the slow Ruby engine.
 ```
 User Ruby code
     ↓
-Taurus::XML::Document / Node / NodeSet  (thin Ruby wrappers)
+Leptris::XML::Document / Node / NodeSet  (thin Ruby wrappers)
     ↓ FFI
-libtaurus v0.4.2  (C99: DOM, XPath bytecode VM, element index)
+libleptris v0.4.2  (C99: DOM, XPath bytecode VM, element index)
 ```
 
 Key principles:
@@ -31,14 +31,14 @@ Key principles:
 - **No Ruby-side tree copy.** The C DOM is the truth; Ruby objects are
   handles (wrapping opaque pointers).
 - **XPath goes through C.** `doc.xpath('//book')` calls
-  `taurus_xpath_eval` directly. No Ruby XPath engine.
-- **SAX goes through C.** `Taurus::XML::SAX::Parser` wraps
-  `taurus_sax_parse` with Ruby callback dispatch.
+  `leptris_xpath_eval` directly. No Ruby XPath engine.
+- **SAX goes through C.** `Leptris::XML::SAX::Parser` wraps
+  `leptris_sax_parse` with Ruby callback dispatch.
 
 ## Module structure (Nokogiri-compatible)
 
 ```ruby
-module Taurus
+module Leptris
   module XML
     # Top-level parse entry points
     def self.parse(string_or_io)  →  Document
@@ -164,24 +164,24 @@ end
 
 ## Memory model
 
-- **Document** owns the C document pool. `Taurus::XML::Document.new`
-  calls `taurus_parse_string` → returns a `TaurusDocument` pointer.
-  `Document#free` calls `taurus_document_free`. Auto-free via
+- **Document** owns the C document pool. `Leptris::XML::Document.new`
+  calls `leptris_parse_string` → returns a `LeptrisDocument` pointer.
+  `Document#free` calls `leptris_document_free`. Auto-free via
   `ObjectSpace.define_finalizer` as a safety net (but callers should
   call `#free` explicitly for predictable lifecycle).
 - **Node / Element / Text etc.** are **non-owning handles** wrapping
   a C pointer. The pointer is valid as long as the parent Document
   is alive. Freeing a Node just drops the Ruby wrapper; the C node
   lives until `Document#free`.
-- **NodeSet** wraps a `TaurusXPathResult` pointer from
-  `taurus_xpath_eval`. Freeing a NodeSet calls
-  `taurus_xpath_result_free`.
+- **NodeSet** wraps a `LeptrisXPathResult` pointer from
+  `leptris_xpath_eval`. Freeing a NodeSet calls
+  `leptris_xpath_result_free`.
 - **Attr** wraps a C attribute pointer (owned by the parent element's
   pool). Non-owning.
 
 ## CSS support
 
-Nokogiri supports CSS selectors via `css()` and `at_css()`. Taurus
+Nokogiri supports CSS selectors via `css()` and `at_css()`. Leptris
 doesn't have a CSS engine in C, so CSS-to-XPath conversion must be
 done in Ruby. Options:
 1. Use the `css_parser` gem (depends on `racc`).
@@ -195,12 +195,12 @@ is small: `tag`, `.class`, `#id`, `> child`, `descendant`,
 ## Dependencies
 
 ```ruby
-# taurus.gemspec
+# leptris.gemspec
 spec.add_dependency 'ffi', '~> 1.16'
 ```
 
 No other runtime dependencies. No C extension compilation needed —
-just FFI to the pre-built libtaurus shared library.
+just FFI to the pre-built libleptris shared library.
 
 ## Reference material
 
@@ -209,9 +209,9 @@ just FFI to the pre-built libtaurus shared library.
   - `lib/nokogiri/xml/node_set.rb` — 31 public methods
   - `lib/nokogiri/xml/document.rb` — 22 public methods
   - `lib/nokogiri/xml/searchable.rb` — xpath/css/search module
-- libtaurus public headers: `src/include/taurus/`
+- libleptris public headers: `src/include/leptris/`
   - `types.h` — opaque handle typedefs
   - `dom/document.h`, `dom/element.h`, `dom/serialize.h`
   - `xpath/xpath.h` — XPath eval API
   - `sax/sax.h` — SAX parser API
-- libtaurus v0.4.2: tag `v0.4.2` on `github.com:lutaml/taurus`
+- libleptris v0.4.2: tag `v0.4.2` on `github.com:leptris/leptris`

@@ -1,21 +1,21 @@
-# Future Vision: Taurus Beyond v0.4.0
+# Future Vision: Leptris Beyond v0.4.0
 
 **Created**: 2025-01-29
 **Status**: Planning Document
-**Context**: Long-term vision from TODO.libtaurus.md
+**Context**: Long-term vision from TODO.libleptris.md
 
 ## Overview
 
-This document captures the long-term architectural vision for Taurus, including transformation into libtaurus (a reusable C library) and enhanced features. This represents work beyond v0.4.0 and likely v0.5.0+.
+This document captures the long-term architectural vision for Leptris, including transformation into libleptris (a reusable C library) and enhanced features. This represents work beyond v0.4.0 and likely v0.5.0+.
 
-## Vision: libtaurus - Reusable C Library
+## Vision: libleptris - Reusable C Library
 
 ### Goal
 
-Refactor Taurus into **libtaurus**, a standalone C library that can be:
+Refactor Leptris into **libleptris**, a standalone C library that can be:
 - Linked into other C/C++ projects
-- Used by the Taurus CLI (written in C)
-- Wrapped by the Ruby gem (taurus)
+- Used by the Leptris CLI (written in C)
+- Wrapped by the Ruby gem (leptris)
 - Integrated into any language with C FFI
 
 ### Architecture
@@ -31,7 +31,7 @@ Refactor Taurus into **libtaurus**, a standalone C library that can be:
                    │
                    ▼
 ┌─────────────────────────────────────────┐
-│          libtaurus.so                   │
+│          libleptris.so                   │
 │     (Core  C Library + API)              │
 │  ┌─────────────────────────────────────┐│
 │  │ XML Parser (SAX/StAX/DOM)           ││
@@ -46,7 +46,7 @@ Refactor Taurus into **libtaurus**, a standalone C library that can be:
 ┌─────────────────────────────────────────┐
 │          CLI Applications               │
 │  ┌──────────┐  ┌──────────┐            │
-│  │  taurus  │  │  Custom  │            │
+│  │  leptris  │  │  Custom  │            │
 │  │  CLI     │  │  Tools   │            │
 │  └──────────┘  └──────────┘            │
 └─────────────────────────────────────────┘
@@ -54,7 +54,7 @@ Refactor Taurus into **libtaurus**, a standalone C library that can be:
 
 ### Components
 
-#### 1. libtaurus (Core C Library)
+#### 1. libleptris (Core C Library)
 - **Pure C implementation** with clean API
 - **Zero dependencies** (no libxml2)
 - **Thread-safe** operations
@@ -73,22 +73,22 @@ Refactor Taurus into **libtaurus**, a standalone C library that can be:
 **API Design**:
 ```c
 // Core parsing
-taurus_document_t* taurus_parse_string(const char* xml, size_t len, taurus_options_t* opts);
-taurus_document_t* taurus_parse_file(const char* filename, taurus_options_t* opts);
+leptris_document_t* leptris_parse_string(const char* xml, size_t len, leptris_options_t* opts);
+leptris_document_t* leptris_parse_file(const char* filename, leptris_options_t* opts);
 
 // XPath evaluation
-taurus_nodeset_t* taurus_xpath_eval(taurus_document_t* doc, const char* expr);
+leptris_nodeset_t* leptris_xpath_eval(leptris_document_t* doc, const char* expr);
 
 // Pretty printing
-char* taurus_format_xml(taurus_document_t* doc, taurus_format_options_t* opts);
+char* leptris_format_xml(leptris_document_t* doc, leptris_format_options_t* opts);
 
 // Memory management
-void taurus_document_free(taurus_document_t* doc);
-void taurus_nodeset_free(taurus_nodeset_t* nodeset);
+void leptris_document_free(leptris_document_t* doc);
+void leptris_nodeset_free(leptris_nodeset_t* nodeset);
 ```
 
-#### 2. Taurus CLI (C Application)
-- **Standalone binary** linking libtaurus
+#### 2. Leptris CLI (C Application)
+- **Standalone binary** linking libleptris
 - **xmllint-compatible** commands and options
 - **Fast startup** (C binary, no Ruby overhead)
 - **Shell-friendly** with proper exit codes
@@ -96,25 +96,25 @@ void taurus_nodeset_free(taurus_nodeset_t* nodeset);
 **Commands** (inspired by xmllint):
 ```bash
 # XPath queries
-taurus --xpath "//book[@price > 20]" document.xml
+leptris --xpath "//book[@price > 20]" document.xml
 
 # Pretty printing
-taurus --format --indent 2 document.xml
-taurus --format --compact document.xml
+leptris --format --indent 2 document.xml
+leptris --format --compact document.xml
 
 # Validation
-taurus --validate document.xml
+leptris --validate document.xml
 
 # Schema validation (future)
-taurus --schema schema.xsd document.xml
+leptris --schema schema.xsd document.xml
 
 # Debugging
-taurus --debug --xpath "//item" document.xml
-taurus --timing document.xml
+leptris --debug --xpath "//item" document.xml
+leptris --timing document.xml
 ```
 
 #### 3. Ruby Gem (High-Level Interface)
-- **Thin wrapper** around libtaurus
+- **Thin wrapper** around libleptris
 - **Ruby-friendly** API with blocks and iterators
 - **Current API preserved** for backward
 
@@ -124,10 +124,10 @@ taurus --timing document.xml
 **Implementation**:
 ```ruby
 # Current approach (stays the same externally)
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 results = doc.xpath('//book')
 
-# Internally backed by libtaurus C library
+# Internally backed by libleptris C library
 ```
 
 ### Parsing Modes
@@ -138,7 +138,7 @@ results = doc.xpath('//book')
 - **Use case**: Large documents, extraction
 
 ```c
-taurus_sax_parse(xml, &callbacks, user_data);
+leptris_sax_parse(xml, &callbacks, user_data);
 ```
 
 #### StAX (Pull Parsing)
@@ -147,8 +147,8 @@ taurus_sax_parse(xml, &callbacks, user_data);
 - **Use case**: Selective parsing
 
 ```c
-taurus_reader_t* reader = taurus_reader_new(xml);
-while (taurus_reader_read(reader)) {
+leptris_reader_t* reader = leptris_reader_new(xml);
+while (leptris_reader_read(reader)) {
     // Process events
 }
 ```
@@ -156,10 +156,10 @@ while (taurus_reader_read(reader)) {
 #### DOM (Tree Construction)
 - **Convenient**: Full tree in memory
 - **XPath**: Enables complex queries
-- **Use case**: Current Taurus behavior
+- **Use case**: Current Leptris behavior
 
 ```c
-taurus_document_t* doc = taurus_parse_string(xml, len, NULL);
+leptris_document_t* doc = leptris_parse_string(xml, len, NULL);
 ```
 
 ### XML Pretty Printing
@@ -179,7 +179,7 @@ typedef struct {
     int wrap_column;        // 80, 120, etc.
     bool compact;           // remove whitespace
     bool sort_attributes;   // alphabetical
-} taurus_format_options_t;
+} leptris_format_options_t;
 ```
 
 ## Implementation Roadmap
@@ -191,13 +191,13 @@ typedef struct {
 - Establish API contracts
 
 ### Phase 2: C API Design (v0.6.0)
-- Design libtaurus C API
+- Design libleptris C API
 - Create header files
 - Document API conventions
 - Plan memory management
 
 ### Phase 3: Refactoring (v0.7.0)
-- Extract C code into libtaurus
+- Extract C code into libleptris
 - Maintain Ruby bindings
 - Separate concerns cleanly
 - Add C unit tests
@@ -209,9 +209,9 @@ typedef struct {
 - Add mode selection API
 
 ### Phase 5: CLI Implementation (v0.9.0)
-- Build C CLI using libtaurus
+- Build C CLI using libleptris
 - Implement xmllint-compatible commands
-- Add taurus-specific features
+- Add leptris-specific features
 - Document CLI usage
 
 ### Phase 6: Pretty Printing (v0.9.0)
@@ -272,7 +272,7 @@ typedef struct {
 - **Native Performance**: No interpretation overhead
 - **Wide Compatibility**: Works everywhere
 
-### For Taurus Users
+### For Leptris Users
 - **Faster CLI**: C binary startup
 - **More Modes**: SAX/StAX options
 - **Better Tools**: Enhanced CLI features
@@ -282,21 +282,21 @@ typedef struct {
 
 1. **v0.4.0**: Complete documentation
 2. **v0.5.0**: Namespace prefixes, API finalization
-3. **v0.6.0**: Design and prototype libtaurus API
-4. **v0.7.0**: Refactor to libtaurus + Ruby bindings
+3. **v0.6.0**: Design and prototype libleptris API
+4. **v0.7.0**: Refactor to libleptris + Ruby bindings
 5. **v0.8.0**: Add SAX/StAX modes
 6. **v0.9.0**: C CLI + pretty printing
-7. **v1.0.0**: Stable libtaurus release
+7. **v1.0.0**: Stable libleptris release
 
 ## Timeline
 
 - **Near-term (2025)**: v0.4.0-v0.5.0 (Ruby focus)
-- **Mid-term (2026)**: v0.6.0-v0.8.0 (libtaurus extraction)
+- **Mid-term (2026)**: v0.6.0-v0.8.0 (libleptris extraction)
 - **Long-term (2027+)**: v0.9.0-v1.0.0 (Multi-language, stable)
 
 ## Conclusion
 
-This vision transforms Taurus from a Ruby gem into a universal XML processing library usable from any language. The core libtaurus library would provide fast, reliable XML processing while maintaining backward compatibility with the current Ruby API.
+This vision transforms Leptris from a Ruby gem into a universal XML processing library usable from any language. The core libleptris library would provide fast, reliable XML processing while maintaining backward compatibility with the current Ruby API.
 
 **Key Principle**: Evolution, not revolution. Each step maintains compatibility while adding new capabilities.
 

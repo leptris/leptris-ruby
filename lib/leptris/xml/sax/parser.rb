@@ -2,13 +2,13 @@
 
 require "ffi"
 
-class Taurus::XML::SAX::Parser
+class Leptris::XML::SAX::Parser
   CHUNK_SIZE = 4096
   private_constant :CHUNK_SIZE
 
   attr_accessor :document, :encoding
 
-  def initialize(handler = Taurus::XML::SAX::Document.new, encoding = nil)
+  def initialize(handler = Leptris::XML::SAX::Document.new, encoding = nil)
     @document = handler
     @encoding = encoding
   end
@@ -27,37 +27,37 @@ class Taurus::XML::SAX::Parser
   def parse_memory(string)
     string = string.dup.force_encoding("UTF-8")
     handler_struct = build_handler_struct
-    rc = Taurus::XML::FFI.taurus_sax_parse(
+    rc = Leptris::XML::FFI.leptris_sax_parse(
       string, string.bytesize, handler_struct.pointer, nil)
     if rc != 0
-      raise Taurus::XML::ParseError,
-        "taurus_sax_parse failed (rc=#{rc})"
+      raise Leptris::XML::ParseError,
+        "leptris_sax_parse failed (rc=#{rc})"
     end
     self
   end
 
   def parse_io(io)
     handler_struct = build_handler_struct
-    parser_ptr = Taurus::XML::FFI.taurus_sax_parser_create(
+    parser_ptr = Leptris::XML::FFI.leptris_sax_parser_create(
       handler_struct.pointer, nil)
     if parser_ptr.null?
-      raise Taurus::XML::Error, "taurus_sax_parser_create failed"
+      raise Leptris::XML::Error, "leptris_sax_parser_create failed"
     end
     begin
       while (chunk = io.read(CHUNK_SIZE))
-        rc = Taurus::XML::FFI.taurus_sax_parser_feed(
+        rc = Leptris::XML::FFI.leptris_sax_parser_feed(
           parser_ptr, chunk, chunk.bytesize, 0)
         if rc != 0
-          raise Taurus::XML::ParseError, "taurus_sax_parser_feed failed (rc=#{rc})"
+          raise Leptris::XML::ParseError, "leptris_sax_parser_feed failed (rc=#{rc})"
         end
       end
       # Final flush
-      rc = Taurus::XML::FFI.taurus_sax_parser_feed(parser_ptr, "", 0, 1)
+      rc = Leptris::XML::FFI.leptris_sax_parser_feed(parser_ptr, "", 0, 1)
       if rc != 0
-        raise Taurus::XML::ParseError, "taurus_sax_parser_feed (final) failed (rc=#{rc})"
+        raise Leptris::XML::ParseError, "leptris_sax_parser_feed (final) failed (rc=#{rc})"
       end
     ensure
-      Taurus::XML::FFI.taurus_sax_parser_free(parser_ptr)
+      Leptris::XML::FFI.leptris_sax_parser_free(parser_ptr)
     end
     self
   end
@@ -68,12 +68,12 @@ class Taurus::XML::SAX::Parser
 
   private
 
-  # Build a TaurusSAXHandler struct populated with FFI::Function callbacks
+  # Build a LeptrisSAXHandler struct populated with FFI::Function callbacks
   # that dispatch to the Ruby handler. The struct (and its callbacks) are
   # anchored against GC via the local variable for the duration of the
   # synchronous parse call.
   def build_handler_struct
-    s = Taurus::XML::FFI::SAXHandler.new
+    s = Leptris::XML::FFI::SAXHandler.new
     handler = @document  # capture in closures
 
     s[:start_document] = callback(:void, [:pointer]) do |_|

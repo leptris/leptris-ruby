@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Taurus::XML::SAX::Document
+class Leptris::XML::SAX::Document
   # Called when an XML declaration is parsed.
   def xmldecl(version, encoding, standalone)
   end

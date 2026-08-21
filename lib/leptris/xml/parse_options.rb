@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Taurus::XML::ParseOptions
+class Leptris::XML::ParseOptions
   DEFAULT_XML = 0
   RECOVER = 1 << 0
   NOERROR = 1 << 5

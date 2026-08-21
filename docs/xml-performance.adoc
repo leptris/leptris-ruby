@@ -13,7 +13,7 @@ To update, run the appropriate rake task (see footer).
 
 * **Ruby Version**: 3.1.1
 * **Platform**: arm64-darwin21
-* **Taurus Version**: 0.1.0
+* **Leptris Version**: 0.1.0
 * **Libraries Available**: 
 * **Nokogiri**: Not available
 * **Timestamp**: 2025-11-27T18:27:08+0800
@@ -35,7 +35,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Ox |Nokogiri |vs Ox
+|Test |Leptris |Ox |Nokogiri |vs Ox
 
 |Parse small XML
 |2.0µs
@@ -55,7 +55,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Ox |Nokogiri |vs Ox
+|Test |Leptris |Ox |Nokogiri |vs Ox
 
 |Access root element
 |0.22µs
@@ -87,7 +87,7 @@ To update, run the appropriate rake task (see footer).
 
 [cols="["3", "2", "2", "2", "2"]",options="header"]
 |===
-|Test |Taurus |Ox |Nokogiri |vs Ox
+|Test |Leptris |Ox |Nokogiri |vs Ox
 
 |Set attribute value
 |3.12µs
@@ -107,7 +107,7 @@ Based on 7 comprehensive tests (vs Ox):
 * **Best result**: 1.0×
 * **Worst result**: 7.0×
 
-❌ **Taurus performance needs optimization** - Significantly slower than Ox (3.24× average).
+❌ **Leptris performance needs optimization** - Significantly slower than Ox (3.24× average).
 
 ---
 

@@ -1,10 +1,10 @@
-= Taurus Optimizations Implemented
+= Leptris Optimizations Implemented
 :toc:
 :toclevels: 3
 
 == Overview
 
-This document details all optimizations implemented in Taurus v0.1.0, including both successful techniques and failed attempts that provided valuable learning.
+This document details all optimizations implemented in Leptris v0.1.0, including both successful techniques and failed attempts that provided valuable learning.
 
 == Successful Optimizations
 
@@ -447,7 +447,7 @@ Based on Session 59-60 failures:
 
 == Conclusion
 
-Taurus v0.1.0 achieved production-ready performance through:
+Leptris v0.1.0 achieved production-ready performance through:
 
 1. **Smart Algorithmic Choices**: SIMD, lookup tables, AST caching
 2. **Architectural Solutions**: Pattern optimization, global caching

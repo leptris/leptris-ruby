@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Taurus::XML::DocType
+class Leptris::XML::DocType
   attr_reader :c_ptr, :document
 
   def initialize(c_ptr, document)
@@ -9,24 +9,24 @@ class Taurus::XML::DocType
   end
 
   def name
-    Taurus::XML::FFI.taurus_doctype_get_name(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_name(@c_ptr)
   end
   alias_method :node_name, :name
 
   def root_name
-    Taurus::XML::FFI.taurus_doctype_get_root_name(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_root_name(@c_ptr)
   end
 
   def public_id
-    Taurus::XML::FFI.taurus_doctype_get_public_id(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_public_id(@c_ptr)
   end
 
   def system_id
-    Taurus::XML::FFI.taurus_doctype_get_system_id(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_system_id(@c_ptr)
   end
 
   def internal_subset
-    Taurus::XML::FFI.taurus_doctype_get_internal_subset(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_internal_subset(@c_ptr)
   end
 
   def external_id

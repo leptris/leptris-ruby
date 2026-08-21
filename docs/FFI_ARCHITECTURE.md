@@ -2,7 +2,7 @@
 
 ## Overview
 
-As of v0.5.0, Taurus uses Ruby FFI (Foreign Function Interface) to call the native C library (`libtaurus`) instead of a traditional C extension. This provides better portability, easier installation, and cleaner separation between C and Ruby code.
+As of v0.5.0, Leptris uses Ruby FFI (Foreign Function Interface) to call the native C library (`libleptris`) instead of a traditional C extension. This provides better portability, easier installation, and cleaner separation between C and Ruby code.
 
 ## Architecture Diagram
 
@@ -14,7 +14,7 @@ As of v0.5.0, Taurus uses Ruby FFI (Foreign Function Interface) to call the nati
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Ruby Object Model                         │
-│  Document, Element, Node (lib/taurus/*.rb)                  │
+│  Document, Element, Node (lib/leptris/*.rb)                  │
 └─────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -32,7 +32,7 @@ As of v0.5.0, Taurus uses Ruby FFI (Foreign Function Interface) to call the nati
                            │ FFI calls
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    libtaurus.dylib                           │
+│                    libleptris.dylib                           │
 │  Native C library (44+ functions, all symbols exported)     │
 │  - XML parsing                                               │
 │  - XPath evaluation                                          │
@@ -43,7 +43,7 @@ As of v0.5.0, Taurus uses Ruby FFI (Foreign Function Interface) to call the nati
 
 ## Key Components
 
-### 1. FFI Library (`lib/taurus/ffi/library.rb`)
+### 1. FFI Library (`lib/leptris/ffi/library.rb`)
 
 **Purpose**: Declares FFI bindings to all C functions
 
@@ -54,11 +54,11 @@ As of v0.5.0, Taurus uses Ruby FFI (Foreign Function Interface) to call the nati
 
 **Example**:
 ```ruby
-attach_function :taurus_parse, [:string, :size_t], :taurus_document
-attach_function :taurus_xpath_eval, [:taurus_document, :string, :size_t], :taurus_xpath_result
+attach_function :leptris_parse, [:string, :size_t], :leptris_document
+attach_function :leptris_xpath_eval, [:leptris_document, :string, :size_t], :leptris_xpath_result
 ```
 
-### 2. FFI Types (`lib/taurus/ffi/types.rb`)
+### 2. FFI Types (`lib/leptris/ffi/types.rb`)
 
 **Purpose**: Defines constants and type conversions
 
@@ -78,13 +78,13 @@ module XPathResultType
 end
 ```
 
-### 3. FFI Memory (`lib/taurus/ffi/memory.rb`)
+### 3. FFI Memory (`lib/leptris/ffi/memory.rb`)
 
 **Purpose**: Automatic memory management
 
 **Key Features**:
-- `DocumentPointer` - AutoPointer that calls `taurus_document_free` on GC
-- `XPathResultPointer` - AutoPointer that calls `taurus_xpath_result_free` on GC
+- `DocumentPointer` - AutoPointer that calls `leptris_document_free` on GC
+- `XPathResultPointer` - AutoPointer that calls `leptris_xpath_result_free` on GC
 - Transparent cleanup when Ruby objects are garbage collected
 - Zero manual memory management required
 
@@ -92,17 +92,17 @@ end
 ```ruby
 class DocumentPointer < ::FFI::AutoPointer
   def self.release(ptr)
-    Taurus::FFI.taurus_document_free(ptr) unless ptr.null?
+    Leptris::FFI.leptris_document_free(ptr) unless ptr.null?
   end
 end
 ```
 
-### 4. FFI Errors (`lib/taurus/ffi/errors.rb`)
+### 4. FFI Errors (`lib/leptris/ffi/errors.rb`)
 
 **Purpose**: Error handling and propagation
 
 **Key Features**:
-- Thread-safe error checking via `taurus_last_error()`
+- Thread-safe error checking via `leptris_last_error()`
 - Automatic conversion to Ruby exceptions
 - Line/column information for parse errors
 - Error cleanup after handling
@@ -115,13 +115,13 @@ FFI::ErrorHandling.with_error_check do
 end
 ```
 
-### 5. FFI Bridge (`lib/taurus/ffi/bridge.rb`)
+### 5. FFI Bridge (`lib/leptris/ffi/bridge.rb`)
 
 **Purpose**: Convert C pointers to Ruby objects
 
 **Key Features**:
-- `document_from_ptr()` - Creates Document from taurus_document pointer
-- `element_from_ptr()` - Creates Element from taurus_element pointer
+- `document_from_ptr()` - Creates Document from leptris_document pointer
+- `element_from_ptr()` - Creates Element from leptris_element pointer
 - `xpath_result_to_ruby()` - Converts XPath result to appropriate Ruby type
 - Recursive loading of element trees
 - Attribute and namespace extraction
@@ -153,7 +153,7 @@ end
 
 ```ruby
 # Parse XML
-doc_ptr = FFI.taurus_parse(xml, xml.bytesize)
+doc_ptr = FFI.leptris_parse(xml, xml.bytesize)
 
 # Wrap in AutoPointer
 doc_ptr = FFI::MemoryHelpers.wrap_document(doc_ptr)
@@ -162,7 +162,7 @@ doc_ptr = FFI::MemoryHelpers.wrap_document(doc_ptr)
 doc = FFI::Bridge.document_from_ptr(doc_ptr)
 
 # Later: When 'doc' is GC'd, AutoPointer automatically calls:
-# taurus_document_free(doc_ptr)
+# leptris_document_free(doc_ptr)
 ```
 
 ### C Pointer Preservation
@@ -179,7 +179,7 @@ elem.instance_variable_set(:@_c_doc_ptr, doc_ptr)
 
 # During XPath evaluation
 doc_ptr = doc.instance_variable_get(:@_c_ptr)
-result_ptr = FFI.taurus_xpath_eval(doc_ptr, expression, expression.bytesize)
+result_ptr = FFI.leptris_xpath_eval(doc_ptr, expression, expression.bytesize)
 ```
 
 This allows:
@@ -229,11 +229,11 @@ def xpath_evaluate(doc, expression, context_node)
   # Get context node pointer (if different from doc)
   if context_node && context_node != doc
     context_ptr = context_node.instance_variable_get(:@_c_ptr)
-    result_ptr = FFI.taurus_xpath_eval_with_context(
+    result_ptr = FFI.leptris_xpath_eval_with_context(
       doc_ptr, context_ptr, expression, expression.bytesize
     )
   else
-    result_ptr = FFI.taurus_xpath_eval(
+    result_ptr = FFI.leptris_xpath_eval(
       doc_ptr, expression, expression.bytesize
     )
   end
@@ -249,22 +249,22 @@ XPath results are typed in C but need Ruby values:
 
 ```ruby
 def xpath_result_to_ruby(result_ptr)
-  type = FFI.taurus_xpath_result_get_type(result_ptr)
+  type = FFI.leptris_xpath_result_get_type(result_ptr)
   
   case type
   when :boolean
-    FFI.taurus_xpath_result_as_boolean(result_ptr) != 0
+    FFI.leptris_xpath_result_as_boolean(result_ptr) != 0
     
   when :number
-    FFI.taurus_xpath_result_as_number(result_ptr)
+    FFI.leptris_xpath_result_as_number(result_ptr)
     
   when :string
-    FFI.taurus_xpath_result_as_string(result_ptr)
+    FFI.leptris_xpath_result_as_string(result_ptr)
     
   when :nodeset
-    size = FFI.taurus_xpath_result_nodeset_size(result_ptr)
+    size = FFI.leptris_xpath_result_nodeset_size(result_ptr)
     size.times.map { |i|
-      elem_ptr = FFI.taurus_xpath_result_nodeset_get(result_ptr, i)
+      elem_ptr = FFI.leptris_xpath_result_nodeset_get(result_ptr, i)
       element_from_ptr(elem_ptr)
     }
   end
@@ -336,7 +336,7 @@ FFI calls are thread-safe:
 
 ### Recommendation
 
-Safe to use Taurus in multi-threaded Ruby applications.
+Safe to use Leptris in multi-threaded Ruby applications.
 
 ## Future Enhancements
 
@@ -363,7 +363,7 @@ The FFI implementation maintains 100% API compatibility with the previous C exte
 
 ```ruby
 # Both work the same
-doc = Taurus.parse(xml)
+doc = Leptris.parse(xml)
 doc.xpath('//book')
 doc.root.name
 ```
@@ -374,7 +374,7 @@ Users can switch between FFI and C extension transparently.
 
 ### FFI-Specific Tests
 
-Located in `spec/taurus/`:
+Located in `spec/leptris/`:
 - All 86 tests pass with FFI
 - No changes needed from C extension
 - Same test suite validates both implementations
@@ -393,9 +393,9 @@ Run with: `ruby benchmark/ffi_performance.rb`
 
 ### Library Not Found
 
-**Error**: `LoadError: Could not open library 'taurus'`
+**Error**: `LoadError: Could not open library 'leptris'`
 
-**Solution**: Ensure `libtaurus.dylib` (macOS) or `libtaurus.so` (Linux) is in:
+**Solution**: Ensure `libleptris.dylib` (macOS) or `libleptris.so` (Linux) is in:
 - `build/lib/` (development)
 - System library path (production)
 
@@ -406,7 +406,7 @@ Run with: `ruby benchmark/ffi_performance.rb`
 **Check**:
 ```ruby
 100_000.times do
-  doc = Taurus.parse(xml)
+  doc = Leptris.parse(xml)
   doc.xpath('//item')
   # doc should be GC'd after block
 end
@@ -422,7 +422,7 @@ end
 ```ruby
 require 'ruby-prof'
 result = RubyProf.profile do
-  1000.times { Taurus.parse(xml) }
+  1000.times { Leptris.parse(xml) }
 end
 printer = RubyProf::GraphHtmlPrinter.new(result)
 printer.print(File.open('profile.html', 'w'))
@@ -436,4 +436,4 @@ The FFI architecture provides an excellent balance of:
 - **Maintainability**: Clean separation between C and Ruby
 - **Safety**: Automatic memory management via AutoPointer
 
-This makes Taurus v0.5.0 the most portable and easiest-to-install version yet, while maintaining near-native performance.
+This makes Leptris v0.5.0 the most portable and easiest-to-install version yet, while maintaining near-native performance.

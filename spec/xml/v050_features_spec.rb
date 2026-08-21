@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 
 RSpec.describe "v0.5.0+ element mutation" do
-  let(:doc) { Taurus::XML::Document.parse("<root><a/><b/></root>") }
+  let(:doc) { Leptris::XML::Document.parse("<root><a/><b/></root>") }
   let(:root) { doc.root }
 
   it "renames an element via #name=" do
@@ -41,7 +41,7 @@ RSpec.describe "v0.5.0+ element mutation" do
 end
 
 RSpec.describe "v0.5.0+ typed node creators" do
-  let(:doc) { Taurus::XML::Document.parse("<root/>") }
+  let(:doc) { Leptris::XML::Document.parse("<root/>") }
   let(:root) { doc.root }
 
   it "creates and attaches a text node" do
@@ -96,20 +96,20 @@ end
 
 RSpec.describe "v0.5.0+ parent + unlink for non-element nodes" do
   it "exposes #parent on a Text node (worked around in v0.4.4)" do
-    doc = Taurus::XML::Document.parse("<x>hello</x>")
+    doc = Leptris::XML::Document.parse("<x>hello</x>")
     text = doc.root.child
-    expect(text).to be_a(Taurus::XML::Text)
+    expect(text).to be_a(Leptris::XML::Text)
     expect(text.parent).to eq(doc.root)
   end
 
   it "exposes #parent on a Comment node" do
-    doc = Taurus::XML::Document.parse("<x><!-- c --></x>")
+    doc = Leptris::XML::Document.parse("<x><!-- c --></x>")
     comment = doc.root.children.find(&:comment?)
     expect(comment.parent).to eq(doc.root)
   end
 
   it "unlinks a Text node via #remove" do
-    doc = Taurus::XML::Document.parse("<x>hello</x>")
+    doc = Leptris::XML::Document.parse("<x>hello</x>")
     text = doc.root.child
     text.remove
     expect(doc.root.content).to eq("")
@@ -118,7 +118,7 @@ end
 
 RSpec.describe "v0.5.0+ namespace definitions" do
   it "enumerates namespaces declared on an element" do
-    doc = Taurus::XML::Document.parse(<<~XML)
+    doc = Leptris::XML::Document.parse(<<~XML)
       <root xmlns="http://default.example" xmlns:foo="http://foo.example">
         <child/>
       </root>
@@ -132,7 +132,7 @@ RSpec.describe "v0.5.0+ namespace definitions" do
   end
 
   it "exposes inherited namespaces via #namespaces" do
-    doc = Taurus::XML::Document.parse(<<~XML)
+    doc = Leptris::XML::Document.parse(<<~XML)
       <root xmlns:foo="http://foo.example">
         <child/>
       </root>
@@ -144,15 +144,15 @@ end
 
 RSpec.describe "v0.5.0+ line + compare" do
   it "exposes #line for parsed nodes" do
-    doc = Taurus::XML::Document.parse("<root>\n  <child/>\n</root>")
+    doc = Leptris::XML::Document.parse("<root>\n  <child/>\n</root>")
     child = doc.root.first_element_child
-    # libtaurus v0.5.1 returns 0 for line numbers (function exists but
+    # libleptris v0.5.1 returns 0 for line numbers (function exists but
     # underlying tracking is not populated); just verify the call works.
     expect(child.line).to be_an(Integer)
   end
 
   it "compares nodes by document order via #<=>" do
-    doc = Taurus::XML::Document.parse("<root><a/><b/></root>")
+    doc = Leptris::XML::Document.parse("<root><a/><b/></root>")
     a = doc.root.first_element_child
     b = a.next_element
     expect(a <=> b).to be < 0
@@ -162,7 +162,7 @@ RSpec.describe "v0.5.0+ line + compare" do
 end
 
 RSpec.describe "v0.5.0+ serialization + C14N" do
-  let(:doc) { Taurus::XML::Document.parse("<root><child id='1'>text</child></root>") }
+  let(:doc) { Leptris::XML::Document.parse("<root><child id='1'>text</child></root>") }
 
   it "serializes the document to XML via Document#to_xml" do
     xml = doc.to_xml
@@ -190,8 +190,8 @@ RSpec.describe "v0.5.0+ serialization + C14N" do
   end
 
   it "preserves C14N 1.0 vs 1.1 modes" do
-    c14n_10 = doc.canonicalize(Taurus::XML::FFI::C14N_1_0)
-    c14n_11 = doc.canonicalize(Taurus::XML::FFI::C14N_1_1)
+    c14n_10 = doc.canonicalize(Leptris::XML::FFI::C14N_1_0)
+    c14n_11 = doc.canonicalize(Leptris::XML::FFI::C14N_1_1)
     expect(c14n_10).to include("<root")
     expect(c14n_11).to include("<root")
   end

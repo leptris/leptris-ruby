@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require "taurus/xml"
+require "leptris/xml"
 require "stringio"
 
-RSpec.describe Taurus::XML::SAX::Parser do
+RSpec.describe Leptris::XML::SAX::Parser do
   let(:xml) do
     <<~XML
       <?xml version="1.0"?>
@@ -15,7 +15,7 @@ RSpec.describe Taurus::XML::SAX::Parser do
   end
 
   # Test handler that captures every event into an array for assertion.
-  class RecordingHandler < Taurus::XML::SAX::Document
+  class RecordingHandler < Leptris::XML::SAX::Document
     attr_reader :events
 
     def initialize

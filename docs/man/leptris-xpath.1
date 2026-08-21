@@ -1,8 +1,8 @@
-.TH TAURUS-XPATH 1 "January 2025" "Taurus 0.5.0" "User Commands"
+.TH LEPTRIS-XPATH 1 "January 2025" "Leptris 0.5.0" "User Commands"
 .SH NAME
-taurus-xpath \- Execute XPath 1.0 queries against XML documents
+leptris-xpath \- Execute XPath 1.0 queries against XML documents
 .SH SYNOPSIS
-.B taurus xpath
+.B leptris xpath
 .RI [ OPTIONS ]
 .I FILE
 .I EXPRESSION
@@ -242,37 +242,37 @@ Invalid arguments. Incorrect command-line options.
 .SH EXAMPLES
 .TP
 Find all book elements:
-.B taurus xpath books.xml "//book"
+.B leptris xpath books.xml "//book"
 .TP
 Find books with price > 20:
-.B taurus xpath books.xml "//book[@price > 20]"
+.B leptris xpath books.xml "//book[@price > 20]"
 .TP
 Get the first book:
-.B taurus xpath books.xml "//book[1]"
+.B leptris xpath books.xml "//book[1]"
 .TP
 Count all items:
-.B taurus xpath --count inventory.xml "//item"
+.B leptris xpath --count inventory.xml "//item"
 .TP
 Check if any active items exist:
-.B taurus xpath --boolean store.xml "//item[@status='active']"
+.B leptris xpath --boolean store.xml "//item[@status='active']"
 .TP
 Find all titles under books:
-.B taurus xpath library.xml "//book/title"
+.B leptris xpath library.xml "//book/title"
 .TP
 Get parent of first item:
-.B taurus xpath data.xml "//item[1]/.."
+.B leptris xpath data.xml "//item[1]/.."
 .TP
 Find siblings after first element:
-.B taurus xpath doc.xml "/root/child[1]/following-sibling::*"
+.B leptris xpath doc.xml "/root/child[1]/following-sibling::*"
 .TP
 Complex query with multiple predicates:
-.B taurus xpath books.xml "//book[@price > 20 and @category='fiction']/title"
+.B leptris xpath books.xml "//book[@price > 20 and @category='fiction']/title"
 .TP
 Use string functions:
-.B taurus xpath data.xml "//item[starts-with(@id, 'AB')]"
+.B leptris xpath data.xml "//item[starts-with(@id, 'AB')]"
 .TP
 Pipeline example:
-.B cat data.xml | taurus xpath - "//active" --format json
+.B cat data.xml | leptris xpath - "//active" --format json
 .SH PERFORMANCE
 The XPath engine is optimized for:
 .TP
@@ -293,9 +293,9 @@ supported. Use local-name() or name() functions as workarounds.
 .B Variables
 XPath variables ($var) are not supported in command-line mode.
 .SH SEE ALSO
-.BR taurus (1),
-.BR taurus-parse (1),
-.BR taurus-format (1),
+.BR leptris (1),
+.BR leptris-parse (1),
+.BR leptris-format (1),
 .BR xpath (1)
 .PP
 XPath 1.0 Specification:
@@ -303,7 +303,7 @@ XPath 1.0 Specification:
 .UE
 .SH BUGS
 Report bugs at:
-.UR https://github.com/lutaml/taurus/issues
+.UR https://github.com/leptris/leptris/issues
 .UE
 .SH AUTHORS
 Written by the Lutaml team at Ribose Inc.
