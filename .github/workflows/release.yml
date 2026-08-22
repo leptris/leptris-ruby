@@ -1,23 +1,164 @@
 name: release
 
-permissions:
-  contents: write
-  id-token: write
-
 on:
   workflow_dispatch:
     inputs:
       next_version:
-        description: 'Next version (x.y.z, major, minor, patch, or skip to release current)'
-        required: true
-        default: 'skip'
-  repository_dispatch:
-    types: [ do-release ]
+        description: 'Version to release (e.g. 1.1.1). Leave empty to use current VERSION.'
+        type: string
+        required: false
+
+# contents: write is needed for pushing the version-bump commit + tag.
+# id-token: write is required for RubyGems.org Trusted Publishing (OIDC).
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
-  release:
-    uses: metanorma/ci/.github/workflows/rubygems-release.yml@main
-    with:
-      next_version: ${{ github.event.inputs.next_version }}
-      gated: false
-      submodules: false
+  bump:
+    if: github.event_name == 'workflow_dispatch' && inputs.next_version != ''
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.bump.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: '3.3'
+
+      - name: Bump version.rb
+        id: bump
+        shell: bash
+        env:
+          NEXT_VERSION: ${{ inputs.next_version }}
+        run: |
+          set -euo pipefail
+          sed -i "s/VERSION = \".*\"/VERSION = \"${NEXT_VERSION}\"/" lib/leptris/version.rb
+          NEW_VERSION=$(ruby -Ilib -rleptris/version -e 'puts Leptris::VERSION')
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/leptris/version.rb
+          git commit -m "Bump leptris to ${NEW_VERSION}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push bump commit + tag
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new-version }}
+        run: |
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          git tag "v${NEW_VERSION}" HEAD
+          git push origin "v${NEW_VERSION}"
+
+  build:
+    needs: bump
+    if: always() && !cancelled() && !failure()
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: any
+          - os: ubuntu-latest
+            platform: x86_64-linux
+          - os: ubuntu-24.04-arm
+            platform: aarch64-linux
+          - os: windows-latest
+            platform: x64-mingw32
+          - os: windows-latest
+            platform: x64-mingw-ucrt
+          - os: windows-11-arm
+            platform: aarch64-mingw-ucrt
+          - os: macos-latest
+            platform: arm64-darwin
+          - os: macos-15-intel
+            platform: x86_64-darwin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || github.ref }}
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: '3.3'
+
+      - run: bundle exec rake gem:native:${{ matrix.platform }}
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform }}
+          path: pkg/*.gem
+
+  build-musl:
+    needs: bump
+    if: always() && !cancelled() && !failure()
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux-musl
+          - os: ubuntu-24.04-arm
+            platform: aarch64-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || github.ref }}
+
+      # Musl builds run inside an Alpine container so the vendored
+      # library links against musl libc. JS actions cannot run inside
+      # Alpine, so checkout/artifact happen on the host and the build
+      # runs via `docker run` with the workspace mounted.
+      - name: Build gem in Alpine container
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e target_platform="${TARGET_PLATFORM}" \
+            ruby:3.3-alpine sh -c '
+              set -eux
+              apk add --no-cache build-base bash curl git cmake make ninja gcc g++
+              git config --global --add safe.directory /work
+              bundle install --jobs 4 --retry 3
+              bundle exec rake gem:native:"'"${TARGET_PLATFORM}"'"
+            '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform }}
+          path: pkg/*.gem
+
+  publish:
+    needs: [ bump, build, build-musl ]
+    if: always() && !cancelled() && !failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || github.ref }}
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: '3.3'
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          path: pkg
+          merge-multiple: true
+
+      - name: Configure RubyGems credentials (Trusted Publishing / OIDC)
+        uses: rubygems/configure-rubygems-credentials@main
+
+      - name: Publish to rubygems.org
+        run: |
+          ls -la pkg/
+          for gem in pkg/*.gem; do
+            echo "Pushing $gem..."
+            gem push -V "$gem"
+          done

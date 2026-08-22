@@ -38,37 +38,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install libleptris from source
-      shell: bash
-      run: |
-        set -e
-        mkdir -p /tmp/tb && cd /tmp/tb
-        curl -sL https://api.github.com/repos/leptris/leptris/tarball/v1.1.0 | tar xz --strip-components=1
-        cmake -B build -S . \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DLEPTRIS_BUILD_SHARED=ON \
-          -DLEPTRIS_BUILD_STATIC=OFF \
-          -DBUILD_TESTING=OFF \
-          -DLEPTRIS_BUILD_CLI=OFF \
-          -DLEPTRIS_BUILD_BENCHMARKS=OFF \
-          -DLEPTRIS_BUILD_MAN_PAGES=OFF \
-          -DLEPTRIS_ENABLE_UTF8PROC=OFF \
-          -DLEPTRIS_ENABLE_ICONV=OFF
-        cmake --build build --config Release -j 4
-        LIB=$(find build -type f -o -type l 2>/dev/null | grep -iE '(lib)?leptris\.(dylib|so|dll)$' | head -1)
-        if [ -z "$LIB" ]; then
-          echo "ERROR: libleptris shared library not found after build"
-          find build -name '*leptris*' -type f
-          exit 1
-        fi
-        LIBPATH=$(cygpath -w "$(pwd)/$LIB" 2>/dev/null || echo "$(pwd)/$LIB")
-        echo "LEPTRIS_LIB_PATH=$LIBPATH" >> "$GITHUB_ENV"
-        echo "Installed libleptris at: $LIBPATH"
-
     - uses: ruby/setup-ruby@master
       with:
         bundler-cache: true
         ruby-version: ${{ matrix.ruby.version }}
         rubygems: ${{ matrix.ruby.rubygems }}
 
+    # rake compile vendors libleptris (Rakefile LIBLEPTRIS_VERSION pin)
+    # into lib/ where the FFI search order finds it -- no env var needed.
     - run: bundle exec rake

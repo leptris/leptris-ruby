@@ -5,6 +5,54 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-08-22
+
+### Added
+
+- **Precompiled platform gems** (emf2svg-ruby model): `rake compile`
+  vendors libleptris into `lib/`, and `rake gem:native:<platform>`
+  builds binary gems for x86_64/aarch64-linux (incl. musl, via Alpine
+  containers), x64-mingw32/ucrt + aarch64-mingw-ucrt, and
+  x86_64/arm64-darwin. `gem install leptris` resolves the platform
+  gem and works with no system libleptris and no env vars — the FFI
+  search order prefers the vendored library. The pure-Ruby gem
+  remains the fallback for other setups.
+- `Element#prefix` — the element's own namespace prefix (nil-safe).
+- `Element#each_attribute` — Enumerator over the v1.1.0
+  attribute-iteration face; `attributes`/`attribute_nodes`/`keys`/
+  `values` now use it (O(n) vs the O(n^2) index-re-walk API).
+- Bindings for the v1.1.0 public surface: attribute-iteration face,
+  mixed-nodeset API (`xpath_result_node_kind/get_node/node_name/
+  node_value` + kind constants), `leptris_serialize_document`,
+  `leptris_document_get_dtd`, `leptris_element_prefix`,
+  `leptris_xpath_register_function` (Ruby sugar deferred until the
+  callback return-string ownership is verified).
+- `NodeSet` fetches via `get_node` (all node kinds) instead of the
+  elements-only `result_get`.
+
+### Changed
+
+- `release.yml` is standalone again, building the 8-platform matrix
+  plus musl containers and publishing all gems via OIDC trusted
+  publishing. Requires the rubygems.org trusted publisher to be
+  re-pointed at this workflow (filename `release.yml`, no
+  reusable-workflow fields).
+- CI builds libleptris via `rake compile` (single version pin in the
+  Rakefile) instead of an inline cmake script.
+
+### Fixed
+
+- Removes the resurrected `c14n.rb` (its deletion was lost in a
+  rebase-merge; nothing referenced it).
+
+### Known issues
+
+- Mixed-kind XPath results misreport node types upstream
+  (leptris#477: enum-space collision; `node_name`/`node_value`
+  crash on text entries). Specs assert only the correct surface;
+  `NodeSet` carries a per-index fallback for the under-copying batch
+  accessor.
+
 ## [1.1.0] - 2026-08-22
 
 Lockstep with libleptris 1.1.0.
