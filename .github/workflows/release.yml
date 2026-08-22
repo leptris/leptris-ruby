@@ -54,10 +54,10 @@ jobs:
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
-    # The aarch64 musl build fails on an upstream NEON intrinsic
+    # GCC-built aarch64 targets fail on an upstream NEON intrinsic
     # type error (leptris#487); ship the other platforms until it
     # is fixed.
-    continue-on-error: ${{ matrix.platform == 'aarch64-linux-musl' }}
+    continue-on-error: ${{ matrix.platform == 'aarch64-linux' || matrix.platform == 'aarch64-linux-musl' }}
     strategy:
       fail-fast: false
       matrix:
@@ -74,6 +74,7 @@ jobs:
             platform: x64-mingw-ucrt
           - os: windows-11-arm
             platform: aarch64-mingw-ucrt
+            ruby-version: '3.4'
           - os: macos-latest
             platform: arm64-darwin
           - os: macos-15-intel
@@ -85,7 +86,7 @@ jobs:
 
       - uses: ruby/setup-ruby@master
         with:
-          ruby-version: '3.3'
+          ruby-version: ${{ matrix.ruby-version || '3.3' }}
           bundler-cache: true
 
       - run: bundle exec rake gem:native:${{ matrix.platform }}

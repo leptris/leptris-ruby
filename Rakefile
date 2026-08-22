@@ -49,6 +49,11 @@ task default: :spec
 
 require "rubygems/package_task"
 
+desc "Build the pure-Ruby gem"
+task "gem:native:any" do
+  sh "rake platform:any gem"
+end
+
 desc "Define the gem task to build the pure-Ruby gem"
 task "platform:any" do
   spec = Gem::Specification::load("leptris.gemspec").dup
