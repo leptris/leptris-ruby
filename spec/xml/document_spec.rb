@@ -202,7 +202,10 @@ end
 RSpec.describe "wrapper identity" do
   it "returns the same object for repeated root access" do
     doc = Leptris::XML::Document.parse("<root><child/></root>")
-    expect(doc.root.equal?(doc.root)).to be(true)
+    a = doc.root
+    b = doc.root
+    expect("addr1=#{a.c_ptr.address} addr2=#{b.c_ptr.address} same=#{a.equal?(b)}")
+      .to end_with("same=true")
   end
 
   it "returns the same object for a node reached by different paths" do
