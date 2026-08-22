@@ -11,6 +11,7 @@ module Leptris
         ENV["LEPTRIS_LIB_PATH"],
         File.expand_path("../../libleptris.dylib", __dir__),
         File.expand_path("../../libleptris.so", __dir__),
+        File.expand_path("../../libleptris.dll", __dir__),
         "/usr/local/lib/libleptris.dylib",
         "/usr/local/lib/libleptris.so",
         "leptris",

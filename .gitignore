@@ -41,6 +41,5 @@ CMakeFiles/
 .DS_Store
 Thumbs.db
 
-# Keep the shared library
-!lib/libleptris.dylib
-!lib/libleptris.so
+# Vendored libleptris stays untracked: platform gems are built by CI
+# (rake gem:native:<platform>) and never committed.
