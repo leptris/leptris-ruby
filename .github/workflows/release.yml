@@ -58,6 +58,10 @@ jobs:
     # type error (leptris#487); ship the other platforms until it
     # is fixed.
     continue-on-error: ${{ matrix.platform == 'aarch64-linux' || matrix.platform == 'aarch64-linux-musl' }}
+    # Release builds never run the benchmark suite; nokogiri has no
+    # aarch64-Windows binary gem and its source build fails there.
+    env:
+      BUNDLE_WITHOUT: benchmark
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +105,8 @@ jobs:
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
+    env:
+      BUNDLE_WITHOUT: benchmark
     strategy:
       fail-fast: false
       matrix:
@@ -125,6 +131,7 @@ jobs:
           docker run --rm \
             -v "$PWD:/work" \
             -w /work \
+            -e BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
             -e target_platform="${TARGET_PLATFORM}" \
             ruby:3.3-alpine sh -c '
               set -eux
