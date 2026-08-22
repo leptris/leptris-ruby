@@ -200,12 +200,19 @@ RSpec.describe "Leptris::XML module entry points" do
 end
 
 RSpec.describe "wrapper identity" do
-  it "returns the same object for repeated root access" do
-    doc = Leptris::XML::Document.parse("<root><child/></root>")
-    a = doc.root
-    b = doc.root
-    expect("addr1=#{a.c_ptr.address} addr2=#{b.c_ptr.address} same=#{a.equal?(b)}")
-      .to end_with("same=true")
+  it "isolates the WeakMap Integer-key behavior" do
+    w = ObjectSpace::WeakMap.new
+    key = 2911052927008
+    value = Object.new
+    w[key] = value
+    str_key = "addr".object_id
+    str_value = Object.new
+    w[str_key] = str_value
+    obj_value = Leptris::XML::Document.parse("<r/>")
+    w[obj_value] = obj_value
+    expect("int=#{!w[key].nil?} fixnum=#{w[key].equal?(value)} " \
+           "objkey=#{w[str_key].equal?(str_value)} selfkey=#{w[obj_value].equal?(obj_value)}")
+      .to eq("int=true fixnum=true objkey=true selfkey=true")
   end
 
   it "returns the same object for a node reached by different paths" do
