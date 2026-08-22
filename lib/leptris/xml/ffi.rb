@@ -186,6 +186,16 @@ module Leptris
         [:leptris_element, :string, :int], :int
       attach_function :leptris_element_has_attribute,
         [:leptris_element, :string], :int
+      attach_function :leptris_element_first_attribute,
+        [:leptris_element], :leptris_attribute
+      attach_function :leptris_attribute_next,
+        [:leptris_attribute], :leptris_attribute
+      attach_function :leptris_attribute_get_name,
+        [:leptris_attribute], :string
+      attach_function :leptris_attribute_get_value,
+        [:leptris_element, :leptris_attribute], :string
+      attach_function :leptris_element_prefix,
+        [:leptris_element], :string
       attach_function :leptris_element_attribute_count,
         [:leptris_element], :size_t
       attach_function :leptris_element_attribute_name_at,
@@ -310,6 +320,22 @@ module Leptris
         [:leptris_xpath_result], :size_t
       attach_function :leptris_xpath_result_get,
         [:leptris_xpath_result, :size_t], :leptris_element
+      # Mixed nodesets (v1.1.0): unlike result_get (elements only),
+      # get_node returns the node whatever its kind; node_kind reports
+      # which (element / synthetic attribute / text / other).
+      attach_function :leptris_xpath_result_node_kind,
+        [:leptris_xpath_result, :size_t], :int
+      attach_function :leptris_xpath_result_get_node,
+        [:leptris_xpath_result, :size_t], :leptris_node_ref
+      attach_function :leptris_xpath_result_node_name,
+        [:leptris_xpath_result, :size_t], :string
+      attach_function :leptris_xpath_result_node_value,
+        [:leptris_xpath_result, :size_t], :string
+      # Document-scoped custom XPath functions. The callback receives
+      # (const char* const* args, int argc, void* user_data) and returns
+      # a heap string the library frees.
+      attach_function :leptris_xpath_register_function,
+        [:leptris_document, :string, :pointer, :pointer], :leptris_status
       attach_function :leptris_xpath_result_get_nodes,
         [:leptris_xpath_result, :pointer, :size_t], :size_t
       attach_function :leptris_xpath_result_boolean,
@@ -347,6 +373,12 @@ module Leptris
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
+      # Legacy simple serializer, declared retroactively in v1.1.0.
+      # Prefer leptris_document_serialize; bound for API completeness.
+      attach_function :leptris_serialize_document,
+        [:leptris_document], :pointer
+      attach_function :leptris_document_get_dtd,
+        [:leptris_document], :pointer
       attach_function :leptris_element_serialize,
         [:leptris_element, :pointer], :pointer
       attach_function :leptris_document_save_file,
@@ -397,6 +429,11 @@ module Leptris
       XPATH_BOOLEAN = 1
       XPATH_NUMBER = 2
       XPATH_STRING = 3
+
+      XPATH_NODE_ELEMENT = 0
+      XPATH_NODE_ATTRIBUTE = 1
+      XPATH_NODE_TEXT = 2
+      XPATH_NODE_OTHER = 3
 
       NODE_ELEMENT = 0
       NODE_TEXT = 1
