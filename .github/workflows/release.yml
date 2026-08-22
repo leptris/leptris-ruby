@@ -54,10 +54,10 @@ jobs:
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
-    # GCC-built aarch64 targets fail on an upstream NEON intrinsic
-    # type error (leptris#487); ship the other platforms until it
-    # is fixed.
-    continue-on-error: ${{ matrix.platform == 'aarch64-linux' || matrix.platform == 'aarch64-linux-musl' }}
+    # All three non-x86, non-clang toolchains (GCC glibc/musl,
+    # MSVC ARM64) fail on an upstream NEON intrinsic bug
+    # (leptris#487); ship the other platforms until it is fixed.
+    continue-on-error: ${{ matrix.platform == 'aarch64-linux' || matrix.platform == 'aarch64-linux-musl' || matrix.platform == 'aarch64-mingw-ucrt' }}
     # Release builds never run the benchmark suite; nokogiri has no
     # aarch64-Windows binary gem and its source build fails there.
     env:
