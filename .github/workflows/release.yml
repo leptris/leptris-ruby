@@ -54,10 +54,6 @@ jobs:
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
-    # All three non-x86, non-clang toolchains (GCC glibc/musl,
-    # MSVC ARM64) fail on an upstream NEON intrinsic bug
-    # (leptris#487); ship the other platforms until it is fixed.
-    continue-on-error: ${{ matrix.platform == 'aarch64-linux' || matrix.platform == 'aarch64-linux-musl' || matrix.platform == 'aarch64-mingw-ucrt' }}
     # Release builds never run the benchmark suite; nokogiri has no
     # aarch64-Windows binary gem and its source build fails there.
     env:
@@ -148,10 +144,7 @@ jobs:
 
   publish:
     needs: [ bump, build, build-musl ]
-    # !failure() is deliberately dropped: the three aarch64 legs fail
-    # open by design (continue-on-error, leptris#487) but still surface
-    # failure conclusions to needs. Everything buildable must publish.
-    if: always() && !cancelled()
+    if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
