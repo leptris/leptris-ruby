@@ -148,7 +148,10 @@ jobs:
 
   publish:
     needs: [ bump, build, build-musl ]
-    if: always() && !cancelled() && !failure()
+    # !failure() is deliberately dropped: the three aarch64 legs fail
+    # open by design (continue-on-error, leptris#487) but still surface
+    # failure conclusions to needs. Everything buildable must publish.
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
