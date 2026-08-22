@@ -81,8 +81,7 @@ module Leptris::XML::Searchable
       v
     when Leptris::XML::FFI::XPATH_STRING
       str_ptr = Leptris::XML::FFI.leptris_xpath_result_string(result_ptr)
-      v = str_ptr.null? ? "" : str_ptr.read_string
-      Leptris::XML::FFI.leptris_free_string(str_ptr) unless str_ptr.null?
+      v = Leptris::XML::FFI.read_owned_string(str_ptr)
       Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       v
     else

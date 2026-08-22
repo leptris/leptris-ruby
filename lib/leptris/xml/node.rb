@@ -66,7 +66,7 @@ class Leptris::XML::Node
     return @parent if @parent
     ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
     return nil if ptr.null?
-    Leptris::XML::Element.new(ptr, @document)
+    Leptris::XML::Node.wrap(ptr, @document)
   end
 
   def line
@@ -141,9 +141,8 @@ class Leptris::XML::Node
   end
 
   def unlink
-    status = Leptris::XML::FFI.leptris_node_unlink(@c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_node_unlink(@c_ptr))
     @parent = nil
     self
   end
@@ -173,7 +172,7 @@ class Leptris::XML::Node
   def path
     str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
     return nil if str_ptr.null?
-    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
+    Leptris::XML::FFI.read_owned_string(str_ptr)
   end
 
   def css_path
@@ -189,7 +188,7 @@ class Leptris::XML::Node
     raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
     copy_ptr = Leptris::XML::FFI.leptris_element_copy(elem_ptr, @document.c_ptr)
     raise Leptris::XML::Error, "leptris_element_copy failed" if copy_ptr.null?
-    Leptris::XML::Element.new(copy_ptr, @document)
+    Leptris::XML::Node.wrap(copy_ptr, @document)
   end
   alias_method :clone, :dup
 
@@ -208,14 +207,5 @@ class Leptris::XML::Node
     is_a?(Leptris::XML::Element) ? self : nil
   end
 
-  private
-
-  # Walks the subtree in post-order DFS (matches Nokogiri's semantics).
-  #
-  # Specialized hot path for #traverse: skips the intermediate NodeSet
-  # allocation that Element#children would create, walking via raw FFI
-  # calls and wrapping nodes directly. Saves one Array + one NodeSet
-  # allocation per parent node.
-  #
   include Leptris::XML::Searchable
 end

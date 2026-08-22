@@ -8,9 +8,8 @@ class Leptris::XML::CDATA < Leptris::XML::Text
   end
 
   def content=(new_content)
-    status = Leptris::XML::FFI.leptris_cdata_node_set_content(@c_ptr, new_content.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_cdata_node_set_content(@c_ptr, new_content.to_s))
     new_content
   end
 end

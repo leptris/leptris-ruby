@@ -5,6 +5,37 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Leptris::XML.parse(xml, options:)` and
+  `Leptris::XML::ParseOptions.noblanks` — whitespace-only text nodes
+  can now be dropped at parse time (libxml2 `XML_PARSE_NOBLANKS` /
+  Nokogiri `noblanks` parity), via the new
+  `leptris_parse_string_flags` FFI entry point.
+- Wrapper identity is now a guarantee: every path to a C node
+  (`root`, factories, navigation, xpath results) goes through
+  `Node.wrap` and its per-document cache, so the same node always
+  yields the same Ruby object.
+
+### Changed
+
+- Architecture deepening: one status seam (`FFI.check_status`)
+  replaces 21 copy-pasted raises; one owned-string read
+  (`FFI.read_owned_string`) replaces 6 hand-rolled read-then-free
+  dances; a `Serialization` module owns the serialize/canonicalize
+  options lifecycle for both `Document` and `Element`; a
+  `CStringArray` adapter owns the NULL-terminated `char**` wire
+  format in both directions (c14n.rb folded in; the eager require is
+  gone and the autoload convention is uniform again).
+
+### Removed
+
+- `ParseOptions` constants that mapped to nothing (`RECOVER`,
+  `STRICT`, `NOCDATA`, …). They were never honored by any code path;
+  the class now exposes only the real flag surface.
+
 ## [1.0.0] - 2026-08-21
 
 The leptris rebrand, in lockstep with libleptris 1.0.0. Every

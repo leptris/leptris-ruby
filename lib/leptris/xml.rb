@@ -18,13 +18,14 @@ module Leptris
     autoload :Searchable, "leptris/xml/searchable"
     autoload :ParseOptions, "leptris/xml/parse_options"
     autoload :CssToXPath, "leptris/xml/css_to_xpath"
+    autoload :CStringArray, "leptris/xml/c_string_array"
+    autoload :Serialization, "leptris/xml/serialization"
     autoload :SAX, "leptris/xml/sax"
-    require "leptris/xml/c14n"  # module-level helper, eager load
 
     # Nokogiri-style top-level entry points (Nokogiri::XML(...) /
     # Nokogiri::XML.parse). Delegates to Document.parse.
-    def self.parse(xml_or_io)
-      Document.parse(xml_or_io)
+    def self.parse(xml_or_io, options: nil)
+      Document.parse(xml_or_io, options: options)
     end
 
     def self.parse_file(path)
