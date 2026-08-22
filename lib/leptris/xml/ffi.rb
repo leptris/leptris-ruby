@@ -53,6 +53,8 @@ module Leptris
 
       attach_function :leptris_parse_string,
         [:string, :size_t, :pointer], :leptris_document
+      attach_function :leptris_parse_string_flags,
+        [:string, :size_t, :uint, :pointer], :leptris_document
       attach_function :leptris_parse_string_inplace,
         [:pointer, :size_t, :pointer], :leptris_document
       attach_function :leptris_parse_string_with_encoding,
@@ -415,6 +417,24 @@ module Leptris
 
       TRAVERSE_PRE_ORDER = 0
       TRAVERSE_POST_ORDER = 1
+
+      LEPTRIS_PARSE_DEFAULT = 0
+      LEPTRIS_PARSE_DROP_WS_TEXT = 1
+
+      # Reads an libleptris-owned char* result and frees it as one unit,
+      # so a call site can neither leak nor double-free.
+      def self.read_owned_string(ptr)
+        return "" if ptr.nil? || ptr.null?
+        ptr.read_string.tap { leptris_free_string(ptr) }
+      end
+
+      # Single status seam: turns a C status code into a Ruby error.
+      def self.check_status(status)
+        unless status == LEPTRIS_OK
+          raise Leptris::XML::Error, leptris_status_string(status)
+        end
+        status
+      end
     end
   end
 end

@@ -198,3 +198,74 @@ RSpec.describe "Leptris::XML module entry points" do
     end
   end
 end
+
+RSpec.describe "wrapper identity" do
+  it "returns the same object for repeated root access" do
+    doc = Leptris::XML::Document.parse("<root><child/></root>")
+    expect(doc.root.equal?(doc.root)).to be(true)
+  end
+
+  it "returns the same object for a node reached by different paths" do
+    doc = Leptris::XML::Document.parse("<root><a/><b/></root>")
+    via_children = doc.root.children.first
+    via_first    = doc.root.first_element_child
+    expect(via_children.equal?(via_first)).to be(true)
+  end
+
+  it "returns the same parent object from parent and child navigation" do
+    doc = Leptris::XML::Document.parse("<root><child/></root>")
+    child = doc.root.first_element_child
+    expect(child.parent.equal?(doc.root)).to be(true)
+    expect(child.parent.equal?(child.parent)).to be(true)
+  end
+
+  it "returns the same object from repeated xpath evaluation" do
+    doc = Leptris::XML::Document.parse("<root><item id='1'/><item id='2'/></root>")
+    first_run  = doc.xpath("//item").to_a
+    second_run = doc.xpath("//item").to_a
+    expect(first_run[0].equal?(second_run[0])).to be(true)
+    expect(first_run[1].equal?(second_run[1])).to be(true)
+  end
+end
+
+RSpec.describe "parse options" do
+  let(:pretty_xml) do
+    <<~XML
+      <root>
+        <a>text</a>
+        <b>
+          <c/>
+        </b>
+      </root>
+    XML
+  end
+
+  it "keeps whitespace-only text nodes by default" do
+    doc = Leptris::XML.parse(pretty_xml)
+    expect(doc.root.children).to all(be_a(Leptris::XML::Node))
+    expect(doc.root.children.count(&:text?)).to be > 0
+    expect(doc.root.first_element_child.name).to eq("a")
+  end
+
+  it "drops whitespace-only text nodes with noblanks" do
+    doc = Leptris::XML.parse(pretty_xml, options: Leptris::XML::ParseOptions.noblanks)
+    expect(doc.root.children.select(&:text?)).to be_empty
+    expect(doc.root.children.map(&:name)).to eq(%w[a b])
+    expect(doc.root.first_element_child.name).to eq("a")
+  end
+
+  it "reports its flag state" do
+    expect(Leptris::XML::ParseOptions.noblanks).to be_noblanks
+    expect(Leptris::XML::ParseOptions.new).not_to be_noblanks
+  end
+
+  it "rejects non-ParseOptions values" do
+    expect { Leptris::XML.parse(pretty_xml, options: :noblanks) }
+      .to raise_error(ArgumentError, /ParseOptions/)
+  end
+
+  it "carries meaningful text through noblanks parses" do
+    doc = Leptris::XML.parse(pretty_xml, options: Leptris::XML::ParseOptions.noblanks)
+    expect(doc.root.first_element_child.content).to eq("text")
+  end
+end

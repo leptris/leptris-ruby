@@ -18,19 +18,26 @@ class Leptris::XML::Document
     @c_ptr = c_ptr
     @freed = freed
     # Per-document weak-ref cache for Node wrappers, keyed on c_ptr
-    # address. Eliminates re-allocation when the same node is accessed
-    # repeatedly (e.g. via children, siblings, multiple xpath calls).
-    # Dies with the Document — no stale entries pointing at freed memory.
+    # address. Every wrapper is created through Node.wrap, which is the
+    # single construction path, so the same C node always yields the
+    # same Ruby object. Dies with the Document — no stale entries.
     @wrapper_cache = ObjectSpace::WeakMap.new
   end
 
-  def self.parse(xml_or_io)
+  def self.parse(xml_or_io, options: nil)
     xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
     end
+    flags = resolve_flags(options)
     status_ptr = ::FFI::MemoryPointer.new(:int)
-    raw = Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, status_ptr)
+    raw =
+      if flags.zero?
+        Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, status_ptr)
+      else
+        Leptris::XML::FFI.leptris_parse_string_flags(
+          xml, xml.bytesize, flags, status_ptr)
+      end
     if raw.null?
       status = status_ptr.read_int
       raise Leptris::XML::ParseError,
@@ -74,42 +81,51 @@ class Leptris::XML::Document
   end
   private_class_method :finalizer
 
+  def self.resolve_flags(options)
+    return Leptris::XML::FFI::LEPTRIS_PARSE_DEFAULT if options.nil?
+    unless options.is_a?(Leptris::XML::ParseOptions)
+      raise ArgumentError, "options must be a Leptris::XML::ParseOptions"
+    end
+    options.flags
+  end
+  private_class_method :resolve_flags
+
   def root
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return nil if @c_ptr.nil?
     ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
     return nil if ptr.null?
-    Leptris::XML::Element.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def create_element(name)
     ptr = Leptris::XML::FFI.leptris_element_create(@c_ptr, name)
     raise Leptris::XML::Error, "leptris_element_create failed" if ptr.null?
-    Leptris::XML::Element.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def create_text_node(content)
     ptr = Leptris::XML::FFI.leptris_text_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_text_node_create failed" if ptr.null?
-    Leptris::XML::Text.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def create_comment(content)
     ptr = Leptris::XML::FFI.leptris_comment_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_comment_node_create failed" if ptr.null?
-    Leptris::XML::Comment.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def create_cdata(content)
     ptr = Leptris::XML::FFI.leptris_cdata_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_cdata_node_create failed" if ptr.null?
-    Leptris::XML::CDATA.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def create_processing_instruction(target, data = "")
     ptr = Leptris::XML::FFI.leptris_pi_node_create(@c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_pi_node_create failed" if ptr.null?
-    Leptris::XML::ProcessingInstruction.new(ptr, self)
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   def fragment(markup)
@@ -133,22 +149,21 @@ class Leptris::XML::Document
   def to_xml(indent: 0, no_decl: false, encoding: nil)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
-    opts, enc_ptr = build_serialize_options(indent: indent, no_decl: no_decl, encoding: encoding)
-    str_ptr = Leptris::XML::FFI.leptris_document_serialize(@c_ptr, opts.pointer)
-    return "" if str_ptr.null?
-    str_ptr.read_string.tap { |s| Leptris::XML::FFI.leptris_free_string(str_ptr) }
+    Leptris::XML::Serialization.to_xml(
+      Leptris::XML::FFI.method(:leptris_document_serialize), @c_ptr,
+      indent: indent, no_decl: no_decl, encoding: encoding)
   end
   alias_method :to_s, :to_xml
   alias_method :serialize, :to_xml
 
   def save(path, **opts)
-    opts_struct, enc_ptr = build_serialize_options(
+    opts_struct, _encoding_anchor = Leptris::XML::Serialization.build_options(
       indent: opts.fetch(:indent, 0),
       no_decl: opts.fetch(:no_decl, false),
       encoding: opts[:encoding])
-    status = Leptris::XML::FFI.leptris_document_save_file(@c_ptr, path, opts_struct.pointer)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    status = Leptris::XML::FFI.leptris_document_save_file(
+      @c_ptr, path, opts_struct.pointer)
+    Leptris::XML::FFI.check_status(status)
     self
   end
 
@@ -161,12 +176,11 @@ class Leptris::XML::Document
     return "" if @c_ptr.nil?
     resolved_mode = mode || (exclusive ? Leptris::XML::FFI::C14N_MODE_EXCLUSIVE
                                        : Leptris::XML::FFI::C14N_MODE_CANONICAL)
-    ns_ptr, _anchor = Leptris::XML.c14n_build_ns_pointer(inclusive_namespaces)
-    flags = with_comments ? 1 : 0
-    str_ptr = Leptris::XML::FFI.leptris_c14n_canonicalize_ex(
-      @c_ptr, version, resolved_mode, ns_ptr, flags)
-    return "" if str_ptr.null?
-    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
+    Leptris::XML::Serialization.canonicalize(
+      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_ex), @c_ptr,
+      version: version, mode: resolved_mode,
+      inclusive_namespaces: inclusive_namespaces,
+      with_comments: with_comments)
   end
   alias_method :c14n, :canonicalize
 
@@ -182,20 +196,6 @@ class Leptris::XML::Document
   def encoding
     return nil if @c_ptr.nil?
     Leptris::XML::FFI.leptris_document_encoding(@c_ptr)
-  end
-
-  private
-
-  def build_serialize_options(indent:, no_decl:, encoding:)
-    opts = Leptris::XML::FFI::SerializeOptions.new
-    opts[:indent] = indent.to_i
-    opts[:xml_declaration] = no_decl ? 0 : 1
-    enc_ptr = nil
-    if encoding
-      enc_ptr = ::FFI::MemoryPointer.from_string(encoding.to_s)
-      opts[:encoding] = enc_ptr
-    end
-    [opts, enc_ptr]
   end
 
   include Leptris::XML::Searchable

@@ -7,9 +7,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :node_name, :name
 
   def name=(new_name)
-    status = Leptris::XML::FFI.leptris_element_set_name(@c_ptr, new_name)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_set_name(@c_ptr, new_name))
     new_name
   end
   alias_method :node_name=, :name=
@@ -19,9 +18,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def content=(new_content)
-    status = Leptris::XML::FFI.leptris_element_set_text(@c_ptr, new_content.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_set_text(@c_ptr, new_content.to_s))
     new_content
   end
 
@@ -32,9 +30,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :get_attribute, :[]
 
   def []=(key, value)
-    status = Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s))
     value
   end
   alias_method :set_attribute, :[]=
@@ -45,9 +42,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :has_attribute?, :key?
 
   def remove_attribute(name)
-    status = Leptris::XML::FFI.leptris_element_remove_attribute(@c_ptr, name.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_remove_attribute(@c_ptr, name.to_s))
     self
   end
   alias_method :delete, :remove_attribute
@@ -82,45 +78,34 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
   end
 
-  def add_child(node)
-    status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node.c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
-    node
-  end
-  alias_method :<<, :add_child
-
   def prepend_child(node)
-    status = Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
     node
   end
 
   def add_next_sibling(node)
-    status = Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
     node
   end
 
   def add_previous_sibling(node)
-    status = Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
     node
   end
 
   def remove_child(node)
-    status = Leptris::XML::FFI.leptris_element_remove_child(@c_ptr, node.c_ptr)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_remove_child(@c_ptr, node.c_ptr))
     node
   end
 
   def children=(node_or_nodes)
     # Remove existing children, then attach the new ones in source order.
-    Leptris::XML::FFI.leptris_element_remove_children(@c_ptr)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_remove_children(@c_ptr))
     Array(node_or_nodes).each { |n| add_child(n) }
   end
 
@@ -169,24 +154,22 @@ class Leptris::XML::Element < Leptris::XML::Node
   def dup
     copy_ptr = Leptris::XML::FFI.leptris_element_copy(@c_ptr, @document.c_ptr)
     raise Leptris::XML::Error, "leptris_element_copy failed" if copy_ptr.null?
-    Leptris::XML::Element.new(copy_ptr, @document)
+    Leptris::XML::Node.wrap(copy_ptr, @document)
   end
   alias_method :clone, :dup
 
   def add_child(node_or_markup)
     case node_or_markup
     when Leptris::XML::Node
-      status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr)
-      raise Leptris::XML::Error,
-        Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr))
       node_or_markup
     when String
       frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       added = []
       frag.children.each do |n|
-        status = Leptris::XML::FFI.leptris_element_append_child(@c_ptr, n.c_ptr)
-        raise Leptris::XML::Error,
-          Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+        Leptris::XML::FFI.check_status(
+          Leptris::XML::FFI.leptris_element_append_child(@c_ptr, n.c_ptr))
         added << n
       end
       Leptris::XML::NodeSet.new(@document, added)
@@ -194,6 +177,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       raise ArgumentError, "add_child expects a Node or String, got #{node_or_markup.class}"
     end
   end
+  alias_method :<<, :add_child
 
   def namespace
     uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
@@ -224,17 +208,9 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def to_xml(indent: 0, no_decl: false, encoding: nil)
-    opts = Leptris::XML::FFI::SerializeOptions.new
-    opts[:indent] = indent.to_i
-    opts[:xml_declaration] = no_decl ? 0 : 1
-    enc_ptr = nil
-    if encoding
-      enc_ptr = ::FFI::MemoryPointer.from_string(encoding.to_s)
-      opts[:encoding] = enc_ptr
-    end
-    str_ptr = Leptris::XML::FFI.leptris_element_serialize(@c_ptr, opts.pointer)
-    return "" if str_ptr.null?
-    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
+    Leptris::XML::Serialization.to_xml(
+      Leptris::XML::FFI.method(:leptris_element_serialize), @c_ptr,
+      indent: indent, no_decl: no_decl, encoding: encoding)
   end
 
   def canonicalize(version = Leptris::XML::FFI::C14N_1_0,
@@ -244,35 +220,31 @@ class Leptris::XML::Element < Leptris::XML::Node
                    mode: nil)
     resolved_mode = mode || (exclusive ? Leptris::XML::FFI::C14N_MODE_EXCLUSIVE
                                        : Leptris::XML::FFI::C14N_MODE_CANONICAL)
-    ns_ptr, _anchor = Leptris::XML.c14n_build_ns_pointer(inclusive_namespaces)
-    flags = with_comments ? 1 : 0
-    str_ptr = Leptris::XML::FFI.leptris_c14n_canonicalize_subtree_ex(
-      @c_ptr, version, resolved_mode, ns_ptr, flags)
-    return "" if str_ptr.null?
-    str_ptr.read_string.tap { Leptris::XML::FFI.leptris_free_string(str_ptr) }
+    Leptris::XML::Serialization.canonicalize(
+      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_subtree_ex), @c_ptr,
+      version: version, mode: resolved_mode,
+      inclusive_namespaces: inclusive_namespaces,
+      with_comments: with_comments)
   end
   alias_method :c14n, :canonicalize
 
   def add_namespace_definition(prefix, href)
-    status = Leptris::XML::FFI.leptris_element_add_namespace_definition(
-      @c_ptr, prefix.to_s, href.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_add_namespace_definition(
+        @c_ptr, prefix.to_s, href.to_s))
     Leptris::XML::Namespace.new(self, href.to_s, prefix: prefix.nil? ? nil : prefix.to_s)
   end
   alias_method :add_namespace, :add_namespace_definition
 
   def default_namespace=(href)
-    status = Leptris::XML::FFI.leptris_element_set_default_namespace(@c_ptr, href.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_set_default_namespace(@c_ptr, href.to_s))
     href
   end
 
   def remove_namespace_definition(prefix)
-    status = Leptris::XML::FFI.leptris_element_remove_namespace_definition(@c_ptr, prefix.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_remove_namespace_definition(@c_ptr, prefix.to_s))
     self
   end
 end

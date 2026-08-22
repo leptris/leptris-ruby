@@ -11,16 +11,14 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   end
 
   def target=(new_target)
-    status = Leptris::XML::FFI.leptris_pi_node_set_target(@c_ptr, new_target.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_pi_node_set_target(@c_ptr, new_target.to_s))
     new_target
   end
 
   def data=(new_data)
-    status = Leptris::XML::FFI.leptris_pi_node_set_data(@c_ptr, new_data.to_s)
-    raise Leptris::XML::Error,
-      Leptris::XML::FFI.leptris_status_string(status) unless status == Leptris::XML::FFI::LEPTRIS_OK
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_pi_node_set_data(@c_ptr, new_data.to_s))
     new_data
   end
 end
