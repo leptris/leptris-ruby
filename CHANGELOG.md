@@ -5,7 +5,9 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-08-22
+
+Lockstep with libleptris 1.1.0.
 
 ### Added
 
@@ -35,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ParseOptions` constants that mapped to nothing (`RECOVER`,
   `STRICT`, `NOCDATA`, …). They were never honored by any code path;
   the class now exposes only the real flag surface.
+
+### Changed (libleptris 1.1.0 lockstep)
+
+- `Element#key?` now calls native `leptris_element_has_attribute`
+  (the v0.4.4-era export gap is closed) instead of emulating via
+  attribute lookup. The two stale "not exported" comments in ffi.rb
+  are gone; `leptris_xinclude_get_encoding` is bound.
+- CI builds libleptris v1.1.0, whose SAX `LEPTRIS_API` annotations
+  (#430 fix) unblock Windows: all 9 matrix jobs expected green.
 
 ## [1.0.0] - 2026-08-21
 

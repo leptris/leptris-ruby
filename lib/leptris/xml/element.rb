@@ -37,7 +37,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :set_attribute, :[]=
 
   def key?(name)
-    !Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name.to_s).nil?
+    Leptris::XML::FFI.leptris_element_has_attribute(@c_ptr, name.to_s) != 0
   end
   alias_method :has_attribute?, :key?
 
