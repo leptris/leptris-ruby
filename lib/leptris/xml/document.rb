@@ -17,11 +17,20 @@ class Leptris::XML::Document
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
     @freed = freed
-    # Per-document weak-ref cache for Node wrappers, keyed on c_ptr
+    # Per-document STRONG cache for Node wrappers, keyed on c_ptr
     # address. Every wrapper is created through Node.wrap, which is the
     # single construction path, so the same C node always yields the
-    # same Ruby object. Dies with the Document — no stale entries.
-    @wrapper_cache = ObjectSpace::WeakMap.new
+    # same Ruby object. Cleared when the Document is freed — no stale
+    # entries.
+    #
+    # Deliberately NOT ObjectSpace::WeakMap: a weak cache makes wrapper
+    # identity a GC race. `doc.root.equal?(doc.root)` failed on the
+    # Windows CI matrix (188 examples, the 4 identity specs) because
+    # between the two calls the first wrapper was referenced only by
+    # the weak map — any GC sweep evicted it and the second call built
+    # a fresh object. A strong cache costs at most one wrapper per node
+    # actually visited, held until the document dies.
+    @wrapper_cache = {}
   end
 
   def self.parse(xml_or_io, options: nil)
@@ -189,6 +198,7 @@ class Leptris::XML::Document
     @freed.state = :freed
     Leptris::XML::FFI.leptris_document_free(@c_ptr) unless @c_ptr.nil?
     @c_ptr = nil
+    @wrapper_cache.clear
   end
 
   def name; "document"; end
