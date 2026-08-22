@@ -34,12 +34,28 @@ jobs:
           NEXT_VERSION: ${{ inputs.next_version }}
         run: |
           set -euo pipefail
+          # Guard: an input that is not a strict x.y.z once produced
+          # VERSION = "patch" on main and a junk tag literally named
+          # "v" (empty new-version output). Refuse anything else.
+          if [[ ! "$NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::next_version must be x.y.z, got '${NEXT_VERSION}'"
+            exit 1
+          fi
           sed -i "s/VERSION = \".*\"/VERSION = \"${NEXT_VERSION}\"/" lib/leptris/version.rb
           NEW_VERSION=$(ruby -Ilib -rleptris/version -e 'puts Leptris::VERSION')
+          # Emit the output the push step consumes. Without it the
+          # tag push received an empty version and created tag "v".
+          echo "new-version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lib/leptris/version.rb
-          git commit -m "Bump leptris to ${NEW_VERSION}"
+          # Idempotent: re-releasing the current version must not
+          # fail on an empty commit.
+          if git diff --cached --quiet; then
+            echo "No version change; tagging current HEAD."
+          else
+            git commit -m "Bump leptris to ${NEW_VERSION}"
+          fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Push bump commit + tag
