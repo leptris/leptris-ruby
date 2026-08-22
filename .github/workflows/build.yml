@@ -43,7 +43,7 @@ jobs:
       run: |
         set -e
         mkdir -p /tmp/tb && cd /tmp/tb
-        curl -sL https://api.github.com/repos/leptris/leptris/tarball/v1.0.0 | tar xz --strip-components=1
+        curl -sL https://api.github.com/repos/leptris/leptris/tarball/v1.1.0 | tar xz --strip-components=1
         cmake -B build -S . \
           -DCMAKE_BUILD_TYPE=Release \
           -DLEPTRIS_BUILD_SHARED=ON \

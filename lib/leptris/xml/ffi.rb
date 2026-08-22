@@ -94,9 +94,7 @@ module Leptris
       attach_function :leptris_xinclude_get_href, [:leptris_element], :string
       attach_function :leptris_xinclude_get_parse, [:leptris_element], :string
       attach_function :leptris_xinclude_get_xpointer, [:leptris_element], :string
-      # leptris_xinclude_get_encoding is declared in leptris.h but not exported
-      # from the v0.4.4 dylib (likely same visibility bug as the serialize
-      # functions; see upstream issue #166). Re-add once #173 / v0.4.5 ships.
+      attach_function :leptris_xinclude_get_encoding, [:leptris_element], :string
 
       attach_function :leptris_node_get_type,
         [:leptris_node_ref], :int
@@ -186,9 +184,8 @@ module Leptris
         [:leptris_element, :string, :float], :float
       attach_function :leptris_element_attribute_bool,
         [:leptris_element, :string, :int], :int
-      # leptris_element_has_attribute is declared in leptris.h but not exported
-      # from the v0.4.4 dylib (likely visibility bug; see upstream #166).
-      # Ruby-level Element#key? will emulate via attribute lookup.
+      attach_function :leptris_element_has_attribute,
+        [:leptris_element, :string], :int
       attach_function :leptris_element_attribute_count,
         [:leptris_element], :size_t
       attach_function :leptris_element_attribute_name_at,
