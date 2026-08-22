@@ -32,10 +32,15 @@ task :compile do
   sh "curl -sL #{url} | tar xz -C #{build} --strip-components=1"
   sh "cmake -B #{build}/build -S #{build} #{CMAKE_FLAGS.join(' ')}"
   sh "cmake --build #{build}/build --config Release -j 4"
-  lib = Dir.glob("#{build}/build/**/libleptris.{dylib,so,dll}").first
+  # Windows names the shared library leptris.dll (no "lib" prefix);
+  # vendoring under the uniform libleptris.* name keeps the FFI
+  # search order simple.
+  lib = Dir.glob("#{build}/build/**/libleptris.{dylib,so}").first ||
+        Dir.glob("#{build}/build/**/leptris.dll").first
   raise "libleptris shared library not found after build" unless lib
-  cp(lib, "lib/")
-  puts "Vendored #{File.basename(lib)} into lib/"
+  ext = File.extname(lib)
+  cp(lib, "lib/libleptris#{ext}")
+  puts "Vendored #{File.basename(lib)} as lib/libleptris#{ext}"
 end
 
 task spec: :compile unless ENV.key?("LEPTRIS_LIB_PATH")
