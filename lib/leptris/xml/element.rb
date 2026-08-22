@@ -48,34 +48,43 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
   alias_method :delete, :remove_attribute
 
+  # Iterates the element's attributes via the v1.1.0 linked-list face
+  # (one FFI call per attribute; the name_at/value_at indexing API
+  # re-walks the list per index, making it O(n^2) per element).
+  def each_attribute
+    return enum_for(:each_attribute) unless block_given?
+    attr = Leptris::XML::FFI.leptris_element_first_attribute(@c_ptr)
+    until attr.nil? || attr.null?
+      name = Leptris::XML::FFI.leptris_attribute_get_name(attr)
+      value = Leptris::XML::FFI.leptris_attribute_get_value(@c_ptr, attr)
+      yield Leptris::XML::Attr.new(name, value, self)
+      attr = Leptris::XML::FFI.leptris_attribute_next(attr)
+    end
+    self
+  end
+
   def keys
-    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
-    count.times.map { |i| Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i) }
+    each_attribute.to_a.map(&:name)
   end
 
   def values
-    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
-    count.times.map { |i| Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i) }
+    each_attribute.to_a.map(&:value)
   end
 
   def attributes
-    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
     result = {}
-    count.times do |i|
-      name = Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i)
-      value = Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i)
-      result[name] = Leptris::XML::Attr.new(name, value, self)
-    end
+    each_attribute { |attr| result[attr.name] = attr }
     result
   end
 
   def attribute_nodes
-    count = Leptris::XML::FFI.leptris_element_attribute_count(@c_ptr)
-    count.times.map do |i|
-      name = Leptris::XML::FFI.leptris_element_attribute_name_at(@c_ptr, i)
-      value = Leptris::XML::FFI.leptris_element_attribute_value_at(@c_ptr, i)
-      Leptris::XML::Attr.new(name, value, self)
-    end
+    each_attribute.to_a
+  end
+
+  # The element's own namespace prefix (e.g. "foo" for <foo:child/>),
+  # or nil when the element has none.
+  def prefix
+    Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
   end
 
   def prepend_child(node)

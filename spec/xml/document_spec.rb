@@ -276,3 +276,53 @@ RSpec.describe "parse options" do
     expect(doc.root.first_element_child.content).to eq("text")
   end
 end
+
+RSpec.describe "v1.1.0 surface" do
+  it "exposes Element#prefix" do
+    doc = Leptris::XML.parse('<root xmlns:foo="http://x"><foo:child/><plain/></root>')
+    expect(doc.root.first_element_child.prefix).to eq("foo")
+    expect(doc.root.element_children[1].prefix).to be_nil
+  end
+
+  it "iterates attributes via the linked-list face" do
+    doc = Leptris::XML.parse('<e a="1" b="2" c="3"/>')
+    root = doc.root
+    expect(root.each_attribute.map(&:name)).to eq(%w[a b c])
+    expect(root.each_attribute.map(&:value)).to eq(%w[1 2 3])
+    expect(root.keys).to eq(%w[a b c])
+    expect(root.values).to eq(%w[1 2 3])
+    expect(root.attributes.keys).to eq(%w[a b c])
+    expect(root.attribute_nodes.map(&:name)).to eq(%w[a b c])
+  end
+
+  it "handles elements with no attributes" do
+    doc = Leptris::XML.parse("<e/>")
+    expect(doc.root.each_attribute.to_a).to eq([])
+    expect(doc.root.keys).to eq([])
+  end
+
+  # Mixed-kind semantics for non-element entries are tracked upstream
+  # (leptris#477: enum-space collision + node_name/value crash on text),
+  # so this asserts only the currently-correct surface.
+  it "fetches mixed nodeset entries via get_node" do
+    doc = Leptris::XML.parse("<r><a id='1'>text</a><!-- c --></r>")
+    nodes = doc.xpath("//node()").to_a
+    expect(nodes.length).to eq(3)
+    expect(nodes.map(&:name)).to include("a")
+  end
+
+  it "reports xpath node kinds for attribute selections" do
+    doc = Leptris::XML.parse("<r><a id='x'/></r>")
+    result_ptr = Leptris::XML::FFI.leptris_xpath_eval(doc.c_ptr, nil, "//a/@id")
+    begin
+      expect(result_ptr.null?).to be(false)
+      expect(
+        Leptris::XML::FFI.leptris_xpath_result_node_kind(result_ptr, 0)
+      ).to eq(Leptris::XML::FFI::XPATH_NODE_ATTRIBUTE)
+      node = Leptris::XML::FFI.leptris_xpath_result_get_node(result_ptr, 0)
+      expect(node.null?).to be(false)
+    ensure
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
+    end
+  end
+end

@@ -52,7 +52,7 @@ class Leptris::XML::NodeSet
   def [](idx)
     if @result_ptr
       return nil if idx < 0 || idx >= length
-      ptr = Leptris::XML::FFI.leptris_xpath_result_get(@result_ptr, idx)
+      ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, idx)
       return nil if ptr.null?
       Leptris::XML::Node.wrap(ptr, @document)
     else
@@ -74,6 +74,13 @@ class Leptris::XML::NodeSet
           copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes(@result_ptr, buf, n)
           copied.times do |i|
             ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
+            next if ptr.null?
+            yield Leptris::XML::Node.wrap(ptr, @document)
+          end
+          # The batch accessor under-copies mixed-kind results (upstream
+          # leptris#477); fall back to per-index fetch for the remainder.
+          (copied...n).each do |i|
+            ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
             next if ptr.null?
             yield Leptris::XML::Node.wrap(ptr, @document)
           end
