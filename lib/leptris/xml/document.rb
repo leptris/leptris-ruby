@@ -66,6 +66,16 @@ class Leptris::XML::Document
     wrap(raw)
   end
 
+  # Create an empty document (no root element) backed by its own memory
+  # pool. Elements for the tree are created against it via
+  # #create_element and friends, then attached with #root=.
+  def self.create
+    raw = Leptris::XML::FFI.leptris_document_create
+    raise Leptris::XML::Error,
+      "leptris_document_create failed" if raw.null?
+    wrap(raw)
+  end
+
   # Convert a raw LeptrisDocument pointer into a Ruby Document with safe
   # GC lifetime management. The finalizer captures the raw address
   # integer (not the Document or Pointer object — those would prevent
@@ -105,6 +115,17 @@ class Leptris::XML::Document
     ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, self)
+  end
+
+  # Attach +element+ as the document's root element. The element must
+  # have been created against this document and must not already have
+  # a parent. Any previous root is left detached (still owned by the
+  # document's pool until #free).
+  def root=(element)
+    raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
+    element
   end
 
   def create_element(name)

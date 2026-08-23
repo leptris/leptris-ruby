@@ -66,6 +66,10 @@ module Leptris
         [:string, :pointer], :pointer
       attach_function :leptris_document_free,
         [:leptris_document], :void
+      attach_function :leptris_document_create,
+        [], :leptris_document
+      attach_function :leptris_document_set_root,
+        [:leptris_document, :leptris_element], :leptris_status
       attach_function :leptris_document_root,
         [:leptris_document], :leptris_element
       attach_function :leptris_document_encoding,

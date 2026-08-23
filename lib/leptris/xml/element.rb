@@ -191,7 +191,12 @@ class Leptris::XML::Element < Leptris::XML::Node
   def namespace
     uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
     return nil if uri.nil? || uri.empty?
-    Leptris::XML::Namespace.new(self, uri)
+    # The resolved namespace is reached via this element's own prefix,
+    # so carry it through: consumers that distinguish
+    # {"p" => "urn:p"} from the default {"nil => "urn:p"} need it.
+    prefix = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
+    prefix = nil if prefix.nil? || prefix.empty?
+    Leptris::XML::Namespace.new(self, uri, prefix: prefix)
   end
 
   def namespace_definitions
