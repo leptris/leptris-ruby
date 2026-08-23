@@ -5,6 +5,12 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-24
+
+Lockstep with libleptris 1.5.0 — the engine pins the TODO.engine
+release: file-backed pull/iterparse streaming (bounded memory off
+disk), compiled XPath ns/vars contexts, Rust crate publish workflow.
+
 ## [1.4.0] - 2026-08-23
 
 Lockstep with libleptris 1.4.0 — engine pins the TODO.bindings
