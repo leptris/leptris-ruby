@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-23
+
+Completes the libleptris 1.2.0 public surface in the binding.
+
+### Added
+
+- **Namespace-bound XPath**: `doc.xpath("//p:title", "p" => "urn:p")`
+  (Nokogiri parity) — expression prefixes now resolve to caller-supplied
+  URIs regardless of the prefixes the document declared, via
+  `leptris_xpath_ns_set_new/_add/_free` + `leptris_xpath_eval_ns`. The
+  binding set is built per call and freed under `ensure`. Previously
+  the trailing namespace hash was silently ignored.
+- `leptris_error_message` / `leptris_last_error` bound; the status seam
+  and parse errors now append the library's last-error detail when
+  present (best-effort: it is a library-global string).
+
 ## [1.2.0] - 2026-08-23
 
 Lockstep with libleptris 1.2.0.

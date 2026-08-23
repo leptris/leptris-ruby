@@ -23,6 +23,7 @@ module Leptris
       typedef :pointer, :leptris_attribute
       typedef :pointer, :leptris_doctype
       typedef :pointer, :leptris_xpath_result
+      typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_var_set
       typedef :pointer, :leptris_sax_parser
       typedef :int, :leptris_status
@@ -365,6 +366,18 @@ module Leptris
       attach_function :leptris_xpath_variable_set_string,
         [:leptris_xpath_var_set, :string, :string], :leptris_status
 
+      # Namespace-bound XPath (v1.2.0): expression prefixes resolve to
+      # caller-supplied URIs regardless of the document's declarations.
+      attach_function :leptris_xpath_ns_set_new,
+        [], :leptris_xpath_ns_set
+      attach_function :leptris_xpath_ns_set_free,
+        [:leptris_xpath_ns_set], :void
+      attach_function :leptris_xpath_ns_set_add,
+        [:leptris_xpath_ns_set, :string, :string], :leptris_status
+      attach_function :leptris_xpath_eval_ns,
+        [:leptris_document, :leptris_element, :string, :leptris_xpath_ns_set],
+        :leptris_xpath_result
+
       attach_function :leptris_sax_parse,
         [:string, :size_t, :pointer, :pointer], :int
       attach_function :leptris_sax_parser_create,
@@ -419,6 +432,8 @@ module Leptris
       attach_function :leptris_document_set_allocators,
         [:leptris_document, :pointer, :pointer], :leptris_status
       attach_function :leptris_status_string, [:leptris_status], :string
+      attach_function :leptris_error_message, [:leptris_status], :string
+      attach_function :leptris_last_error, [], :string
 
       LEPTRIS_OK = 0
       LEPTRIS_ERROR_MEMORY = -1
@@ -467,12 +482,21 @@ module Leptris
         ptr.read_string.tap { leptris_free_string(ptr) }
       end
 
-      # Single status seam: turns a C status code into a Ruby error.
+      # Single status seam: turns a C status code into a Ruby error,
+      # appending the library's last-error detail when present. The
+      # detail is a library-global string, so it can only be treated
+      # as best-effort context.
       def self.check_status(status)
         unless status == LEPTRIS_OK
-          raise Leptris::XML::Error, leptris_status_string(status)
+          raise Leptris::XML::Error, status_message(status)
         end
         status
+      end
+
+      def self.status_message(status)
+        base = leptris_status_string(status).to_s
+        detail = leptris_last_error.to_s
+        detail.empty? ? base : "#{base} (#{detail})"
       end
     end
   end

@@ -2,14 +2,19 @@
 
 module Leptris::XML::Searchable
   def xpath(*paths)
-    handler, _ns, _vars = parse_search_args(paths)
+    handler, ns, _vars = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
 
     doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 
-    result_ptr = Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
+    result_ptr =
+      if ns && !ns.empty?
+        xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+      else
+        Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
+      end
     if result_ptr.null?
       raise Leptris::XML::XPathError,
         Leptris::XML::FFI.leptris_status_string(Leptris::XML::FFI::LEPTRIS_ERROR_XPATH)
@@ -49,6 +54,22 @@ module Leptris::XML::Searchable
   end
 
   protected
+
+  # Builds a caller-owned namespace binding set, evaluates via
+  # leptris_xpath_eval_ns, and frees the set regardless of outcome.
+  def xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+    set = Leptris::XML::FFI.leptris_xpath_ns_set_new
+    begin
+      ns.each do |prefix, uri|
+        Leptris::XML::FFI.check_status(
+          Leptris::XML::FFI.leptris_xpath_ns_set_add(
+            set, prefix.to_s, uri.to_s))
+      end
+      Leptris::XML::FFI.leptris_xpath_eval_ns(doc_ptr, context_ptr, expr, set)
+    ensure
+      Leptris::XML::FFI.leptris_xpath_ns_set_free(set)
+    end
+  end
 
   def parse_search_args(args)
     handler = args.find { |a| !a.is_a?(String) && !a.is_a?(Hash) && !a.is_a?(Symbol) }
