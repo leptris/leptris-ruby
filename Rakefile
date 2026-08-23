@@ -34,8 +34,10 @@ task :compile do
   sh "cmake --build #{build}/build --config Release -j 4"
   # Windows names the shared library leptris.dll (no "lib" prefix);
   # vendoring under the uniform libleptris.* name keeps the FFI
-  # search order simple.
-  lib = Dir.glob("#{build}/build/**/libleptris.{dylib,so}").first ||
+  # search order simple. libleptris >= 1.3.0 renames the DLL to
+  # libleptris.dll on Windows too (leptris/leptris#507, issue
+  # TODO.concurrency/05) — accept both names.
+  lib = Dir.glob("#{build}/build/**/libleptris.{dylib,so,dll}").first ||
         Dir.glob("#{build}/build/**/leptris.dll").first
   raise "libleptris shared library not found after build" unless lib
   ext = File.extname(lib)
