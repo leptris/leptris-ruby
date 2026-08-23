@@ -5,6 +5,40 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-23
+
+Lockstep with libleptris 1.2.0.
+
+### Added
+
+- `Leptris::XML::Document.create` — empty document with its own memory
+  pool (backs `leptris_document_create`); elements are created against
+  it via the factories and attached with `root=`.
+- `Document#root=` — attach an element as the document root
+  (`leptris_document_set_root`). Companion to the moxml Leptris
+  adapter (lutaml/moxml#96).
+- `Attr#to_xml` — serialized `name="value"` form with the five XML
+  special characters escaped.
+
+### Fixed
+
+- `Node#text` / `#inner_text` now dispatch to `#content` instead of
+  aliasing the base implementation — the alias snapshot meant subclass
+  overrides (`Text#content`, `Comment#content`, …) were never seen
+  through `text`.
+- `Element#namespace` carries the element's own prefix, so consumers
+  can distinguish `{"p" => "urn:p"}` from the default namespace.
+- CI/Rakefile pin libleptris v1.2.0, whose fixes resolve leptris#477
+  (mixed-nodeset kinds, `node_name`/`node_value` on non-element
+  entries, and `//node()` now including the context root). NodeSet
+  keeps its per-index fallback for the still-under-copying batch
+  accessor.
+
+### Unbound v1.2.0 surface (follow-up)
+
+Namespace-bound XPath (`leptris_xpath_ns_set_*`, `leptris_xpath_eval_ns`)
+and error introspection (`leptris_error_message`, `leptris_last_error`).
+
 ## [1.1.1] - 2026-08-22
 
 ### Added
