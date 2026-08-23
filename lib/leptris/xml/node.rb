@@ -45,8 +45,17 @@ class Leptris::XML::Node
   def content
     raise NotImplementedError, "#{self.class}#content not implemented"
   end
-  alias_method :text, :content
-  alias_method :inner_text, :content
+
+  # Dispatching defs, not alias_method: an alias snapshots this base
+  # #content (the raise), so subclass overrides would never be seen
+  # through the alias. A plain method resolves #content per-call.
+  def text
+    content
+  end
+
+  def inner_text
+    content
+  end
 
   def type
     Leptris::XML::FFI.leptris_node_get_type(@c_ptr)

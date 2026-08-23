@@ -29,6 +29,17 @@ class Leptris::XML::Attr
   def to_s; @value; end
   def to_str; @value; end
 
+  # Serialized attribute form: name="value" with the five XML special
+  # characters escaped in the value.
+  def to_xml
+    escaped = @value.to_s.gsub("&", "&amp;")
+                       .gsub("<", "&lt;")
+                       .gsub(">", "&gt;")
+                       .gsub('"', "&quot;")
+                       .gsub("'", "&apos;")
+    "#{@name}=\"#{escaped}\""
+  end
+
   def ==(other)
     other.is_a?(Leptris::XML::Attr) &&
       @name == other.name && @value == other.value &&
