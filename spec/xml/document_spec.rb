@@ -301,14 +301,15 @@ RSpec.describe "v1.1.0 surface" do
     expect(doc.root.keys).to eq([])
   end
 
-  # Mixed-kind semantics for non-element entries landed upstream
-  # (leptris#477), and as of leptris v1.2.0 //node() also selects the
-  # root element per XPath 1.0 (it is a child of the document node).
+  # leptris#477 is fixed as of libleptris v1.2.0: correct kinds, no
+  # node_name/node_value crash, and //node() now includes the root
+  # (descendant-or-self). The batch accessor still under-copies mixed
+  # results; NodeSet's per-index fallback covers the remainder.
   it "fetches mixed nodeset entries via get_node" do
     doc = Leptris::XML.parse("<r><a id='1'>text</a><!-- c --></r>")
     nodes = doc.xpath("//node()").to_a
     expect(nodes.length).to eq(4)  # r, a, text, comment
-    expect(nodes.map(&:name)).to include("a", "r")
+    expect(nodes.map(&:name)).to include("r", "a")
   end
 
   it "reports xpath node kinds for attribute selections" do
