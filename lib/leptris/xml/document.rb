@@ -50,7 +50,8 @@ class Leptris::XML::Document
     if raw.null?
       status = status_ptr.read_int
       raise Leptris::XML::ParseError,
-        "leptris_parse_string failed (status=#{status})"
+        "leptris_parse_string failed (status=#{status}): " +
+        Leptris::XML::FFI.status_message(status)
     end
     wrap(raw)
   end

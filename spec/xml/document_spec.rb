@@ -327,3 +327,33 @@ RSpec.describe "v1.1.0 surface" do
     end
   end
 end
+
+RSpec.describe "namespace-bound xpath" do
+  it "resolves expression prefixes via caller bindings regardless of document prefixes" do
+    doc = Leptris::XML.parse('<r xmlns:t="urn:x"><t:title>Hi</t:title><title>No</title></r>')
+    expect(doc.xpath("//p:title", "p" => "urn:x").map(&:content)).to eq(["Hi"])
+  end
+
+  it "matches nothing when the bound URI is absent from the document" do
+    doc = Leptris::XML.parse('<r xmlns:t="urn:x"><t:title>Hi</t:title></r>')
+    expect(doc.xpath("//p:title", "p" => "urn:other")).to be_empty
+  end
+
+  it "works from an element context node" do
+    doc = Leptris::XML.parse('<r xmlns:t="urn:x"><t:sec><t:title>A</t:title></t:sec></r>')
+    sec = doc.xpath("//t:sec", "t" => "urn:x").first
+    expect(sec.xpath("./p:title", "p" => "urn:x").map(&:content)).to eq(["A"])
+  end
+end
+
+RSpec.describe "error introspection" do
+  it "exposes per-status messages" do
+    expect(Leptris::XML::FFI.leptris_error_message(Leptris::XML::FFI::LEPTRIS_OK))
+      .to be_a(String)
+  end
+
+  it "includes library detail in parse errors when available" do
+    expect { Leptris::XML.parse("<unclosed>") }
+      .to raise_error(Leptris::XML::ParseError, /leptris_parse_string failed/)
+  end
+end
