@@ -34,14 +34,28 @@ jobs:
           NEXT_VERSION: ${{ inputs.next_version }}
         run: |
           set -euo pipefail
-          # Guard: an input that is not a strict x.y.z once produced
-          # VERSION = "patch" on main and a junk tag literally named
-          # "v" (empty new-version output). Refuse anything else.
-          if [[ ! "$NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::next_version must be x.y.z, got '${NEXT_VERSION}'"
+          # Accept x.y.z, or a relative bump (major/minor/patch)
+          # computed from the CURRENT version. The guard exists
+          # because a non-semver input once produced VERSION =
+          # "patch" on main and a junk tag literally named "v".
+          INPUT="${NEXT_VERSION}"
+          if [[ "$INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            :
+          elif [[ "$INPUT" == "major" || "$INPUT" == "minor" || "$INPUT" == "patch" ]]; then
+            CURRENT=$(ruby -Ilib -rleptris/version -e 'puts Leptris::VERSION')
+            IFS=. read -r MA MI PA <<< "$CURRENT"
+            case "$INPUT" in
+              major) MA=$((MA + 1)); MI=0; PA=0 ;;
+              minor) MI=$((MI + 1)); PA=0 ;;
+              patch) PA=$((PA + 1)) ;;
+            esac
+            INPUT="${MA}.${MI}.${PA}"
+          else
+            echo "::error::next_version must be x.y.z or major/minor/patch, got '${INPUT}'"
             exit 1
           fi
-          sed -i "s/VERSION = \".*\"/VERSION = \"${NEXT_VERSION}\"/" lib/leptris/version.rb
+          echo "Releasing ${INPUT}"
+          sed -i "s/VERSION = \".*\"/VERSION = \"${INPUT}\"/" lib/leptris/version.rb
           NEW_VERSION=$(ruby -Ilib -rleptris/version -e 'puts Leptris::VERSION')
           # Emit the output the push step consumes. Without it the
           # tag push received an empty version and created tag "v".
