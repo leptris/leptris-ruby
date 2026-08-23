@@ -344,6 +344,10 @@ module Leptris
         [:leptris_document, :string, :pointer, :pointer], :leptris_status
       attach_function :leptris_xpath_result_get_nodes,
         [:leptris_xpath_result, :pointer, :size_t], :size_t
+      # v1.3.0: copies ALL node kinds (the legacy accessor drops
+      # non-element entries) and can also report per-entry kinds.
+      attach_function :leptris_xpath_result_get_nodes_ex,
+        [:leptris_xpath_result, :pointer, :pointer, :size_t], :size_t
       attach_function :leptris_xpath_result_boolean,
         [:leptris_xpath_result], :int
       attach_function :leptris_xpath_result_number,
@@ -374,6 +378,10 @@ module Leptris
         [:leptris_xpath_ns_set], :void
       attach_function :leptris_xpath_ns_set_add,
         [:leptris_xpath_ns_set, :string, :string], :leptris_status
+      # One-call constructor: flat array of 2*pair_count alternating
+      # prefix/URI strings (v1.3.0).
+      attach_function :leptris_xpath_ns_set_new_from_pairs,
+        [:pointer, :size_t], :leptris_xpath_ns_set
       attach_function :leptris_xpath_eval_ns,
         [:leptris_document, :leptris_element, :string, :leptris_xpath_ns_set],
         :leptris_xpath_result
@@ -433,7 +441,18 @@ module Leptris
         [:leptris_document, :pointer, :pointer], :leptris_status
       attach_function :leptris_status_string, [:leptris_status], :string
       attach_function :leptris_error_message, [:leptris_status], :string
+      # Thread-local since v1.3.0; reliable under the
+      # one-document-per-thread contract.
       attach_function :leptris_last_error, [], :string
+      attach_function :leptris_document_last_error,
+        [:leptris_document], :string
+      # Optional: release per-thread registry entries when a worker
+      # thread exits (long-lived threads never need it).
+      attach_function :leptris_thread_cleanup, [], :void
+      # First-party EXSLT-style extension pack (str:/set:/math:),
+      # registered natively on one document.
+      attach_function :leptris_exslt_enable,
+        [:leptris_document], :leptris_status
 
       LEPTRIS_OK = 0
       LEPTRIS_ERROR_MEMORY = -1
