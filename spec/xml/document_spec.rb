@@ -357,3 +357,31 @@ RSpec.describe "error introspection" do
       .to raise_error(Leptris::XML::ParseError, /leptris_parse_string failed/)
   end
 end
+
+RSpec.describe "v1.3.0 surface" do
+  it "enables the EXSLT extension pack per document" do
+    doc = Leptris::XML.parse(%(<l><i>3</i><i>1</i><i>2</i></l>)).exslt
+    expect(doc.xpath("math:max(//i)")).to eq(3.0)
+    expect(doc.xpath("count(set:distinct(//i))")).to eq(3.0)
+  end
+
+  it "supports str: functions through the pack" do
+    doc = Leptris::XML.parse(%(<r><a id="1"/></r>)).exslt
+    expect(doc.xpath(%q{str:replace(//a/@id, "1", "one")})).to eq("one")
+  end
+
+  it "does not leak EXSLT registration into other documents" do
+    plain = Leptris::XML.parse("<r/>")
+    expect { plain.xpath("math:max(//x)") }.to raise_error(Leptris::XML::XPathError)
+  end
+
+  it "exposes per-document last_error" do
+    doc = Leptris::XML.parse("<r/>")
+    expect(doc.last_error).to be_nil
+  end
+
+  it "iterates mixed nodesets fully via the batch accessor" do
+    doc = Leptris::XML.parse("<r><a id='1'>text</a><!-- c --></r>")
+    expect(doc.xpath("//node()").to_a.length).to eq(4)
+  end
+end

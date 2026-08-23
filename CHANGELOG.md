@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-23
+
+Lockstep with libleptris 1.3.0 — takes full advantage of the
+concurrency-release surface.
+
+### Added
+
+- **EXSLT extension pack**: `Document#exslt` enables the first-party
+  str:/set:/math: function pack (replace, tokenize, split, concat,
+  padding; distinct, intersection, difference, leading, trailing;
+  max, min, abs, sqrt, power) as native C handlers on that document.
+- `Document#last_error` — per-document error retrieval (thread-safe
+  successor to the library-global string).
+- `leptris_thread_cleanup` bound — optional release of per-thread
+  registry entries when worker threads exit.
+
+### Changed
+
+- Namespace-bound XPath builds its binding set in **one FFI call**
+  via `leptris_xpath_ns_set_new_from_pairs` (flat alternating
+  prefix/URI array through the CStringArray adapter) instead of
+  N+1 calls.
+- `NodeSet#each` fetches mixed-kind results through
+  `leptris_xpath_result_get_nodes_ex`, which copies ALL node kinds —
+  the per-index fallback for the under-copying legacy accessor
+  (leptris#477 residual) is gone.
+- `leptris_version_components` is now officially declared upstream
+  (it was exported-but-undeclared; the export gate caught it).
+
 ## [1.2.1] - 2026-08-23
 
 Completes the libleptris 1.2.0 public surface in the binding.

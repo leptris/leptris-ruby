@@ -55,16 +55,17 @@ module Leptris::XML::Searchable
 
   protected
 
-  # Builds a caller-owned namespace binding set, evaluates via
+  # Builds a caller-owned namespace binding set in one FFI call
+  # (ns_set_new_from_pairs takes a flat alternating prefix/URI array,
+  # the same wire format CStringArray owns), evaluates via
   # leptris_xpath_eval_ns, and frees the set regardless of outcome.
   def xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
-    set = Leptris::XML::FFI.leptris_xpath_ns_set_new
+    flat = ns.flat_map { |prefix, uri| [prefix.to_s, uri.to_s] }
+    buffer, _anchors = Leptris::XML::CStringArray.to_c(flat)
+    set = Leptris::XML::FFI.leptris_xpath_ns_set_new_from_pairs(
+      buffer, flat.length / 2)
+    raise Leptris::XML::Error, "leptris_xpath_ns_set_new_from_pairs failed" if set.null?
     begin
-      ns.each do |prefix, uri|
-        Leptris::XML::FFI.check_status(
-          Leptris::XML::FFI.leptris_xpath_ns_set_add(
-            set, prefix.to_s, uri.to_s))
-      end
       Leptris::XML::FFI.leptris_xpath_eval_ns(doc_ptr, context_ptr, expr, set)
     ensure
       Leptris::XML::FFI.leptris_xpath_ns_set_free(set)

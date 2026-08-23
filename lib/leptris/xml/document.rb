@@ -223,6 +223,23 @@ class Leptris::XML::Document
     @wrapper_cache.clear
   end
 
+  # Enable the first-party EXSLT-style extension pack on this
+  # document: str:/set:/math: prefixed functions (replace, tokenize,
+  # split, concat, padding; distinct, intersection, difference,
+  # leading, trailing; max, min, abs, sqrt, power) as native C
+  # handlers. Returns self for chaining.
+  def exslt
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_exslt_enable(@c_ptr))
+    self
+  end
+
+  # The most recent error recorded against this document, or nil.
+  def last_error
+    msg = Leptris::XML::FFI.leptris_document_last_error(@c_ptr)
+    msg.nil? || msg.empty? ? nil : msg
+  end
+
   def name; "document"; end
   def document; self; end
   def encoding
