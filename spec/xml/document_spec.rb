@@ -385,3 +385,45 @@ RSpec.describe "v1.3.0 surface" do
     expect(doc.xpath("//node()").to_a.length).to eq(4)
   end
 end
+
+RSpec.describe "readonly mode" do
+  it "parses with readonly: true and caches reads" do
+    doc = Leptris::XML.parse("<r><a id='1'>t</a></r>", readonly: true)
+    expect(doc).to be_readonly
+    expect(doc.root.name).to eq("r")
+    expect(doc.root.children.object_id).to eq(doc.root.children.object_id)
+    expect(doc.root.first_element_child.attributes.keys).to eq(["id"])
+  end
+
+  it "raises ReadOnlyError on every mutation path" do
+    doc = Leptris::XML.parse("<r><a/></r>", readonly: true)
+    root = doc.root
+    expect { root.name = "x" }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { root.content = "x" }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { root["k"] = "v" }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { root.add_child("<b/>") }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { root.remove_attribute("nope") }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { root.first_element_child.unlink }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect { doc.root.add_namespace_definition("p", "urn:p") }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "allows detached factories on readonly documents" do
+    doc = Leptris::XML.parse("<r/>", readonly: true)
+    expect(doc.create_element("detached")).to be_a(Leptris::XML::Element)
+  end
+
+  it "is writable by default and one-way once set" do
+    doc = Leptris::XML.parse("<r/>")
+    expect(doc).not_to be_readonly
+    doc.root.name = "renamed"
+    expect(doc.root.name).to eq("renamed")
+    doc.readonly!
+    expect { doc.root.name = "again" }.to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "Leptris::XML.parse forwards readonly" do
+    doc = Leptris::XML.parse("<r/>", readonly: true)
+    expect(doc).to be_readonly
+  end
+end

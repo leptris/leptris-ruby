@@ -82,6 +82,14 @@ class Leptris::XML::Node
     Leptris::XML::Node.wrap(ptr, @document)
   end
 
+  # Raises ReadOnlyError when the owning document was marked readonly.
+  def ensure_writable!
+    if @document&.readonly?
+      raise Leptris::XML::ReadOnlyError,
+        "document is readonly — mutation attempted on #{inspect}"
+    end
+  end
+
   def line
     Leptris::XML::FFI.leptris_node_line(@c_ptr)
   end
@@ -99,13 +107,18 @@ class Leptris::XML::Node
   end
 
   def children
+    # Immutable in readonly mode: the walk (first_child + one
+    # next_sibling per child) plus wrapper construction is paid once.
+    return @children if readonly_cached?(:@children)
     nodes = []
     ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     until ptr.nil? || ptr.null?
       nodes << Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
       ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
     end
-    Leptris::XML::NodeSet.new(@document, nodes)
+    result = Leptris::XML::NodeSet.new(@document, nodes)
+    @children = result if @document&.readonly?
+    result
   end
 
   def next_sibling
@@ -154,6 +167,7 @@ class Leptris::XML::Node
   end
 
   def unlink
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_node_unlink(@c_ptr))
     @parent = nil
@@ -215,6 +229,10 @@ class Leptris::XML::Node
   end
 
   protected
+
+  def readonly_cached?(ivar)
+    @document&.readonly? && instance_variable_defined?(ivar)
+  end
 
   def as_element_or_self
     is_a?(Leptris::XML::Element) ? self : nil
