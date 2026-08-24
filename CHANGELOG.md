@@ -5,6 +5,14 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-08-24
+
+Lockstep with libleptris 1.6.0 — the moxml-adapter blockers fixed:
+same-parent node moves no longer corrupt the sibling chain (#518),
+detached PI/comment/CDATA mutation works on rootless documents
+(#519); union nodesets keep attribute identity (#514); document-level
+processing instructions gained a public API (#526).
+
 ## [1.5.0] - 2026-08-24
 
 Lockstep with libleptris 1.5.0 — the engine pins the TODO.engine
