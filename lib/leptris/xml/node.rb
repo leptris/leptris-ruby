@@ -3,10 +3,13 @@
 class Leptris::XML::Node
   attr_reader :c_ptr, :document
 
-  def initialize(c_ptr, document, parent: nil)
+  def initialize(c_ptr, document, parent: nil, node_type: nil)
     @c_ptr = c_ptr
     @document = document
     @parent = parent
+    # wrap() already calls leptris_node_get_type for dispatch; reusing
+    # the result makes every predicate and #type call FFI-free.
+    @node_type = node_type
   end
 
   def self.wrap(c_ptr, document, parent: nil)
@@ -18,20 +21,21 @@ class Leptris::XML::Node
       return cached
     end
 
+    node_type = Leptris::XML::FFI.leptris_node_get_type(c_ptr)
     node =
-      case Leptris::XML::FFI.leptris_node_get_type(c_ptr)
+      case node_type
       when Leptris::XML::FFI::NODE_ELEMENT
-        Leptris::XML::Element.new(c_ptr, document, parent: parent)
+        Leptris::XML::Element.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_TEXT
-        Leptris::XML::Text.new(c_ptr, document, parent: parent)
+        Leptris::XML::Text.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_COMMENT
-        Leptris::XML::Comment.new(c_ptr, document, parent: parent)
+        Leptris::XML::Comment.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_CDATA
-        Leptris::XML::CDATA.new(c_ptr, document, parent: parent)
+        Leptris::XML::CDATA.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_PI
-        Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent)
+        Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent, node_type: node_type)
       else
-        new(c_ptr, document, parent: parent)
+        new(c_ptr, document, parent: parent, node_type: node_type)
       end
 
     document.wrapper_cache[c_ptr.address] = node if document
@@ -58,7 +62,7 @@ class Leptris::XML::Node
   end
 
   def type
-    Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
+    @node_type ||= Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
   end
   alias_method :node_type, :type
 
