@@ -18,6 +18,34 @@ release: pull (StAX) API, bounded iterparse, compiled XPath
 expressions, per-parse options, truthful serialization encoding
 declarations. Binding-side adoption of the new APIs follows.
 
+## [1.6.0] - 2026-08-24
+
+Lockstep with libleptris 1.6.0 (v1.4/v1.5 were fix releases with no
+public API changes).
+
+### Added
+
+- **`Leptris::XML::XPath` — compiled expressions** (parse once,
+  evaluate many): `XPath.compile("//item[@qty > 3]")` returns a
+  reusable handle (GC-managed) whose `#eval(doc_or_element[, ns])`
+  shares result-wrapping semantics with `Searchable#xpath`,
+  including namespace bindings.
+- **`Leptris::XML::Pull` — StAX-style pull parsing**:
+  `Pull.parse(xml) { |event| }` streams start_element (with captured
+  attributes), end_element, text, comment, cdata, pi, end_document,
+  and error events; `Pull.parse_file` streams from disk.
+- **`Leptris::XML::Iterparse` — incremental tree iteration**: yields
+  each completed top-level child element; the previous subtree is
+  released as the next is produced (memory bounded by the largest
+  subtree, not the document). Yielded elements have no parent
+  Document; upstream v1 limitation: namespace prefixes are not
+  re-resolved.
+- **Document-level processing instructions**: `Document#processing_instructions`
+  (array of [target, data]) and `Document#add_pi(target, data)` —
+  document PIs are not tree nodes, per the C contract.
+- `leptris_parse_string_ex` bound (options-struct parse; the flags
+  path remains the default).
+
 ## [1.3.0] - 2026-08-23
 
 Lockstep with libleptris 1.3.0 — takes full advantage of the

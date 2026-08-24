@@ -20,7 +20,7 @@ module Leptris::XML::Searchable
         Leptris::XML::FFI.leptris_status_string(Leptris::XML::FFI::LEPTRIS_ERROR_XPATH)
     end
 
-    wrap_xpath_result(result_ptr)
+    Leptris::XML::Searchable.wrap_xpath_result(document, result_ptr)
   end
 
   def at_xpath(*paths)
@@ -88,7 +88,10 @@ module Leptris::XML::Searchable
     %r{\A(\./|/|\.\.|\.)}.match?(str)
   end
 
-  def wrap_xpath_result(result_ptr)
+  # Shared by Searchable#xpath and Leptris::XML::XPath (compiled
+  # expressions): wraps a raw TaurusXPathResult pointer into the
+  # Ruby-typed result and frees the C handle.
+  def self.wrap_xpath_result(document, result_ptr)
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     case type
     when Leptris::XML::FFI::XPATH_NODESET

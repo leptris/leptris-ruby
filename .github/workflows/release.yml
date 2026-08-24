@@ -199,5 +199,20 @@ jobs:
           ls -la pkg/
           for gem in pkg/*.gem; do
             echo "Pushing $gem..."
-            gem push -V "$gem"
+            if ! output=$(gem push -V "$gem" 2>&1); then
+              # Re-running a partially-completed release is safe:
+              # variants already on rubygems are skipped, any other
+              # failure aborts.
+              case "$output" in
+                *"Repushing of gem versions is not allowed"*)
+                  echo "::warning::$gem already published; skipping"
+                  ;;
+                *)
+                  echo "$output"
+                  exit 1
+                  ;;
+              esac
+            else
+              echo "$output"
+            fi
           done

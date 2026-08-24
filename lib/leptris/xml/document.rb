@@ -234,6 +234,24 @@ class Leptris::XML::Document
     self
   end
 
+  # Document-level processing instructions (not tree nodes):
+  # an array of [target, data] pairs in document order.
+  def processing_instructions
+    count = Leptris::XML::FFI.leptris_document_pi_count(@c_ptr)
+    count.times.map do |i|
+      [Leptris::XML::FFI.leptris_document_pi_target(@c_ptr, i),
+       Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)]
+    end
+  end
+
+  # Append a document-level processing instruction. Returns self.
+  def add_pi(target, data = "")
+    witness = Leptris::XML::FFI.leptris_document_add_pi(
+      @c_ptr, target.to_s, data.to_s)
+    raise Leptris::XML::Error, "leptris_document_add_pi failed" if witness.null?
+    self
+  end
+
   # The most recent error recorded against this document, or nil.
   def last_error
     msg = Leptris::XML::FFI.leptris_document_last_error(@c_ptr)

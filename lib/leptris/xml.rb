@@ -21,6 +21,9 @@ module Leptris
     autoload :CStringArray, "leptris/xml/c_string_array"
     autoload :Serialization, "leptris/xml/serialization"
     autoload :SAX, "leptris/xml/sax"
+    autoload :XPath, "leptris/xml/xpath"
+    autoload :Pull, "leptris/xml/pull"
+    autoload :Iterparse, "leptris/xml/iterparse"
 
     # Nokogiri-style top-level entry points (Nokogiri::XML(...) /
     # Nokogiri::XML.parse). Delegates to Document.parse.
