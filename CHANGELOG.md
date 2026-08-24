@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-08-24
+
+### Added
+
+- **Readonly mode**: `Leptris::XML.parse(xml, readonly: true)` /
+  `Document#readonly!` (one-way). Mutations raise
+  `Leptris::XML::ReadOnlyError`; read paths memoize aggressively
+  (names, content, children NodeSets, attribute hashes) since they can
+  never go stale; the C document is frozen (advisory upstream).
+  Detached factories (`create_element` etc.) remain usable.
+  Purpose: steady-state read performance for the dominant
+  parse-query-serialize workload — see Changed.
+
+### Changed
+
+- Micro-optimizations targeting the small-document gap versus C
+  extension bindings:
+  - node type is memoized from `Node.wrap`'s dispatch call — every
+    predicate and `#type` is now FFI-free
+  - the default serialize options struct is built once and reused
+  - `Document.parse` skips the per-parse status MemoryPointer (the C
+    out-param is nullable; failure detail comes from the thread-local
+    last error)
+  - `Element#name` memoizes (invalidated by `name=`)
+
 ## [1.6.0] - 2026-08-24
 
 Lockstep with libleptris 1.6.0 — the moxml-adapter blockers fixed:
@@ -25,6 +50,31 @@ Lockstep with libleptris 1.4.0 — engine pins the TODO.bindings
 release: pull (StAX) API, bounded iterparse, compiled XPath
 expressions, per-parse options, truthful serialization encoding
 declarations. Binding-side adoption of the new APIs follows.
+
+## [1.6.1] - 2026-08-24
+
+### Added
+
+- **Readonly mode**: `Leptris::XML.parse(xml, readonly: true)` /
+  `Document#readonly!` (one-way). Mutations raise
+  `Leptris::XML::ReadOnlyError`; read paths memoize aggressively
+  (names, content, children NodeSets, attribute hashes) since they can
+  never go stale; the C document is frozen (advisory upstream).
+  Detached factories (`create_element` etc.) remain usable.
+  Purpose: steady-state read performance for the dominant
+  parse-query-serialize workload — see Changed.
+
+### Changed
+
+- Micro-optimizations targeting the small-document gap versus C
+  extension bindings:
+  - node type is memoized from `Node.wrap`'s dispatch call — every
+    predicate and `#type` is now FFI-free
+  - the default serialize options struct is built once and reused
+  - `Document.parse` skips the per-parse status MemoryPointer (the C
+    out-param is nullable; failure detail comes from the thread-local
+    last error)
+  - `Element#name` memoizes (invalidated by `name=`)
 
 ## [1.6.0] - 2026-08-24
 

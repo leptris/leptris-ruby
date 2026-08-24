@@ -2,22 +2,27 @@
 
 class Leptris::XML::Element < Leptris::XML::Node
   def name
-    Leptris::XML::FFI.leptris_element_name(@c_ptr)
+    @name ||= Leptris::XML::FFI.leptris_element_name(@c_ptr)
   end
   alias_method :node_name, :name
 
   def name=(new_name)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_name(@c_ptr, new_name))
-    new_name
+    @name = new_name
   end
   alias_method :node_name=, :name=
 
   def content
-    Leptris::XML::FFI.leptris_element_text(@c_ptr)
+    return @content if readonly_cached?(:@content)
+    Leptris::XML::FFI.leptris_element_text(@c_ptr).tap do |text|
+      @content = text if @document&.readonly?
+    end
   end
 
   def content=(new_content)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_text(@c_ptr, new_content.to_s))
     new_content
@@ -30,6 +35,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :get_attribute, :[]
 
   def []=(key, value)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s))
     value
@@ -42,6 +48,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :has_attribute?, :key?
 
   def remove_attribute(name)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_remove_attribute(@c_ptr, name.to_s))
     self
@@ -72,8 +79,10 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def attributes
+    return @attributes if readonly_cached?(:@attributes)
     result = {}
     each_attribute { |attr| result[attr.name] = attr }
+    @attributes = result if @document&.readonly?
     result
   end
 
@@ -88,30 +97,35 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def prepend_child(node)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
     node
   end
 
   def add_next_sibling(node)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
     node
   end
 
   def add_previous_sibling(node)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
     node
   end
 
   def remove_child(node)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_remove_child(@c_ptr, node.c_ptr))
     node
   end
 
   def children=(node_or_nodes)
+    ensure_writable!
     # Remove existing children, then attach the new ones in source order.
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_remove_children(@c_ptr))
@@ -168,6 +182,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :clone, :dup
 
   def add_child(node_or_markup)
+    ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
       Leptris::XML::FFI.check_status(
@@ -243,6 +258,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :c14n, :canonicalize
 
   def add_namespace_definition(prefix, href)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_add_namespace_definition(
         @c_ptr, prefix.to_s, href.to_s))
@@ -251,12 +267,14 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :add_namespace, :add_namespace_definition
 
   def default_namespace=(href)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_default_namespace(@c_ptr, href.to_s))
     href
   end
 
   def remove_namespace_definition(prefix)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_remove_namespace_definition(@c_ptr, prefix.to_s))
     self

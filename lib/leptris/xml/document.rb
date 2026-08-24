@@ -17,6 +17,7 @@ class Leptris::XML::Document
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
     @freed = freed
+    @readonly = false
     # Per-document STRONG cache for Node wrappers, keyed on c_ptr
     # address. Every wrapper is created through Node.wrap, which is the
     # single construction path, so the same C node always yields the
@@ -33,38 +34,38 @@ class Leptris::XML::Document
     @wrapper_cache = {}
   end
 
-  def self.parse(xml_or_io, options: nil)
+  def self.parse(xml_or_io, options: nil, readonly: false)
     xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
     end
     flags = resolve_flags(options)
-    status_ptr = ::FFI::MemoryPointer.new(:int)
+    # The status out-param is nullable; the thread-local last error
+    # carries failure detail, and skipping the per-parse MemoryPointer
+    # is measurable on small documents.
     raw =
       if flags.zero?
-        Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, status_ptr)
+        Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, nil)
       else
         Leptris::XML::FFI.leptris_parse_string_flags(
-          xml, xml.bytesize, flags, status_ptr)
+          xml, xml.bytesize, flags, nil)
       end
     if raw.null?
-      status = status_ptr.read_int
       raise Leptris::XML::ParseError,
-        "leptris_parse_string failed (status=#{status}): " +
-        Leptris::XML::FFI.status_message(status)
+        "leptris_parse_string failed: " +
+        Leptris::XML::FFI.leptris_last_error.to_s
     end
-    wrap(raw)
+    wrap(raw).tap { |doc| doc.readonly! if readonly }
   end
 
-  def self.parse_file(path)
-    status_ptr = ::FFI::MemoryPointer.new(:int)
-    raw = Leptris::XML::FFI.leptris_parse_file(path, status_ptr)
+  def self.parse_file(path, readonly: false)
+    raw = Leptris::XML::FFI.leptris_parse_file(path, nil)
     if raw.null?
-      status = status_ptr.read_int
       raise Leptris::XML::ParseError,
-        "leptris_parse_file failed (status=#{status})"
+        "leptris_parse_file failed: " +
+        Leptris::XML::FFI.leptris_last_error.to_s
     end
-    wrap(raw)
+    wrap(raw).tap { |doc| doc.readonly! if readonly }
   end
 
   # Create an empty document (no root element) backed by its own memory
@@ -250,6 +251,20 @@ class Leptris::XML::Document
       @c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_document_add_pi failed" if witness.null?
     self
+  end
+
+  # Marks the document read-only: tree mutations raise
+  # Leptris::XML::ReadOnlyError, and read paths memoize aggressively
+  # (names, content, children, attributes) since they can never go
+  # stale. The C document is also frozen (advisory upstream). One-way.
+  def readonly!
+    Leptris::XML::FFI.leptris_document_freeze(@c_ptr)
+    @readonly = true
+    self
+  end
+
+  def readonly?
+    @readonly == true
   end
 
   # The most recent error recorded against this document, or nil.

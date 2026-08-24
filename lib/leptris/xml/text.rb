@@ -8,6 +8,7 @@ class Leptris::XML::Text < Leptris::XML::Node
   end
 
   def content=(new_content)
+    ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_text_node_set_content(@c_ptr, new_content.to_s))
     new_content
