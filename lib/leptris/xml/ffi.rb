@@ -70,6 +70,16 @@ module Leptris
           :encoding, :pointer
       end
 
+      # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
+      # recover field; earlier fields unchanged since v1.6.0).
+      class ParseOptionsStruct < ::FFI::Struct
+        layout \
+          :flags, :int,
+          :strict_mode, :int,
+          :max_depth, :int,
+          :recover, :int
+      end
+
       attach_function :leptris_version, [], :string
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void
 
@@ -226,6 +236,20 @@ module Leptris
         [:leptris_element, :string, :int], :int
       attach_function :leptris_element_has_attribute,
         [:leptris_element, :string], :int
+      # libleptris 1.8.0: expanded-name lookup — (uri, local) with
+      # XML Namespaces 1.0 semantics; NULL/"" uri matches only
+      # no-namespace attributes, xmlns declarations never match.
+      attach_function :leptris_element_attribute_ns,
+        [:leptris_element, :string, :string], :string
+      attach_function :leptris_element_has_attribute_ns,
+        [:leptris_element, :string, :string], :int
+      # libleptris 1.8.0: per-attribute prefix (name-derived) and
+      # namespace URI (resolved through the owning element's
+      # in-scope declarations at read time).
+      attach_function :leptris_attribute_prefix,
+        [:leptris_attribute], :string
+      attach_function :leptris_attribute_namespace_uri,
+        [:leptris_attribute], :string
       attach_function :leptris_element_first_attribute,
         [:leptris_element], :leptris_attribute
       attach_function :leptris_attribute_next,
@@ -468,10 +492,18 @@ module Leptris
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
+      # libleptris >= 1.9.0: caller-buffer serialization with options
+      # (leptris#541). buf=NULL is a size query; the size-query +
+      # fill pair reuses one serialization through a per-document
+      # cache invalidated on mutation.
+      attach_function :leptris_document_serialize_into,
+        [:leptris_document, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_get_dtd,
         [:leptris_document], :pointer
       attach_function :leptris_element_serialize,
         [:leptris_element, :pointer], :pointer
+      attach_function :leptris_element_serialize_into,
+        [:leptris_element, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_save_file,
         [:leptris_document, :string, :pointer], :leptris_status
       attach_function :leptris_c14n_canonicalize,

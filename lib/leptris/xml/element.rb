@@ -47,6 +47,21 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
   alias_method :has_attribute?, :key?
 
+  # Expanded-name attribute access (libleptris 1.8.0): URI + local
+  # name with XML Namespaces 1.0 semantics — the written prefix
+  # never matters, only what it resolves to through this element's
+  # in-scope declarations. uri nil/"" matches no-namespace
+  # attributes only; xmlns declarations are invisible.
+  def attribute_ns(uri, local)
+    Leptris::XML::FFI.leptris_element_attribute_ns(
+      @c_ptr, uri&.to_s, local.to_s)
+  end
+
+  def has_attribute_ns?(uri, local)
+    Leptris::XML::FFI.leptris_element_has_attribute_ns(
+      @c_ptr, uri&.to_s, local.to_s) != 0
+  end
+
   def remove_attribute(name)
     ensure_writable!
     Leptris::XML::FFI.check_status(
@@ -58,13 +73,15 @@ class Leptris::XML::Element < Leptris::XML::Node
   # Iterates the element's attributes via the v1.1.0 linked-list face
   # (one FFI call per attribute; the name_at/value_at indexing API
   # re-walks the list per index, making it O(n^2) per element).
+  # The C attribute handle rides along so Attr can serve the
+  # per-attribute namespace accessors (libleptris 1.8.0).
   def each_attribute
     return enum_for(:each_attribute) unless block_given?
     attr = Leptris::XML::FFI.leptris_element_first_attribute(@c_ptr)
     until attr.nil? || attr.null?
       name = Leptris::XML::FFI.leptris_attribute_get_name(attr)
       value = Leptris::XML::FFI.leptris_attribute_get_value(@c_ptr, attr)
-      yield Leptris::XML::Attr.new(name, value, self)
+      yield Leptris::XML::Attr.new(name, value, self, c_handle: attr)
       attr = Leptris::XML::FFI.leptris_attribute_next(attr)
     end
     self
@@ -238,7 +255,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def to_xml(indent: 0, no_decl: false, encoding: nil)
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::FFI.method(:leptris_element_serialize), @c_ptr,
+      Leptris::XML::FFI.method(:leptris_element_serialize_into), @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
 

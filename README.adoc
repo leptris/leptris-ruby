@@ -91,6 +91,18 @@ doc = Leptris::XML.parse_file("books.xml")
 This is the direct Nokogiri equivalent of `Nokogiri::XML(...)`. The
 returned object is a `Leptris::XML::Document`.
 
+Malformed input raises `Leptris::XML::ParseError`. Parse with
+`recover: true` to get libxml2's `XML_PARSE_RECOVER` semantics
+instead — an empty document back, with the failure recorded on the
+thread-global last error:
+
+[source,ruby]
+----
+doc = Leptris::XML.parse("<broken", recover: true)
+doc.root                                # => nil
+Leptris::XML::FFI.leptris_last_error    # => "..."
+----
+
 == Reading nodes
 
 [horizontal]
@@ -251,6 +263,10 @@ doc.root.name = "catalog"
 `Element#add_namespace_definition(prefix, href)` (alias `#add_namespace`) :: declare `xmlns:prefix="href"` on this element.
 `Element#default_namespace=(href)` :: declare/replace `xmlns="href"`.
 `Element#remove_namespace_definition(prefix)` :: drop a declaration.
+`Element#attribute_ns(uri, local)` :: attribute value by expanded name (URI + local); nil URI matches no-namespace attributes only.
+`Element#has_attribute_ns?(uri, local)` :: presence by expanded name.
+`Attr#prefix` :: the attribute's prefix as written (`nil` when none).
+`Attr#namespace_uri` :: resolved through the owning element's in-scope declarations at read time (`xml` prebound; `nil` for undeclared prefixes).
 
 [source,ruby]
 ----
