@@ -5,6 +5,15 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- Eager library resolution at require time (issue leptris-ruby#49):
+  the FFI library list is loaded when the gem loads, so a
+  ruby-platform install (no vendored libleptris) fails immediately
+  with an actionable message instead of deep inside Document.parse
+- Packaging policy: this gem never publishes ruby-platform releases
+  without the vendored library — platform variants only
+
 ## [1.7.0] - 2026-08-24
 
 Lockstep with libleptris 1.7.0. New engine surface:
