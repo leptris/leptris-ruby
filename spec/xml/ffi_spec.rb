@@ -112,7 +112,6 @@ RSpec.describe Leptris::XML::FFI do
         leptris_xpath_eval_with_vars
         leptris_xpath_result_type
         leptris_xpath_result_count
-        leptris_xpath_result_get
         leptris_xpath_result_boolean
         leptris_xpath_result_number
         leptris_xpath_result_string
