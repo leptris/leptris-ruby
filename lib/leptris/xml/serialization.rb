@@ -6,11 +6,29 @@
 # struct, the encoding anchor, the C call, and the read-and-free all
 # live here.
 module Leptris::XML::Serialization
+  # The default options struct (indent 0, declaration on, no encoding
+  # override) is constant: build it once and reuse its pointer on the
+  # fast path instead of allocating a fresh struct per call.
+  DEFAULT_OPTIONS, _default_anchor = begin
+    opts = Leptris::XML::FFI::SerializeOptions.new
+    opts[:indent] = 0
+    opts[:xml_declaration] = 1
+    opts[:encoding] = nil
+    [opts, nil]
+  end
+  private_constant :DEFAULT_OPTIONS
+
   # +ffi_function+ is a bound FFI function taking (c_ptr, opts_ptr):
   # leptris_document_serialize or leptris_element_serialize.
   def self.to_xml(ffi_function, c_ptr, indent: 0, no_decl: false, encoding: nil)
-    opts, _encoding_anchor = build_options(
-      indent: indent, no_decl: no_decl, encoding: encoding)
+    opts =
+      if indent.to_i.zero? && !no_decl && encoding.nil?
+        DEFAULT_OPTIONS
+      else
+        opts, _encoding_anchor = build_options(
+          indent: indent, no_decl: no_decl, encoding: encoding)
+        opts
+      end
     str_ptr = ffi_function.call(c_ptr, opts.pointer)
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
