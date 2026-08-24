@@ -4,101 +4,90 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`leptris-ruby` is a Ruby gem that wraps the native C library `libleptris` (built via CMake) via the `ffi` gem. It exposes an XML parser with complete XPath 1.0 support and a CLI. Target users want Nokogiri-like ergonomics with native speed.
+`leptris-ruby` is the official Ruby binding for `libleptris`
+(https://github.com/leptris/leptris), a pure-C99 XML 1.0 parser with a
+W3C-conformant XPath 1.0 engine (438/438 on the W3C suite), full SAX,
+pull parsing, and C14N. The binding is **FFI-based** (no C extension,
+no compilation at install) and ships **precompiled platform gems**
+with the shared library vendored inside: x86_64/aarch64-linux (glibc
+and musl), x86_64/arm64-darwin, x64-mingw32/ucrt, aarch64-mingw-ucrt,
+plus the pure-Ruby fallback gem.
 
-- Native dep: `libleptris` shared library, built by `ext/leptris/extconf.rb` (CMake) and copied to `lib/libleptris.{dylib,so,dll}`.
-- Ruby entry point: `lib/leptris.rb` (uses `require_relative` — see "Conventions" below).
-- CLI: `bin/leptris` (Thor-based), defined in `lib/leptris/cli.rb`.
+Version lockstep: the gem's major.minor tracks the C library
+(`libleptris 1.6.x` <-> `leptris 1.6.x`). A C release means one PR
+carrying version.rb + the Rakefile `LIBLEPTRIS_VERSION` pin + the
+CHANGELOG entry, then the release workflow.
 
 ## Commands
 
 ```bash
-# Build the C library and install it into lib/ for FFI to load
-bundle exec rake compile            # runs ext/leptris/extconf.rb (CMake)
-
-# Run the full test suite (builds first)
-bundle exec rake test               # = spec, depends on :compile
-
-# Run RSpec directly (skips build dependency)
-bundle exec rspec                   # full suite
-bundle exec rspec spec/leptris/document_spec.rb    # one file
-bundle exec rspec spec/leptris/document_spec.rb:42 # one example by line
-
-# Lint
-bundle exec rubocop
-
-# Clean build artifacts (lib/libleptris.*, ext/leptris/build, Makefile, tmp, pkg)
-bundle exec rake clean
+bundle exec rake compile   # build libleptris (pinned tarball) into lib/
+bundle exec rspec          # full suite (uses the vendored library)
+bundle exec rspec spec/xml/xpath_spec.rb:42   # one example
+bundle exec rake gem:native:arm64-darwin      # platform gem
 ```
 
-CI (`.github/workflows/test.yml`) runs `bundle exec rspec` + `bundle exec rubocop` on Ubuntu + macOS across Ruby 3.0–3.3.
+`LEPTRIS_LIB_PATH=/path/to/libleptris.dylib bundle exec rspec` runs
+against an arbitrary build (e.g. a libleptris checkout under test).
 
-## Architecture: current state (v1.1.0)
+## Architecture
+
+The C DOM is the single source of truth; Ruby objects are thin FFI
+handles. One Ruby method = one FFI call wherever possible.
 
 ```
-User Ruby code
-    ↓
-Leptris.parse / Leptris.parse_file                  (lib/leptris.rb)
-    ↓ FFI call (leptris_parse) — one-shot tree copy
-C document → FFI::Bridge.document_from_ptr        (lib/leptris/ffi/bridge.rb)
-    ↓ recursive hydration
-Ruby Document → Element → Node → NodeSet          (lib/leptris/{document,element,node,node_set}.rb)
+lib/leptris.rb                — Leptris::VERSION
+lib/leptris/xml.rb            — autoload registry, error classes,
+                                Leptris::XML.parse / parse_file
+lib/leptris/xml/ffi.rb        — every public C declaration + seam
+                                helpers (check_status, read_owned_string,
+                                status_message)
+lib/leptris/xml/document.rb   — the only C-memory owner (finalizer);
+                                factories, PI accessors, exslt, last_error
+lib/leptris/xml/node.rb       — Node.wrap: the ONLY wrapper constructor
+                                (identity cache + type dispatch)
+lib/leptris/xml/element.rb    — attributes via the v1.1.0 iteration
+                                face; namespace/mutation surface
+lib/leptris/xml/node_set.rb   — lazy XPath results; batch fetch via
+                                get_nodes_ex
+lib/leptris/xml/searchable.rb — xpath/css/at_*; namespace-bound path
+lib/leptris/xml/xpath.rb      — compiled expressions (parse once,
+                                eval many)
+lib/leptris/xml/sax/          — callback SAX
+lib/leptris/xml/pull.rb       — StAX-style pull parsing
+lib/leptris/xml/iterparse.rb  — bounded-memory element iteration
+lib/leptris/xml/serialization.rb — serialize/c14n (Document + Element
+                                one-liners over this module)
+lib/leptris/xml/c_string_array.rb — NULL-terminated char** adapter
+lib/leptris/xml/css_to_xpath.rb   — minimal CSS translation
 ```
 
-Key directories:
+### Ownership and seams
 
-- `lib/leptris.rb` — top-level module, `parse`, `parse_file`, `xpath_evaluate`, error classes (`ParseError`, `XPathError`, `EvaluationError`).
-- `lib/leptris/ffi/` — FFI plumbing: `library.rb` (bindings), `types.rb` (constants), `memory.rb` (AutoPointer wrappers), `errors.rb` (thread-local error check), `bridge.rb` (C ptr → Ruby object).
-- `lib/leptris/{document,element,node,node_set}.rb` — pure-Ruby tree model (full hydration on parse).
-- `lib/leptris/xpath/` — pure-Ruby XPath engine (lexer, parser, compiler, VM). XPath DOES NOT go through C currently; `lib/leptris.rb#xpath_evaluate` calls `FFI.leptris_xpath_eval` only as a wrapper, but the result materialization in `FFI::Bridge` recursively re-walks via the Ruby tree.
-- `lib/leptris/adapter*` — third-party format adapters.
-- `spec/leptris/` — 250+ RSpec examples covering parser, XPath, namespaces, errors, ox-compatibility.
-- `ext/leptris/` — CMake-based build of `libleptris` (sources come from the separate `leptris/leptris` repo at build time).
+- `Document` owns C memory (explicit `#free` or GC finalizer; wrapper
+  cache is a strong Hash cleared on free). Every other class is a
+  borrowed handle valid while its Document lives.
+- All wrapper construction goes through `Node.wrap` — wrapper
+  identity (`doc.root.equal?(doc.root)`) is guaranteed by the
+  per-document cache.
+- Status checks go through `FFI.check_status`; C `char*` returns go
+  through `FFI.read_owned_string`; array wire format (both
+  directions) goes through `CStringArray`. Never hand-roll these.
+- The release workflow's publish loop is idempotent (already-published
+  gems are skipped).
 
-## Architecture: planned rewrite (see `TODO.impl/`)
+## Conventions
 
-The five files under `TODO.impl/` describe a planned rewrite that has NOT been implemented yet. Read them before touching the Ruby/COM layer. Summary:
+- Autoload only — no `require_relative` inside `lib/`.
+- No `instance_variable_set`/`_get` across objects; no `respond_to?`
+  type checks; specs use real documents, never doubles.
+- New C surface: attach in `ffi.rb`, sugar where it earns its keep,
+  specs against a locally built library, CHANGELOG, lockstep release.
+- All changes via PRs; no AI attribution; `git add` explicit paths.
 
-1. **`01-architecture.md`** — Rewrite `leptris-ruby` as a **thin FFI wrapper** around libleptris v0.4.2 with a **Nokogiri-compatible API**. Current code does a one-shot C→Ruby tree copy and runs XPath in Ruby; planned code keeps the C DOM as the single source of truth (Ruby objects = handles wrapping opaque pointers), so every Ruby method = one FFI call and XPath/SAX go through the C engine.
+## Reference
 
-2. **`02-ffi-declarations.md`** — Complete FFI attachment: every public function in libleptris v0.4.2 (document lifecycle, node access, element queries/mutation, creation, text/comment/CDATA/PI access, XPath + variable set, SAX, serialization, `leptris_free_string`). Opaque typedefs: `document`, `element`, `node_ref`, `xpath_result`, `sax_parser`, `attribute`. Structs: `SAXHandler`, `SerializeOptions`. Constants for status codes, node types, XPath result types.
-
-3. **`03-document-node-element-nodeset.md`** — Target file layout:
-   ```
-   lib/leptris.rb
-   lib/leptris/xml.rb
-   lib/leptris/xml/{ffi,document,node,element,text,comment,cdata,
-                   processing_instruction,attr,node_set,searchable,
-                   parse_options}.rb
-   ```
-   `Node.wrap(ptr, doc)` dispatches on the C node type. Document is the only memory-owning object; Node/Element/Text/Comment/CDATA/PI/Attr are non-owning handles valid until `Document#free`.
-
-4. **`04-sax-parser.md`** — `Leptris::XML::SAX::{Parser, Document}` wrapping `leptris_sax_parse` / `leptris_sax_parser_feed`. FFI::Function callbacks for each event; `start_element` walks the NULL-terminated `const char**` attribute array. Streaming via incremental `feed`.
-
-5. **`05-serialize-c14n-memory-specs-css.md`** — `SerializeOptions` struct for `leptris_serialize_document`; `Document#canonicalize` (modes `C14N_1_0`, `C14N_1_1`, `C14N_EXCLUSIVE`); `UseAfterFreeError` guard; minimal CSS-to-XPath converter (`.class`, `#id`, `[attr]`, `[attr=val]`, `:first-child`, `:last-child`); spec layout under `spec/xml/{parse,document,node,element,node_set,xpath,sax,serialize,c14n,memory}_spec.rb`.
-
-### Memory ownership rules (planned)
-
-| Ruby class | Owns C memory? | Free function |
-|---|---|---|
-| `Document` | YES | `leptris_document_free` |
-| `Node`/`Element`/text/CDATA/PI/Attr | NO (borrowed) | freed transitively by Document |
-| `NodeSet` (XPath result) | YES | `leptris_xpath_result_free` |
-| SAX handler closures | callback lifetime | `leptris_sax_parser_free` |
-
-GC safety net: `ObjectSpace.define_finalizer` capturing the **raw pointer value**, not the Ruby wrapper. Finalizers must not double-free after explicit `#free`.
-
-## Reference material
-
-- Nokogiri source (`~/src/external/nokogiri/`) — `lib/nokogiri/xml/{node,node_set,document,searchable}.rb` are the API shape targets.
-- libleptris public headers (`src/include/leptris/{types,leptris}.h`, `src/include/leptris/{dom,xpath,sax}/*.h`) — the single source of truth for FFI declarations. Target tag: `v0.4.2`.
-- `docs/FFI_ARCHITECTURE.md` — describes the v0.5.0 FFI design (AutoPointer, two-pointer strategy for XPath). The planned rewrite supersedes some of this (no recursive hydration, no two-pointer — the Document pointer alone suffices because Node objects stay as C handles).
-- `docs/BUILD.md` — CMake build reference for libleptris itself.
-
-## Conventions (project-specific)
-
-- **Autoload, not require_relative.** TODO 3 is explicit: `lib/leptris.rb` → `autoload :XML, 'leptris/xml'`; `lib/leptris/xml.rb` → `autoload :Document, 'leptris/xml/document'`. Autoload entries live in the **immediate parent namespace's file** (create that file if missing). The current `lib/leptris.rb` uses `require_relative` — when implementing TODO 3, do not retrofit require_relative into the new layout.
-- **No `instance_variable_set`/`_get` cross-object.** TODO 3 is explicit. The current `lib/leptris.rb` and `lib/leptris/ffi/bridge.rb` use `instance_variable_get(:@_c_ptr)` heavily — that pattern is debt to migrate, not a model to copy. In the rewrite, expose `c_ptr`/`document` as public `attr_reader`s and access via those.
-- **No `respond_to?` type checks.** Use `is_a?`. The current `lib/leptris.rb#xpath_evaluate` checks `context_node != doc` to disambiguate — fine. Don't add `respond_to?(:c_ptr)` style checks.
-- **No doubles in specs.** The existing `spec/leptris/` specs use real model instances (XML strings → `Leptris.parse` → real `Document`/`Element`/`NodeSet`). Keep it that way.
-- **Forward compatibility:** Keep `Leptris.parse` / `Leptris.parse_file` as the existing top-level API during the rewrite. The new `Leptris::XML.parse` may coexist.
+- libleptris public headers (`src/include/leptris/*.h`) are the
+  contract; when symbols change, bump lockstep and audit
+  attached-vs-exported (`nm -gU` on a fresh build).
+- Upstream issues worth tracking live at leptris/leptris.

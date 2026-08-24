@@ -89,7 +89,7 @@ module Leptris::XML::Searchable
   end
 
   # Shared by Searchable#xpath and Leptris::XML::XPath (compiled
-  # expressions): wraps a raw TaurusXPathResult pointer into the
+  # expressions): wraps a raw XPathResult pointer into the
   # Ruby-typed result and frees the C handle.
   def self.wrap_xpath_result(document, result_ptr)
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)

@@ -63,15 +63,16 @@ class Leptris::XML::NodeSet
   def each
     return enum_for(:each) unless block_given?
     if @result_ptr
-      # Batch-fetch all node pointers in one FFI call (leptris_xpath_result_get_nodes,
-      # libleptris v0.11.4) and wrap each. Saves N-1 FFI calls vs the per-index
-      # leptris_xpath_result_get loop. Wrappers are still cached per-Document via
-      # Node.wrap, so a re-iteration of the same NodeSet hits the cache.
+      # Batch-fetch all node pointers in one FFI call
+      # (leptris_xpath_result_get_nodes_ex copies every node kind, not
+      # just elements) and wrap each. Wrappers are cached per-Document
+      # via Node.wrap, so re-iteration of the same NodeSet hits it.
       n = length
       if n > 0
         buf = ::FFI::MemoryPointer.new(:pointer, n)
         begin
-          copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes(@result_ptr, buf, n)
+          copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes_ex(
+            @result_ptr, buf, nil, n)
           copied.times do |i|
             ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
             next if ptr.null?

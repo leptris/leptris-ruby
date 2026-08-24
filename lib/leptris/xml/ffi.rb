@@ -341,8 +341,6 @@ module Leptris
         [:leptris_xpath_result], :int
       attach_function :leptris_xpath_result_count,
         [:leptris_xpath_result], :size_t
-      attach_function :leptris_xpath_result_get,
-        [:leptris_xpath_result, :size_t], :leptris_element
       # Mixed nodesets (v1.1.0): unlike result_get (elements only),
       # get_node returns the node whatever its kind; node_kind reports
       # which (element / synthetic attribute / text / other).
@@ -359,10 +357,8 @@ module Leptris
       # a heap string the library frees.
       attach_function :leptris_xpath_register_function,
         [:leptris_document, :string, :pointer, :pointer], :leptris_status
-      attach_function :leptris_xpath_result_get_nodes,
-        [:leptris_xpath_result, :pointer, :size_t], :size_t
-      # v1.3.0: copies ALL node kinds (the legacy accessor drops
-      # non-element entries) and can also report per-entry kinds.
+      # v1.3.0: copies ALL node kinds in one call, optionally
+      # reporting per-entry kinds.
       attach_function :leptris_xpath_result_get_nodes_ex,
         [:leptris_xpath_result, :pointer, :pointer, :size_t], :size_t
       attach_function :leptris_xpath_result_boolean,
@@ -393,10 +389,8 @@ module Leptris
         [], :leptris_xpath_ns_set
       attach_function :leptris_xpath_ns_set_free,
         [:leptris_xpath_ns_set], :void
-      attach_function :leptris_xpath_ns_set_add,
-        [:leptris_xpath_ns_set, :string, :string], :leptris_status
       # One-call constructor: flat array of 2*pair_count alternating
-      # prefix/URI strings (v1.3.0).
+      # prefix/URI strings.
       attach_function :leptris_xpath_ns_set_new_from_pairs,
         [:pointer, :size_t], :leptris_xpath_ns_set
       attach_function :leptris_xpath_eval_ns,
@@ -457,10 +451,6 @@ module Leptris
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
-      # Legacy simple serializer, declared retroactively in v1.1.0.
-      # Prefer leptris_document_serialize; bound for API completeness.
-      attach_function :leptris_serialize_document,
-        [:leptris_document], :pointer
       attach_function :leptris_document_get_dtd,
         [:leptris_document], :pointer
       attach_function :leptris_element_serialize,
