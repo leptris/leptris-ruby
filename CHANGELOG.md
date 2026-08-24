@@ -23,6 +23,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `leptris_element_serialize_into` (unused by `#to_xml`: they are
   option-blind and re-serialize on every call — upstream leptris#541).
 
+### Fixed
+
+- **No more ruby-platform fallback gem** (issue #49): the FFI binding
+  can never work without its native library, yet the previous
+  ruby-platform variant shipped no binary and was selected as the
+  fallback under several Bundler configurations (observed in moxml's
+  CI). The Rakefile `gem:native:any` / `platform:any` tasks are gone
+  and the release workflow no longer builds or publishes a
+  ruby-platform variant — only platform-specific gems.
+- **Eager native library resolution** (issue #49): `require
+  "leptris"` / `require "leptris/xml"` now resolves the native
+  library immediately and raises a clear LoadError with the install
+  remedy (`gem install leptris --platform=<your-platform>` or set
+  `LEPTRIS_LIB_PATH`) when it can't be found. Previously a missing
+  library surfaced as a LoadError deep inside the first
+  `Document.parse` call.
+
 ## [1.7.0] - 2026-08-24
 
 Lockstep with libleptris 1.7.0. New engine surface:

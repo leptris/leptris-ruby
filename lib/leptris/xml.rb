@@ -1,5 +1,26 @@
 # frozen_string_literal: true
 
+# Eagerly load the FFI binding so the native library is resolved at
+# require time, not lazily inside Document.parse. Without this, a
+# ruby-platform gem install (which ships no binary) or any other
+# resolution failure surfaces as a LoadError deep inside the first
+# parse call — far from the `gem install` / `bundle install` that
+# caused it. Resolving it here gives a clear, immediate error that
+# names the platform variant the user must install instead.
+# (Issue #49.)
+begin
+  require "leptris/xml/ffi"
+rescue LoadError => e
+  raise LoadError, <<~MSG
+    Leptris could not load the native libleptris library.
+    The ruby-platform gem is published as a fallback only and ships
+    no binary; install the platform-specific variant for your system
+    (e.g. `gem install leptris --platform=arm64-darwin`), or set
+    LEPTRIS_LIB_PATH to a libleptris.{so,dylib,dll} file.
+    (Underlying error: #{e.message})
+  MSG
+end
+
 module Leptris
   module XML
     autoload :FFI, "leptris/xml/ffi"

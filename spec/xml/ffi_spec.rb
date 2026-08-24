@@ -17,6 +17,18 @@ RSpec.describe Leptris::XML::FFI do
       expect(version).to be_a(String)
       expect(version).to match(/\A\d+\.\d+\.\d+/)
     end
+
+    it "loads the native library eagerly at require time (issue #49)" do
+      # Before the eager-load fix, FFI was lazy via autoload: just
+      # `require "leptris/xml"` would not trigger ffi_lib, and a
+      # missing library surfaced as a LoadError deep inside
+      # Document.parse. With the fix, ffi_lib runs when xml.rb is
+      # loaded, so the FFI module is fully attached before any
+      # other XML class is referenced — and a missing library
+      # raises immediately with the install-remedy message.
+      expect(described_class).to respond_to(:leptris_version)
+      expect { described_class.leptris_version }.not_to raise_error
+    end
   end
 
   describe "document lifecycle" do

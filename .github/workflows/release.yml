@@ -92,8 +92,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: any
+          # No "platform: any" entry: the ruby-platform fallback gem
+          # ships no binary and resolves as the wrong variant under
+          # several Bundler configurations (issue #49). Only
+          # platform-specific variants are published.
           - os: ubuntu-latest
             platform: x86_64-linux
           - os: ubuntu-24.04-arm

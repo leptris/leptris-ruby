@@ -51,17 +51,13 @@ task default: :spec
 
 require "rubygems/package_task"
 
-desc "Build the pure-Ruby gem"
-task "gem:native:any" do
-  sh "rake platform:any gem"
-end
-
-desc "Define the gem task to build the pure-Ruby gem"
-task "platform:any" do
-  spec = Gem::Specification::load("leptris.gemspec").dup
-  task = Gem::PackageTask.new(spec)
-  task.define
-end
+# No ruby-platform gem: the binding is FFI-only and every variant
+# must ship the native library. A ruby-platform gem without a
+# binary resolves as the "fallback" under several Bundler
+# configurations and silently selects the broken variant — load
+# fails deep inside parse instead of at install (issue #49).
+# Source code is still installable locally via `gem build
+# leptris.gemspec`, just never published.
 
 platforms = [
   "x64-mingw32",
