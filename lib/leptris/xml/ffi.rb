@@ -7,15 +7,32 @@ module Leptris
     module FFI
       extend ::FFI::Library
 
-      ffi_lib [
-        ENV["LEPTRIS_LIB_PATH"],
-        File.expand_path("../../libleptris.dylib", __dir__),
-        File.expand_path("../../libleptris.so", __dir__),
-        File.expand_path("../../libleptris.dll", __dir__),
-        "/usr/local/lib/libleptris.dylib",
-        "/usr/local/lib/libleptris.so",
-        "leptris",
-      ].compact
+      # Issue leptris-ruby#49: name the remedy when the library is
+      # missing (ruby-platform gem without a vendored libleptris).
+      begin
+        ffi_lib [
+          ENV["LEPTRIS_LIB_PATH"],
+          File.expand_path("../../libleptris.dylib", __dir__),
+          File.expand_path("../../libleptris.so", __dir__),
+          File.expand_path("../../libleptris.dll", __dir__),
+          "/usr/local/lib/libleptris.dylib",
+          "/usr/local/lib/libleptris.so",
+          "leptris",
+        ].compact
+      rescue LoadError => e
+        raise LoadError, <<~MSG
+          leptris: cannot load the vendored libleptris library.
+          You may have installed the ruby-platform variant of this
+          gem (#{Gem.loaded_specs["leptris"]&.full_name rescue "unknown"}),
+          which does not vendor the native library. Fix:
+
+            bundle update leptris        # force platform gems
+            # or: gem install leptris --platform ruby is unsupported
+            # or: set LEPTRIS_LIB_PATH=/path/to/libleptris.so
+
+          Original error: #{e.message}
+        MSG
+      end
 
       typedef :pointer, :leptris_document
       typedef :pointer, :leptris_element
