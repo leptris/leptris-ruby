@@ -2,11 +2,49 @@
 
 All notable changes to Leptris will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.0] - 2026-08-24
 
+Lockstep with libleptris 1.9.0 (covers the 1.8.0 and 1.9.0 engine
+releases; CI/build pin libleptris v1.9.0).
+
+### Added
+
+- **Expanded-name attribute access** (engine #542):
+  `Element#attribute_ns(uri, local)` and `#has_attribute_ns?(uri,
+  local)` look attributes up by namespace URI + local name with XML
+  Namespaces 1.0 semantics — cross-prefix matches, nil/"" URI for
+  no-namespace only, xmlns declarations invisible. `Element#[]`
+  inherits the corrected by-name semantics: bare names match only
+  no-namespace attributes, qualified names resolve through
+  declarations, undeclared prefixes return nil.
+- **Per-attribute namespace accessors** (engine #542): `Attr#prefix`
+  (as written in the QName) and `Attr#namespace_uri` (resolved
+  through the owning element's in-scope declarations at read time;
+  xml prebound; nil for undeclared prefixes). `Attr#namespace`
+  serves the URI instead of the pre-1.8.0 nil stub.
+- **Recover parsing** (engine #547): `Leptris::XML.parse(xml,
+  recover: true)` / `ParseOptions.recovering` — a parse failure
+  returns an empty document (failure detail on the thread-global
+  last error) instead of raising ParseError: the libxml2
+  XML_PARSE_RECOVER semantics adapters emulate. Struct-only option;
+  carrying it routes the parse through `leptris_parse_string_ex`.
+- **Caller-buffer serialization**: `#to_xml` (document + element)
+  now rides `leptris_document/element_serialize_into` (engine #541)
+  — options carried, the size-query + fill pair reuses one
+  serialization through a per-document cache invalidated on
+  mutation, and no C-side result-string allocation remains.
+
+### Fixed
+
+- Rootless documents with document-level PIs no longer serialize to
+  "" (engine #546) — the declaration and every document-level PI are
+  emitted.
+- Detached sibling inserts chain (engine #540): bottom-up
+  construction via `add_next_sibling` on detached elements works;
+  attaching the head of a detached chain carries the whole chain.
 - Eager library resolution at require time (issue leptris-ruby#49):
   the FFI library list is loaded when the gem loads, so a
   ruby-platform install (no vendored libleptris) fails immediately
@@ -63,59 +101,6 @@ detached PI/comment/CDATA mutation works on rootless documents
 (#519); union nodesets keep attribute identity (#514); document-level
 processing instructions gained a public API (#526).
 
-## [1.5.0] - 2026-08-24
-
-Lockstep with libleptris 1.5.0 — the engine pins the TODO.engine
-release: file-backed pull/iterparse streaming (bounded memory off
-disk), compiled XPath ns/vars contexts, Rust crate publish workflow.
-
-## [1.4.0] - 2026-08-23
-
-Lockstep with libleptris 1.4.0 — engine pins the TODO.bindings
-release: pull (StAX) API, bounded iterparse, compiled XPath
-expressions, per-parse options, truthful serialization encoding
-declarations. Binding-side adoption of the new APIs follows.
-
-## [1.6.2] - 2026-08-24
-
-Lockstep with libleptris 1.6.2 (fix releases, no public API changes).
-
-### Changed
-
-- CI/build pin libleptris v1.6.2, carrying the serializer fix for
-  mixed-content indentation (upstream #534 — never indent inside
-  mixed-content elements).
-
-## [1.6.1] - 2026-08-24
-
-### Added
-
-- **Readonly mode**: `Leptris::XML.parse(xml, readonly: true)` /
-  `Document#readonly!` (one-way). Mutations raise
-  `Leptris::XML::ReadOnlyError`; read paths memoize aggressively
-  (names, content, children NodeSets, attribute hashes) since they can
-  never go stale; the C document is frozen (advisory upstream).
-  Detached factories (`create_element` etc.) remain usable.
-  Purpose: steady-state read performance for the dominant
-  parse-query-serialize workload — see Changed.
-
-### Changed
-
-- Micro-optimizations targeting the small-document gap versus C
-  extension bindings:
-  - node type is memoized from `Node.wrap`'s dispatch call — every
-    predicate and `#type` is now FFI-free
-  - the default serialize options struct is built once and reused
-  - `Document.parse` skips the per-parse status MemoryPointer (the C
-    out-param is nullable; failure detail comes from the thread-local
-    last error)
-  - `Element#name` memoizes (invalidated by `name=`)
-
-## [1.6.0] - 2026-08-24
-
-Lockstep with libleptris 1.6.0 (v1.4/v1.5 were fix releases with no
-public API changes).
-
 ### Added
 
 - **`Leptris::XML::XPath` — compiled expressions** (parse once,
@@ -138,6 +123,19 @@ public API changes).
   document PIs are not tree nodes, per the C contract.
 - `leptris_parse_string_ex` bound (options-struct parse; the flags
   path remains the default).
+
+## [1.5.0] - 2026-08-24
+
+Lockstep with libleptris 1.5.0 — the engine pins the TODO.engine
+release: file-backed pull/iterparse streaming (bounded memory off
+disk), compiled XPath ns/vars contexts, Rust crate publish workflow.
+
+## [1.4.0] - 2026-08-23
+
+Lockstep with libleptris 1.4.0 — engine pins the TODO.bindings
+release: pull (StAX) API, bounded iterparse, compiled XPath
+expressions, per-parse options, truthful serialization encoding
+declarations. Binding-side adoption of the new APIs follows.
 
 ## [1.3.0] - 2026-08-23
 

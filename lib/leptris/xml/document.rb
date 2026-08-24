@@ -34,23 +34,41 @@ class Leptris::XML::Document
     @wrapper_cache = {}
   end
 
-  def self.parse(xml_or_io, options: nil, readonly: false)
+  def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
     xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
     end
-    flags = resolve_flags(options)
+    if options.nil?
+      options = Leptris::XML::ParseOptions.new(recover: recover)
+    elsif recover && !options.recover?
+      options = options | Leptris::XML::ParseOptions.new(recover: true)
+    elsif !options.is_a?(Leptris::XML::ParseOptions)
+      raise ArgumentError, "options must be a Leptris::XML::ParseOptions"
+    end
     # The status out-param is nullable; the thread-local last error
     # carries failure detail, and skipping the per-parse MemoryPointer
     # is measurable on small documents.
     raw =
-      if flags.zero?
+      if options.struct_required?
+        # Recover is a struct field, not a parse flag — the options
+        # struct path (leptris_parse_string_ex) is the only carrier.
+        options_struct = options.to_c_struct
+        Leptris::XML::FFI.leptris_parse_string_ex(
+          xml, xml.bytesize, options_struct.pointer, nil)
+      elsif options.flags.zero?
         Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, nil)
       else
         Leptris::XML::FFI.leptris_parse_string_flags(
-          xml, xml.bytesize, flags, nil)
+          xml, xml.bytesize, options.flags, nil)
       end
     if raw.null?
+      if options.recover?
+        # Unreachable in practice: recover returns an empty document
+        # rather than NULL; kept so a contract change fails loudly.
+        raise Leptris::XML::Error,
+          "leptris_parse_string_ex returned NULL under recover"
+      end
       raise Leptris::XML::ParseError,
         "leptris_parse_string failed: " +
         Leptris::XML::FFI.leptris_last_error.to_s
@@ -101,15 +119,6 @@ class Leptris::XML::Document
     end
   end
   private_class_method :finalizer
-
-  def self.resolve_flags(options)
-    return Leptris::XML::FFI::LEPTRIS_PARSE_DEFAULT if options.nil?
-    unless options.is_a?(Leptris::XML::ParseOptions)
-      raise ArgumentError, "options must be a Leptris::XML::ParseOptions"
-    end
-    options.flags
-  end
-  private_class_method :resolve_flags
 
   def root
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
@@ -182,7 +191,7 @@ class Leptris::XML::Document
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::FFI.method(:leptris_document_serialize), @c_ptr,
+      Leptris::XML::FFI.method(:leptris_document_serialize_into), @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
   alias_method :to_s, :to_xml
