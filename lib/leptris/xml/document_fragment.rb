@@ -26,14 +26,7 @@ class Leptris::XML::DocumentFragment
   end
 
   def children
-    count = Leptris::XML::FFI.leptris_element_child_count(@c_ptr)
-    nodes = []
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
-    until ptr.nil? || ptr.null?
-      nodes << Leptris::XML::Node.wrap(ptr, @document)
-      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
-    end
-    Leptris::XML::NodeSet.new(@document, nodes)
+    Leptris::XML::Node.children_of(@c_ptr, @document)
   end
 
   def name

@@ -107,18 +107,36 @@ class Leptris::XML::Node
   end
 
   def children
-    # Immutable in readonly mode: the walk (first_child + one
-    # next_sibling per child) plus wrapper construction is paid once.
+    # Immutable in readonly mode: the batch fetch plus wrapper
+    # construction is paid once.
     return @children if readonly_cached?(:@children)
-    nodes = []
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
-    until ptr.nil? || ptr.null?
-      nodes << Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
-      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
-    end
-    result = Leptris::XML::NodeSet.new(@document, nodes)
+    result = Leptris::XML::Node.children_of(
+      @c_ptr, @document, parent: as_element_or_self)
     @children = result if @document&.readonly?
     result
+  end
+
+  # Batch child fetch (libleptris 1.7.0 leptris_node_children): a
+  # count-only query sizes the buffer, then one call copies every
+  # child kind — replacing the first_child + N next_sibling walk and
+  # its N+1 FFI round trips. Shared with DocumentFragment#children.
+  def self.children_of(c_ptr, document, parent: nil)
+    count = Leptris::XML::FFI.leptris_node_children(c_ptr, nil, 0)
+    return Leptris::XML::NodeSet.new(document, []) if count.zero?
+
+    buf = ::FFI::MemoryPointer.new(:pointer, count)
+    begin
+      copied = Leptris::XML::FFI.leptris_node_children(c_ptr, buf, count)
+      # One bulk read beats per-element get_pointer — each of those
+      # allocates a new FFI::Pointer and costs more than a dispatch.
+      ptrs = buf.get_array_of_pointer(0, copied)
+      nodes = ptrs.map do |ptr|
+        Leptris::XML::Node.wrap(ptr, document, parent: parent)
+      end
+      Leptris::XML::NodeSet.new(document, nodes)
+    ensure
+      buf.free
+    end
   end
 
   def next_sibling

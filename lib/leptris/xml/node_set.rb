@@ -73,8 +73,7 @@ class Leptris::XML::NodeSet
         begin
           copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes_ex(
             @result_ptr, buf, nil, n)
-          copied.times do |i|
-            ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
+          buf.get_array_of_pointer(0, copied).each do |ptr|
             next if ptr.null?
             yield Leptris::XML::Node.wrap(ptr, @document)
           end

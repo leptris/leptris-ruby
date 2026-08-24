@@ -5,6 +5,24 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-08-24
+
+### Changed
+
+- **Batch child fetch**: `#children` (and `DocumentFragment#children`,
+  `#element_children`, `#last_element_child`) now fetch all child handles
+  in one `leptris_node_children` call — the first_child + N next_sibling
+  walk (N+1 FFI round trips) collapses to 2 dispatches plus N wraps.
+  Wide elements measure ~25% faster warm, ~10% faster including parse.
+- Batch buffer reads (children + XPath result sets) use one
+  `get_array_of_pointer` bulk read instead of per-element `get_pointer`.
+
+### Added
+
+- FFI: attached `leptris_document_serialize_into` /
+  `leptris_element_serialize_into` (unused by `#to_xml`: they are
+  option-blind and re-serialize on every call — upstream leptris#541).
+
 ## [1.7.0] - 2026-08-24
 
 Lockstep with libleptris 1.7.0. New engine surface:

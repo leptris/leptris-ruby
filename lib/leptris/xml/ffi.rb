@@ -131,6 +131,11 @@ module Leptris
         [:leptris_node_ref], :leptris_node_ref
       attach_function :leptris_node_child_count,
         [:leptris_node_ref], :size_t
+      # libleptris 1.7.0: out_nodes=NULL is a count-only query returning
+      # the TOTAL across every child kind; with a buffer it copies
+      # min(total, max_count) handles in one call.
+      attach_function :leptris_node_children,
+        [:leptris_node_ref, :pointer, :size_t], :size_t
       attach_function :leptris_node_as_element,
         [:leptris_node_ref], :leptris_element
       attach_function :leptris_element_as_node,
@@ -451,10 +456,18 @@ module Leptris
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
+      # libleptris 1.7.0 caller-buffer variants. Attached for surface
+      # completeness but unused by Serialization: they take no options
+      # and internally serialize on every call, so the size-query +
+      # fill pattern serializes twice (upstream leptris#541).
+      attach_function :leptris_document_serialize_into,
+        [:leptris_document, :pointer, :size_t, :pointer], :size_t
       attach_function :leptris_document_get_dtd,
         [:leptris_document], :pointer
       attach_function :leptris_element_serialize,
         [:leptris_element, :pointer], :pointer
+      attach_function :leptris_element_serialize_into,
+        [:leptris_element, :pointer, :size_t, :pointer], :size_t
       attach_function :leptris_document_save_file,
         [:leptris_document, :string, :pointer], :leptris_status
       attach_function :leptris_c14n_canonicalize,
