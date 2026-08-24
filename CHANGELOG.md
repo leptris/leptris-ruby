@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-08-24
+
+### Fixed
+
+- **Autoload manifest restored after `require "leptris"`** (issue
+  #53): 1.9.0's eager FFI require ran inside `module Leptris`
+  before `autoload :XML` was registered, so ffi.rb's module opening
+  created `Leptris::XML` first — the autoload registration was
+  shadowed, xml.rb never loaded, and the entire API was unreachable
+  (`Leptris::XML.constants == [:FFI]`, no `Leptris::XML.parse`).
+  The eager require now runs after the registration: ffi.rb's
+  module opening triggers the autoload, FFI lands inside the real
+  manifest module, and a downstream `require "leptris/xml"` is a
+  no-op (the moxml workaround becomes unnecessary). Eager library
+  resolution at require time (#49) is unchanged. Regression spec
+  runs the cold `require "leptris"` path in a subprocess.
+
 ## [1.9.0] - 2026-08-24
 
 Lockstep with libleptris 1.9.0 (covers the 1.8.0 and 1.9.0 engine

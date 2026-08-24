@@ -1,9 +1,25 @@
 # frozen_string_literal: true
 
+require "open3"
+
 require "leptris/xml"
 
 RSpec.describe Leptris::XML::FFI do
   describe "library loading" do
+    # Subprocess: the in-process suite has already required
+    # "leptris/xml", so only a cold process exercises the
+    # `require "leptris"` autoload path that #53 regressed.
+    it "keeps the XML autoload manifest after require \"leptris\" (#53)" do
+      out, status = Open3.capture2e(
+        "bundle", "exec", "ruby", "-e",
+        'require "leptris"; Leptris::XML; ' \
+        'puts Leptris::XML.constants.sort.join(","); ' \
+        'puts Leptris::XML.parse("<r><a/></r>").root.name')
+      expect(status).to be_success
+      %w[Document Element FFI Node NodeSet ParseOptions SAX XPath]
+        .each { |c| expect(out).to include(c) }
+      expect(out).to include("\nr")
+    end
     it "is attached to libleptris shared library" do
       expect(described_class).to be_a(Module)
     end
