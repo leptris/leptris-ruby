@@ -5,6 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-08-24
+
+Lockstep with libleptris 1.6.2 (fix releases, no public API changes).
+
+### Changed
+
+- CI/build pin libleptris v1.6.2, carrying the serializer fix for
+  mixed-content indentation (upstream #534 — never indent inside
+  mixed-content elements).
+
 ## [1.6.1] - 2026-08-24
 
 ### Added
@@ -50,6 +60,16 @@ Lockstep with libleptris 1.4.0 — engine pins the TODO.bindings
 release: pull (StAX) API, bounded iterparse, compiled XPath
 expressions, per-parse options, truthful serialization encoding
 declarations. Binding-side adoption of the new APIs follows.
+
+## [1.6.2] - 2026-08-24
+
+Lockstep with libleptris 1.6.2 (fix releases, no public API changes).
+
+### Changed
+
+- CI/build pin libleptris v1.6.2, carrying the serializer fix for
+  mixed-content indentation (upstream #534 — never indent inside
+  mixed-content elements).
 
 ## [1.6.1] - 2026-08-24
 
