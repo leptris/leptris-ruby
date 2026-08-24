@@ -24,6 +24,9 @@ module Leptris
       typedef :pointer, :leptris_doctype
       typedef :pointer, :leptris_xpath_result
       typedef :pointer, :leptris_xpath_ns_set
+      typedef :pointer, :leptris_xpath_compiled
+      typedef :pointer, :leptris_pull_parser
+      typedef :pointer, :leptris_iterparse
       typedef :pointer, :leptris_xpath_var_set
       typedef :pointer, :leptris_sax_parser
       typedef :int, :leptris_status
@@ -73,6 +76,20 @@ module Leptris
         [:leptris_document, :leptris_element], :leptris_status
       attach_function :leptris_document_root,
         [:leptris_document], :leptris_element
+      # Document-level PIs (v1.6.0): not tree nodes — enumerate via
+      # these accessors only.
+      attach_function :leptris_document_pi_count,
+        [:leptris_document], :size_t
+      attach_function :leptris_document_pi_target,
+        [:leptris_document, :size_t], :string
+      attach_function :leptris_document_pi_data,
+        [:leptris_document, :size_t], :string
+      attach_function :leptris_document_add_pi,
+        [:leptris_document, :string, :string], :pointer
+      # Options-struct parse (v1.6.0): supersedes the flags variants;
+      # the flags path remains bound for compatibility.
+      attach_function :leptris_parse_string_ex,
+        [:string, :size_t, :pointer, :pointer], :leptris_document
       attach_function :leptris_document_encoding,
         [:leptris_document], :string
       attach_function :leptris_document_finalize_strings,
@@ -385,6 +402,20 @@ module Leptris
       attach_function :leptris_xpath_eval_ns,
         [:leptris_document, :leptris_element, :string, :leptris_xpath_ns_set],
         :leptris_xpath_result
+      # Compiled expressions (v1.6.0): parse once, evaluate many.
+      attach_function :leptris_xpath_compile,
+        [:string], :leptris_xpath_compiled
+      attach_function :leptris_xpath_compiled_eval,
+        [:leptris_xpath_compiled, :leptris_document, :leptris_element],
+        :leptris_xpath_result
+      attach_function :leptris_xpath_compiled_eval_ns,
+        [:leptris_xpath_compiled, :leptris_document, :leptris_element,
+         :leptris_xpath_ns_set], :leptris_xpath_result
+      attach_function :leptris_xpath_compiled_eval_vars,
+        [:leptris_xpath_compiled, :leptris_document, :leptris_element,
+         :leptris_xpath_var_set], :leptris_xpath_result
+      attach_function :leptris_xpath_compiled_free,
+        [:leptris_xpath_compiled], :void
 
       attach_function :leptris_sax_parse,
         [:string, :size_t, :pointer, :pointer], :int
@@ -396,6 +427,33 @@ module Leptris
         [:leptris_sax_parser], :void
       attach_function :leptris_sax_parser_set_streaming,
         [:leptris_sax_parser, :int], :int
+
+      # Pull parsing (v1.6.0): StAX-style cursor over a document.
+      attach_function :leptris_pull_new,
+        [:string, :size_t], :leptris_pull_parser
+      attach_function :leptris_pull_new_file,
+        [:string], :leptris_pull_parser
+      attach_function :leptris_pull_next,
+        [:leptris_pull_parser], :pointer
+      attach_function :leptris_pull_attr_count,
+        [:leptris_pull_parser], :size_t
+      attach_function :leptris_pull_attr_name,
+        [:leptris_pull_parser, :size_t], :string
+      attach_function :leptris_pull_attr_value,
+        [:leptris_pull_parser, :size_t], :string
+      attach_function :leptris_pull_free,
+        [:leptris_pull_parser], :void
+
+      # Iterparse (v1.6.0): yields each completed top-level child
+      # element; the previous subtree is released on each next call.
+      attach_function :leptris_iterparse_new,
+        [:string, :size_t], :leptris_iterparse
+      attach_function :leptris_iterparse_new_file,
+        [:string], :leptris_iterparse
+      attach_function :leptris_iterparse_next,
+        [:leptris_iterparse], :leptris_element
+      attach_function :leptris_iterparse_free,
+        [:leptris_iterparse], :void
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
@@ -490,6 +548,15 @@ module Leptris
 
       TRAVERSE_PRE_ORDER = 0
       TRAVERSE_POST_ORDER = 1
+
+      PULL_START_ELEMENT = 0
+      PULL_END_ELEMENT   = 1
+      PULL_TEXT          = 2
+      PULL_COMMENT       = 3
+      PULL_CDATA         = 4
+      PULL_PI            = 5
+      PULL_END_DOCUMENT  = 6
+      PULL_ERROR         = 7
 
       LEPTRIS_PARSE_DEFAULT = 0
       LEPTRIS_PARSE_DROP_WS_TEXT = 1
