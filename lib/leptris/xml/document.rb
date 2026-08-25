@@ -281,6 +281,12 @@ class Leptris::XML::Document
     @readonly == true
   end
 
+  # True once #free has run (or the GC finalizer fired) — borrowed
+  # handles check this before dereferencing their c_ptr.
+  def freed?
+    @freed.state == :freed || @c_ptr.nil?
+  end
+
   # The most recent error recorded against this document, or nil.
   def last_error
     msg = Leptris::XML::FFI.leptris_document_last_error(@c_ptr)

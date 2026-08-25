@@ -3,6 +3,7 @@
 class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def name
     return @name if readonly_cached?(:@name)
+    ensure_alive!
     Leptris::XML::FFI.leptris_pi_node_get_target(@c_ptr).tap do |target|
       @name = target if @document&.readonly?
     end
@@ -11,6 +12,7 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
 
   def content
     return @content if readonly_cached?(:@content)
+    ensure_alive!
     Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s.tap do |data|
       @content = data if @document&.readonly?
     end

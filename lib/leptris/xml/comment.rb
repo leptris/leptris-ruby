@@ -5,6 +5,7 @@ class Leptris::XML::Comment < Leptris::XML::Node
 
   def content
     return @content if readonly_cached?(:@content)
+    ensure_alive!
     Leptris::XML::FFI.leptris_comment_node_get_content(@c_ptr).tap do |text|
       @content = text if @document&.readonly?
     end

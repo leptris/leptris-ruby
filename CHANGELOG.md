@@ -5,6 +5,32 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.5] - 2026-08-26
+
+### Fixed
+
+- **Borrowed handles validate their lender**: every c_ptr-
+  dereferencing read and mutation on Node/Element/Text/Comment/
+  CDATA/PI raises `Leptris::XML::UseAfterFreeError` once the owning
+  document has been freed (previously `doc.free; node.name` read
+  freed memory silently — verified returning `""` — and stale
+  mutations risked segfaults; only Document's own methods checked).
+  Memoized readonly results stay check-free. `Document#freed?` is
+  the single state predicate.
+
+### Added
+
+- **`benchmark/read_paths.rb`**: the committed read-path harness
+  (readonly loops, SAX, NodeSet unions, css, parse-query-serialize)
+  with a README methodology note — review-round benchmarks are now
+  reproducible from the repo.
+
+### Changed
+
+- The published gem no longer ships dev tooling (`benchmark/`,
+  `.rspec`, `.rubocop.yml`); it carries lib, gemspec, Rakefile, and
+  documentation only.
+
 ## [1.9.4] - 2026-08-25
 
 ### Fixed
