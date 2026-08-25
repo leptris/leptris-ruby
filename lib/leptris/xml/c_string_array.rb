@@ -29,7 +29,7 @@ module Leptris::XML::CStringArray
     result = []
     offset = 0
     while (entry = ptr.get_pointer(offset)) && !entry.null?
-      result << entry.read_string
+      result << entry.read_string.force_encoding(Encoding::UTF_8)
       offset += ptr_size
     end
     result

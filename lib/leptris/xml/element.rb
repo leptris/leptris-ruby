@@ -88,11 +88,17 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def keys
-    each_attribute.to_a.map(&:name)
+    return @keys if readonly_cached?(:@keys)
+    result = each_attribute.to_a.map(&:name)
+    @keys = result if @document&.readonly?
+    result
   end
 
   def values
-    each_attribute.to_a.map(&:value)
+    return @values if readonly_cached?(:@values)
+    result = each_attribute.to_a.map(&:value)
+    @values = result if @document&.readonly?
+    result
   end
 
   def attributes
@@ -104,7 +110,10 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def attribute_nodes
-    each_attribute.to_a
+    return @attribute_nodes if readonly_cached?(:@attribute_nodes)
+    result = each_attribute.to_a
+    @attribute_nodes = result if @document&.readonly?
+    result
   end
 
   # The element's own namespace prefix (e.g. "foo" for <foo:child/>),
@@ -221,26 +230,37 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :<<, :add_child
 
   def namespace
+    return @namespace if readonly_cached?(:@namespace)
     uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
-    return nil if uri.nil? || uri.empty?
-    # The resolved namespace is reached via this element's own prefix,
-    # so carry it through: consumers that distinguish
-    # {"p" => "urn:p"} from the default {"nil => "urn:p"} need it.
-    prefix = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
-    prefix = nil if prefix.nil? || prefix.empty?
-    Leptris::XML::Namespace.new(self, uri, prefix: prefix)
+    result =
+      if uri.nil? || uri.empty?
+        nil
+      else
+        # The resolved namespace is reached via this element's own
+        # prefix, so carry it through: consumers that distinguish
+        # {"p" => "urn:p"} from the default {"nil => "urn:p"} need it.
+        prefix = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
+        prefix = nil if prefix.nil? || prefix.empty?
+        Leptris::XML::Namespace.new(self, uri, prefix: prefix)
+      end
+    @namespace = result if @document&.readonly?
+    result
   end
 
   def namespace_definitions
+    return @namespace_definitions if readonly_cached?(:@namespace_definitions)
     count = Leptris::XML::FFI.leptris_element_namespace_count(@c_ptr)
-    count.times.map do |i|
+    result = count.times.map do |i|
       prefix = Leptris::XML::FFI.leptris_element_namespace_decl_prefix(@c_ptr, i)
       uri = Leptris::XML::FFI.leptris_element_namespace_decl_uri(@c_ptr, i)
       Leptris::XML::Namespace.new(self, uri, prefix: prefix)
     end
+    @namespace_definitions = result if @document&.readonly?
+    result
   end
 
   def namespaces
+    return @namespaces if readonly_cached?(:@namespaces)
     scopes = {}
     node = self
     while node.is_a?(Leptris::XML::Element)
@@ -250,6 +270,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       end
       node = node.parent
     end
+    @namespaces = scopes if @document&.readonly?
     scopes
   end
 

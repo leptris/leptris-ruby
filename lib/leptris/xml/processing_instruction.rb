@@ -2,12 +2,18 @@
 
 class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def name
-    Leptris::XML::FFI.leptris_pi_node_get_target(@c_ptr)
+    return @name if readonly_cached?(:@name)
+    Leptris::XML::FFI.leptris_pi_node_get_target(@c_ptr).tap do |target|
+      @name = target if @document&.readonly?
+    end
   end
   alias_method :target, :name
 
   def content
-    Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s
+    return @content if readonly_cached?(:@content)
+    Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s.tap do |data|
+      @content = data if @document&.readonly?
+    end
   end
 
   def target=(new_target)

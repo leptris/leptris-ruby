@@ -4,7 +4,10 @@ class Leptris::XML::Comment < Leptris::XML::Node
   def name; "comment"; end
 
   def content
-    Leptris::XML::FFI.leptris_comment_node_get_content(@c_ptr)
+    return @content if readonly_cached?(:@content)
+    Leptris::XML::FFI.leptris_comment_node_get_content(@c_ptr).tap do |text|
+      @content = text if @document&.readonly?
+    end
   end
 
   def content=(new_content)

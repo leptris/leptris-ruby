@@ -5,6 +5,37 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2026-08-25
+
+### Fixed
+
+- **UTF-8 at the FFI seam**: every string crossing the C boundary
+  (names, content, attribute values, paths, pull attributes, PI
+  data, error strings) now arrives as UTF-8 per the headers'
+  contract, instead of FFI's default ASCII-8BIT. Downstream string
+  comparisons, hash keys, and regexes stop paying compatibility
+  checks — and non-ASCII content can no longer raise
+  Encoding::CompatibilityError in consumer code.
+
+### Changed
+
+- **Readonly read-path cache completed**: `namespace`,
+  `namespace_definitions`, `namespaces`, `keys`, `values`,
+  `attribute_nodes`, `element_children`, `path`, `css_path`,
+  Text/Comment/CDATA/PI `content` (and PI `name`), and
+  `Document#processing_instructions` now memoize under readonly —
+  the same cannot-go-stale invariant the first four readers already
+  had. Measured steady-state wins (readonly documents, 400-iteration
+  loops): namespace inspection 13.5× faster, attribute listing 3.2×,
+  text content 2×.
+- **CSS translation cache**: `CssToXPath.convert` memoizes per
+  selector string (failures raise before caching); repeated
+  `css`/`at_css` vocabularies skip the regex cascade (~28% on the
+  selector loop benchmark).
+- `Attr#to_xml` escapes the five XML entities in one gsub pass
+  instead of five chained passes; `Attr#prefix` slices instead of
+  split-and-discard.
+
 ## [1.9.2] - 2026-08-25
 
 ### Changed

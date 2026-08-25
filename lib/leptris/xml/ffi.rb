@@ -615,11 +615,45 @@ module Leptris
       LEPTRIS_PARSE_DEFAULT = 0
       LEPTRIS_PARSE_DROP_WS_TEXT = 1
 
+      # The headers' contract is UTF-8 for every C string, but FFI's
+      # read_string hands back ASCII-8BIT — the platform default
+      # leaks through the seam. Every string-returning attached
+      # function this binding CALLS is wrapped here so its result
+      # arrives as UTF-8; mirror-only attachments stay raw (add the
+      # name here when a call site starts using its string).
+      UTF8_RETURNS = %i[
+        leptris_version
+        leptris_status_string leptris_last_error
+        leptris_document_last_error leptris_document_encoding
+        leptris_document_pi_target leptris_document_pi_data
+        leptris_element_name leptris_element_text leptris_element_prefix
+        leptris_element_namespace
+        leptris_element_attribute leptris_element_attribute_ns
+        leptris_attribute_get_name leptris_attribute_get_value
+        leptris_attribute_namespace_uri
+        leptris_element_namespace_decl_prefix
+        leptris_element_namespace_decl_uri
+        leptris_text_node_get_content leptris_comment_node_get_content
+        leptris_cdata_node_get_content
+        leptris_pi_node_get_target leptris_pi_node_get_data
+        leptris_pull_attr_name leptris_pull_attr_value
+      ].freeze
+      private_constant :UTF8_RETURNS
+
+      UTF8_RETURNS.each do |name|
+        raw = method(name)
+        define_singleton_method(name) do |*args|
+          str = raw.call(*args)
+          str.nil? ? nil : str.force_encoding(Encoding::UTF_8)
+        end
+      end
+
       # Reads an libleptris-owned char* result and frees it as one unit,
       # so a call site can neither leak nor double-free.
       def self.read_owned_string(ptr)
         return "" if ptr.nil? || ptr.null?
         ptr.read_string.tap { leptris_free_string(ptr) }
+          .force_encoding(Encoding::UTF_8)
       end
 
       # Single status seam: turns a C status code into a Ruby error,
