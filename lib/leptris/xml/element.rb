@@ -2,7 +2,9 @@
 
 class Leptris::XML::Element < Leptris::XML::Node
   def name
-    @name ||= Leptris::XML::FFI.leptris_element_name(@c_ptr)
+    return @name if @name
+    ensure_alive!
+    @name = Leptris::XML::FFI.leptris_element_name(@c_ptr)
   end
   alias_method :node_name, :name
 
@@ -16,6 +18,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def content
     return @content if readonly_cached?(:@content)
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_text(@c_ptr).tap do |text|
       @content = text if @document&.readonly?
     end
@@ -29,6 +32,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def [](key)
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute(@c_ptr, key.to_s)
   end
   alias_method :attr, :[]
@@ -43,6 +47,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :set_attribute, :[]=
 
   def key?(name)
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_has_attribute(@c_ptr, name.to_s) != 0
   end
   alias_method :has_attribute?, :key?
@@ -53,11 +58,13 @@ class Leptris::XML::Element < Leptris::XML::Node
   # in-scope declarations. uri nil/"" matches no-namespace
   # attributes only; xmlns declarations are invisible.
   def attribute_ns(uri, local)
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute_ns(
       @c_ptr, uri&.to_s, local.to_s)
   end
 
   def has_attribute_ns?(uri, local)
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_has_attribute_ns(
       @c_ptr, uri&.to_s, local.to_s) != 0
   end
@@ -77,6 +84,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # per-attribute namespace accessors (libleptris 1.8.0).
   def each_attribute
     return enum_for(:each_attribute) unless block_given?
+    ensure_alive!
     attr = Leptris::XML::FFI.leptris_element_first_attribute(@c_ptr)
     until attr.nil? || attr.null?
       name = Leptris::XML::FFI.leptris_attribute_get_name(attr)
@@ -119,6 +127,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # The element's own namespace prefix (e.g. "foo" for <foo:child/>),
   # or nil when the element has none.
   def prefix
+    ensure_alive!
     Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
   end
 
@@ -231,6 +240,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def namespace
     return @namespace if readonly_cached?(:@namespace)
+    ensure_alive!
     uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
     result =
       if uri.nil? || uri.empty?
@@ -249,6 +259,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def namespace_definitions
     return @namespace_definitions if readonly_cached?(:@namespace_definitions)
+    ensure_alive!
     count = Leptris::XML::FFI.leptris_element_namespace_count(@c_ptr)
     result = count.times.map do |i|
       prefix = Leptris::XML::FFI.leptris_element_namespace_decl_prefix(@c_ptr, i)

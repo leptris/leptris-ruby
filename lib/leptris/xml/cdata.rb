@@ -5,6 +5,7 @@ class Leptris::XML::CDATA < Leptris::XML::Text
 
   def content
     return @content if readonly_cached?(:@content)
+    ensure_alive!
     Leptris::XML::FFI.leptris_cdata_node_get_content(@c_ptr).tap do |text|
       @content = text if @document&.readonly?
     end

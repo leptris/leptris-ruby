@@ -411,6 +411,17 @@ Notable differences:
 
 == Performance
 
+=== Internal read-path harness
+
+`benchmark/read_paths.rb` measures the binding's own hot paths
+(readonly read loops, SAX, NodeSet unions, css, parse-query-
+serialize). Machine-relative — compare before/after runs on the same
+machine:
+
+    bundle exec ruby benchmark/read_paths.rb
+
+=== Full-field comparison
+
 Measured with metanorma/serialbench (Ruby 3.4.8, leptris 1.6.0,
 libleptris 1.6.0, macOS arm64) — Leptris vs the full field:
 

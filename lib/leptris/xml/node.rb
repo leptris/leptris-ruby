@@ -62,7 +62,9 @@ class Leptris::XML::Node
   end
 
   def type
-    @node_type ||= Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
+    return @node_type if @node_type
+    ensure_alive!
+    @node_type = Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
   end
   alias_method :node_type, :type
 
@@ -77,13 +79,26 @@ class Leptris::XML::Node
 
   def parent
     return @parent if @parent
+    ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, @document)
   end
 
-  # Raises ReadOnlyError when the owning document was marked readonly.
+  # Borrowed-handle lifetime: every c_ptr dereference is valid only
+  # while the owning document lives. Parentless nodes (iterparse
+  # yields) cannot validate and are skipped.
+  def ensure_alive!
+    if @document&.freed?
+      raise Leptris::XML::UseAfterFreeError,
+        "owning document has been freed — handle used on #{inspect}"
+    end
+  end
+
+  # Raises ReadOnlyError when the owning document was marked readonly,
+  # UseAfterFreeError when it was freed.
   def ensure_writable!
+    ensure_alive!
     if @document&.readonly?
       raise Leptris::XML::ReadOnlyError,
         "document is readonly — mutation attempted on #{inspect}"
@@ -91,16 +106,19 @@ class Leptris::XML::Node
   end
 
   def line
+    ensure_alive!
     Leptris::XML::FFI.leptris_node_line(@c_ptr)
   end
 
   def <=>(other)
     return nil unless other.is_a?(Leptris::XML::Node)
     return nil unless @document == other.document
+    ensure_alive!
     Leptris::XML::FFI.leptris_node_compare(@c_ptr, other.c_ptr)
   end
 
   def child
+    ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
@@ -110,6 +128,7 @@ class Leptris::XML::Node
     # Immutable in readonly mode: the batch fetch plus wrapper
     # construction is paid once.
     return @children if readonly_cached?(:@children)
+    ensure_alive!
     parent = as_element_or_self
     nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
       Leptris::XML::Node.wrap(ptr, @document, parent: parent)
@@ -120,6 +139,7 @@ class Leptris::XML::Node
   end
 
   def next_sibling
+    ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_next_sibling(@c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
@@ -127,6 +147,7 @@ class Leptris::XML::Node
   alias_method :next, :next_sibling
 
   def previous_sibling
+    ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_previous_sibling(@c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
@@ -134,6 +155,7 @@ class Leptris::XML::Node
   alias_method :previous, :previous_sibling
 
   def first_element_child
+    ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     until ptr.nil? || ptr.null?
       node = Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
@@ -189,6 +211,7 @@ class Leptris::XML::Node
   # callback (libleptris #273); the per-node FFI cost is the floor.
   def traverse
     return enum_for(:traverse) unless block_given?
+    ensure_alive!
     callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
       yield Leptris::XML::Node.wrap(node_ptr, @document)
       0
@@ -199,6 +222,7 @@ class Leptris::XML::Node
 
   def path
     return @path if readonly_cached?(:@path)
+    ensure_alive!
     str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
     result = str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
     @path = result if @document&.readonly?
@@ -221,6 +245,7 @@ class Leptris::XML::Node
   end
 
   def dup
+    ensure_alive!
     elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)
     raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
     copy_ptr = Leptris::XML::FFI.leptris_element_copy(elem_ptr, @document.c_ptr)
