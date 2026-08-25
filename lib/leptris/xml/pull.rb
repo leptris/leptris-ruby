@@ -67,22 +67,17 @@ module Leptris::XML::Pull
     def next_event
       raw = Leptris::XML::FFI.leptris_pull_next(@handle)
       return nil if raw.null?
-      type_code = raw.get_int(0)
-      type = TYPES[type_code]
-      name = read_string_at(raw, 8)
-      text_ptr = raw.get_pointer(16)
-      text = text_ptr.null? ? nil : text_ptr.read_string
+      event = Leptris::XML::FFI::PullEventStruct.new(raw)
+      type = TYPES[event[:type]]
+      name = read_owned(event[:name])
+      text = read_owned(event[:text])
       attrs = type == :start_element ? capture_attrs : nil
       Event.new(type: type, name: name, text: text, attrs: attrs)
     end
 
     private
 
-    # struct LeptrisPullEvent { int type; const char* name; const
-    # char* text; size_t text_len; } — pointer-sized fields follow the
-    # 4-byte enum on 64-bit ABIs (name at 8, text at 16).
-    def read_string_at(raw, offset)
-      ptr = raw.get_pointer(offset)
+    def read_owned(ptr)
       ptr.null? ? nil : ptr.read_string
     end
 

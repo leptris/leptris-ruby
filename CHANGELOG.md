@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2026-08-25
+
+### Changed
+
+Architecture deepening — all C ABI and buffer knowledge now lives
+behind the FFI seam (`lib/leptris/xml/ffi.rb`); no public API change.
+
+- `PullEventStruct` (FFI::Struct) replaces the pull parser's
+  hand-rolled ABI offsets (`get_int(0)` / `get_pointer(8)` /
+  `get_pointer(16)`); struct-layout changes become a one-line
+  layout edit instead of silent offset drift.
+- `FFI.with_ns_set(hash)` concentrates the namespace-binding
+  lifecycle (flatten → CStringArray wire format → build → yield →
+  free) that ad-hoc and compiled XPath each hand-wrote.
+- `FFI.serialize_into_string` / `FFI.fetch_children` /
+  `FFI.fetch_result_nodes` / `FFI.parse_fragment_with_status` own
+  the size-query/allocate/fill/read buffer protocols; Serialization,
+  NodeSet and DocumentFragment now contain no `MemoryPointer` code.
+- `Node#children` and `DocumentFragment#children` fetch all child
+  handles in one batched call (the libleptris 1.7.0 surface, now
+  attached) instead of the first_child + N next_sibling walk —
+  N+1 FFI round trips collapse to 2 dispatches plus N wraps.
+
 ## [1.9.1] - 2026-08-24
 
 ### Fixed
