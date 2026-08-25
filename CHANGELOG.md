@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.6] - 2026-08-26
+
+### Changed
+
+- The lifetime guard (`ensure_alive!`) uses the cheapest sufficient
+  check (`Document#c_ptr.nil?` — `#free` nils it, and the GC
+  finalizer cannot fire while any handle exists) instead of the
+  deeper `Document#freed?` chain. Claw back on the cheapest single-
+  dispatch read (`Element#[]` hot loops): ~20% of the guard's cost.
+  Remaining guard cost is the method dispatch itself — the price of
+  the lifetime contract on the one call shape cheap enough to
+  notice it; all other harness loops measure at parity, and
+  readonly hot loops have the memoized `attributes`/`keys`
+  alternatives.
+
 ## [1.9.5] - 2026-08-26
 
 ### Fixed

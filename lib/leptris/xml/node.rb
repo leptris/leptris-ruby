@@ -87,9 +87,14 @@ class Leptris::XML::Node
 
   # Borrowed-handle lifetime: every c_ptr dereference is valid only
   # while the owning document lives. Parentless nodes (iterparse
-  # yields) cannot validate and are skipped.
+  # yields) cannot validate and are skipped. The guard runs before
+  # every uncached FFI dispatch, so it uses the cheapest sufficient
+  # check: #free nils the document's c_ptr, and the GC-finalizer
+  # path cannot fire while any handle (which strongly references
+  # the document) exists. Document#freed? remains the accurate
+  # public predicate.
   def ensure_alive!
-    if @document&.freed?
+    if @document && @document.c_ptr.nil?
       raise Leptris::XML::UseAfterFreeError,
         "owning document has been freed — handle used on #{inspect}"
     end
