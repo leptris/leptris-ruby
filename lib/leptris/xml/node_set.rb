@@ -63,30 +63,24 @@ class Leptris::XML::NodeSet
   def each
     return enum_for(:each) unless block_given?
     if @result_ptr
-      # Batch-fetch all node pointers in one FFI call
-      # (leptris_xpath_result_get_nodes_ex copies every node kind, not
-      # just elements) and wrap each. Wrappers are cached per-Document
-      # via Node.wrap, so re-iteration of the same NodeSet hits it.
+      # Batch-fetch all node pointers through the FFI seam
+      # (leptris_xpath_result_get_nodes_ex copies every node kind,
+      # not just elements) and wrap each. Wrappers are cached
+      # per-Document via Node.wrap, so re-iteration of the same
+      # NodeSet hits it.
       n = length
       if n > 0
-        buf = ::FFI::MemoryPointer.new(:pointer, n)
-        begin
-          copied = Leptris::XML::FFI.leptris_xpath_result_get_nodes_ex(
-            @result_ptr, buf, nil, n)
-          copied.times do |i|
-            ptr = buf.get_pointer(i * ::FFI.type_size(:pointer))
-            next if ptr.null?
-            yield Leptris::XML::Node.wrap(ptr, @document)
-          end
-          # The batch accessor under-copies mixed-kind results (upstream
-          # leptris#477); fall back to per-index fetch for the remainder.
-          (copied...n).each do |i|
-            ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
-            next if ptr.null?
-            yield Leptris::XML::Node.wrap(ptr, @document)
-          end
-        ensure
-          buf.free
+        pointers = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
+        pointers.each do |ptr|
+          next if ptr.null?
+          yield Leptris::XML::Node.wrap(ptr, @document)
+        end
+        # The batch accessor under-copies mixed-kind results (upstream
+        # leptris#477); fall back to per-index fetch for the remainder.
+        (pointers.length...n).each do |i|
+          ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
+          next if ptr.null?
+          yield Leptris::XML::Node.wrap(ptr, @document)
         end
       end
     else

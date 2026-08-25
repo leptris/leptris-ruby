@@ -80,6 +80,17 @@ module Leptris
           :recover, :int
       end
 
+      # struct LeptrisPullEvent (leptris/sax.h): FFI::Struct derives
+      # the field offsets from the layout, so ABI changes are a
+      # one-line edit here instead of silent offset drift in callers.
+      class PullEventStruct < ::FFI::Struct
+        layout \
+          :type, :int,
+          :name, :pointer,
+          :text, :pointer,
+          :text_len, :size_t
+      end
+
       attach_function :leptris_version, [], :string
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void
 
@@ -158,6 +169,10 @@ module Leptris
         [:leptris_node_ref], :leptris_node_ref
       attach_function :leptris_node_child_count,
         [:leptris_node_ref], :size_t
+      # libleptris 1.7.0: all-kind child batch — out_nodes=NULL is a
+      # count-only query returning the TOTAL across every child kind.
+      attach_function :leptris_node_children,
+        [:leptris_node_ref, :pointer, :size_t], :size_t
       attach_function :leptris_node_as_element,
         [:leptris_node_ref], :leptris_element
       attach_function :leptris_element_as_node,
@@ -622,6 +637,90 @@ module Leptris
         base = leptris_status_string(status).to_s
         detail = leptris_last_error.to_s
         detail.empty? ? base : "#{base} (#{detail})"
+      end
+
+      # Namespace-binding lifecycle, written once: flatten the
+      # prefix/URI hash into the alternating CStringArray wire
+      # format, build the caller-owned set, yield it, free it under
+      # all outcomes. Every eval variant uses this; none of them
+      # knows how a set is born or dies.
+      def self.with_ns_set(hash)
+        flat = hash.flat_map { |prefix, uri| [prefix.to_s, uri.to_s] }
+        buffer, _anchors = Leptris::XML::CStringArray.to_c(flat)
+        set = leptris_xpath_ns_set_new_from_pairs(buffer, flat.length / 2)
+        if set.null?
+          raise Leptris::XML::Error,
+            "leptris_xpath_ns_set_new_from_pairs failed"
+        end
+        begin
+          yield set
+        ensure
+          leptris_xpath_ns_set_free(set)
+        end
+      end
+
+      # Caller-buffer serialization cycle: size query (buf=NULL),
+      # allocate exactly, fill, read. Since libleptris 1.9.0 the
+      # pair reuses one serialization through the per-document
+      # cache. +ffi_function+ is leptris_document_serialize_into or
+      # leptris_element_serialize_into. The buffer holds the
+      # serialization + NUL and XML output is NUL-free, so the
+      # bounded read is exact.
+      def self.serialize_into_string(ffi_function, c_ptr, options)
+        need = ffi_function.call(c_ptr, nil, 0, nil, options)
+        return "" if need.zero?
+        buffer = ::FFI::MemoryPointer.new(:char, need)
+        begin
+          ffi_function.call(c_ptr, buffer, need, nil, options)
+          buffer.read_string
+        ensure
+          buffer.free
+        end
+      end
+
+      # All-kind child handle batch (libleptris 1.7.0): count-only
+      # query sizes the buffer, one fetch copies every child kind,
+      # one bulk read materializes the pointers.
+      def self.fetch_children(c_ptr)
+        count = leptris_node_children(c_ptr, nil, 0)
+        return [] if count.zero?
+        with_pointer_buffer(count) do |buffer|
+          copied = leptris_node_children(c_ptr, buffer, count)
+          buffer.get_array_of_pointer(0, copied)
+        end
+      end
+
+      # XPath result-set batch (leptris_xpath_result_get_nodes_ex):
+      # copies all node kinds into a caller buffer and hands back
+      # the pointer array.
+      def self.fetch_result_nodes(result_ptr, count)
+        return [] if count.zero?
+        with_pointer_buffer(count) do |buffer|
+          copied = leptris_xpath_result_get_nodes_ex(
+            result_ptr, buffer, nil, count)
+          buffer.get_array_of_pointer(0, copied)
+        end
+      end
+
+      # Fragment parse with the status out-param read: returns
+      # [document-or-fragment pointer, status].
+      def self.parse_fragment_with_status(xml, document_ptr)
+        status = ::FFI::MemoryPointer.new(:int)
+        raw = leptris_parse_fragment(
+          xml, xml.bytesize, document_ptr, status)
+        [raw, status.read_int]
+      end
+
+      # The one buffer-allocation point for handle-array fetches:
+      # everything MemoryPointer-related above this line is either
+      # an attached C call or another seam helper.
+      def self.with_pointer_buffer(count)
+        buffer = ::FFI::MemoryPointer.new(:pointer, count)
+        begin
+          yield buffer
+        ensure
+          buffer.free
+        end
       end
     end
   end

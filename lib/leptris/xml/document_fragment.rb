@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "ffi"
-
 # Wraps the synthetic "#document-fragment" element returned by
 # leptris_parse_fragment. Children of this fragment are the parsed nodes;
 # the fragment itself isn't part of any document tree but borrows its
@@ -15,23 +13,18 @@ class Leptris::XML::DocumentFragment
   end
 
   def self.parse(xml, document)
-    status_ptr = ::FFI::MemoryPointer.new(:int)
-    raw = Leptris::XML::FFI.leptris_parse_fragment(
-      xml.to_s, xml.to_s.bytesize, document.c_ptr, status_ptr)
+    raw, status = Leptris::XML::FFI.parse_fragment_with_status(
+      xml.to_s, document.c_ptr)
     if raw.null?
       raise Leptris::XML::ParseError,
-        "leptris_parse_fragment failed (status=#{status_ptr.read_int})"
+        "leptris_parse_fragment failed (status=#{status})"
     end
     new(document, raw)
   end
 
   def children
-    count = Leptris::XML::FFI.leptris_element_child_count(@c_ptr)
-    nodes = []
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
-    until ptr.nil? || ptr.null?
-      nodes << Leptris::XML::Node.wrap(ptr, @document)
-      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
+    nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
+      Leptris::XML::Node.wrap(ptr, @document)
     end
     Leptris::XML::NodeSet.new(@document, nodes)
   end

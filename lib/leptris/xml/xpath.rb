@@ -40,16 +40,9 @@ class Leptris::XML::XPath
     document = context.document
     result_ptr =
       if ns && !ns.empty?
-        flat = ns.flat_map { |prefix, uri| [prefix.to_s, uri.to_s] }
-        buffer, _anchors = Leptris::XML::CStringArray.to_c(flat)
-        set = Leptris::XML::FFI.leptris_xpath_ns_set_new_from_pairs(
-          buffer, flat.length / 2)
-        raise Leptris::XML::Error, "leptris_xpath_ns_set_new_from_pairs failed" if set.null?
-        begin
+        Leptris::XML::FFI.with_ns_set(ns) do |set|
           Leptris::XML::FFI.leptris_xpath_compiled_eval_ns(
             @handle, document.c_ptr, context_ptr(context), set)
-        ensure
-          Leptris::XML::FFI.leptris_xpath_ns_set_free(set)
         end
       else
         Leptris::XML::FFI.leptris_xpath_compiled_eval(

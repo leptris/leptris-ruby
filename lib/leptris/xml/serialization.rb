@@ -18,12 +18,9 @@ module Leptris::XML::Serialization
   end
   private_constant :DEFAULT_OPTIONS
 
-  # +ffi_function+ is a bound _serialize_into function taking
-  # (c_ptr, buf, capacity, out_len, opts): size query with buf=NULL,
-  # then one fill into a caller buffer. Since libleptris 1.9.0 the
-  # pair reuses a single serialization through a per-document cache
-  # (leptris#541) — no C-side result-string allocation, and repeated
-  # serializations of an unmutated document skip the serialize pass.
+  # +ffi_function+ is a bound _serialize_into function. The buffer
+  # cycle lives at the FFI seam (FFI.serialize_into_string); this
+  # module owns only options selection and construction.
   def self.to_xml(ffi_function, c_ptr, indent: 0, no_decl: false, encoding: nil)
     opts =
       if indent.to_i.zero? && !no_decl && encoding.nil?
@@ -33,18 +30,7 @@ module Leptris::XML::Serialization
           indent: indent, no_decl: no_decl, encoding: encoding)
         opts
       end
-    need = ffi_function.call(c_ptr, nil, 0, nil, opts.pointer)
-    return "" if need.zero?
-    buf = ::FFI::MemoryPointer.new(:char, need)
-    begin
-      ffi_function.call(c_ptr, buf, need, nil, opts.pointer)
-      # The buffer holds exactly the serialization + NUL; XML output
-      # is NUL-free, so a bounded read_string is exact. (Avoids the
-      # out_len param — no portable size_t read exists on Pointer.)
-      buf.read_string
-    ensure
-      buf.free
-    end
+    Leptris::XML::FFI.serialize_into_string(ffi_function, c_ptr, opts.pointer)
   end
 
   # +ffi_function+ is a bound FFI function taking

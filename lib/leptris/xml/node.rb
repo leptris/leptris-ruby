@@ -107,14 +107,12 @@ class Leptris::XML::Node
   end
 
   def children
-    # Immutable in readonly mode: the walk (first_child + one
-    # next_sibling per child) plus wrapper construction is paid once.
+    # Immutable in readonly mode: the batch fetch plus wrapper
+    # construction is paid once.
     return @children if readonly_cached?(:@children)
-    nodes = []
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
-    until ptr.nil? || ptr.null?
-      nodes << Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
-      ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
+    parent = as_element_or_self
+    nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
+      Leptris::XML::Node.wrap(ptr, @document, parent: parent)
     end
     result = Leptris::XML::NodeSet.new(@document, nodes)
     @children = result if @document&.readonly?
