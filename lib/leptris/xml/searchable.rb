@@ -17,7 +17,7 @@ module Leptris::XML::Searchable
       end
     if result_ptr.null?
       raise Leptris::XML::XPathError,
-        Leptris::XML::FFI.leptris_status_string(Leptris::XML::FFI::LEPTRIS_ERROR_XPATH)
+        Leptris::XML::FFI.leptris_last_error.to_s
     end
 
     Leptris::XML::Searchable.wrap_xpath_result(document, result_ptr)
@@ -72,6 +72,9 @@ module Leptris::XML::Searchable
       break if args.empty?
     end
     ns, vars = hashes.reverse
+    unless vars.nil? || vars.empty?
+      raise ArgumentError, "XPath variable bindings are not supported"
+    end
     [handler, ns, vars]
   end
 

@@ -117,29 +117,27 @@ class Leptris::XML::NodeSet
   end
   alias_method :text, :inner_text
 
+  # Union semantics: evaluate the expression against each element
+  # member (one C eval per member — the engine has no multi-context
+  # eval yet; leptris/leptris ask pending) and accumulate into ONE
+  # NodeSet, instead of merging NodeSets per member.
   def xpath(*paths)
     handler, _ns, _vars = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
-    accumulated = Leptris::XML::NodeSet.new(@document)
+    accumulated = []
     each do |node|
       next unless node.is_a?(Leptris::XML::Element)
       result_ptr = Leptris::XML::FFI.leptris_xpath_eval(
         @document.c_ptr, node.c_ptr, expr)
       next if result_ptr.null?
-      sub = Leptris::XML::NodeSet.send(:from_result, @document, result_ptr)
-      accumulated = merge_node_sets(accumulated, sub)
+      accumulated.concat(
+        Leptris::XML::NodeSet.from_result(@document, result_ptr).to_a)
     end
-    accumulated
+    Leptris::XML::NodeSet.new(@document, accumulated)
   end
 
   def inspect
     to_a.inspect
-  end
-
-  private
-
-  def merge_node_sets(a, b)
-    Leptris::XML::NodeSet.new(@document, a.to_a + b.to_a)
   end
 end

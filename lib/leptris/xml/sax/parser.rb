@@ -6,11 +6,25 @@ class Leptris::XML::SAX::Parser
   CHUNK_SIZE = 4096
   private_constant :CHUNK_SIZE
 
-  attr_accessor :document, :encoding
+  attr_reader :document, :encoding
 
   def initialize(handler = Leptris::XML::SAX::Document.new, encoding = nil)
     @document = handler
     @encoding = encoding
+  end
+
+  # Swapping the handler invalidates the memoized callback struct so
+  # the next parse dispatches to the new handler.
+  def document=(handler)
+    @document = handler
+    @handler_struct = nil
+  end
+
+  # The handler struct (eleven FFI::Function callbacks + the C
+  # struct) is built once per handler and reused across parses; the
+  # memoized struct is anchored against GC by the instance itself.
+  def handler_struct
+    @handler_struct ||= build_handler_struct
   end
 
   # Parse a string, IO, or file path. Dispatches to parse_memory /
@@ -26,7 +40,7 @@ class Leptris::XML::SAX::Parser
 
   def parse_memory(string)
     string = string.dup.force_encoding("UTF-8")
-    handler_struct = build_handler_struct
+    handler_struct = self.handler_struct
     rc = Leptris::XML::FFI.leptris_sax_parse(
       string, string.bytesize, handler_struct.pointer, nil)
     if rc != 0
@@ -37,7 +51,7 @@ class Leptris::XML::SAX::Parser
   end
 
   def parse_io(io)
-    handler_struct = build_handler_struct
+    handler_struct = self.handler_struct
     parser_ptr = Leptris::XML::FFI.leptris_sax_parser_create(
       handler_struct.pointer, nil)
     if parser_ptr.null?
@@ -69,9 +83,7 @@ class Leptris::XML::SAX::Parser
   private
 
   # Build a LeptrisSAXHandler struct populated with FFI::Function callbacks
-  # that dispatch to the Ruby handler. The struct (and its callbacks) are
-  # anchored against GC via the local variable for the duration of the
-  # synchronous parse call.
+  # that dispatch to the Ruby handler.
   def build_handler_struct
     s = Leptris::XML::FFI::SAXHandler.new
     handler = @document  # capture in closures
@@ -86,39 +98,39 @@ class Leptris::XML::SAX::Parser
 
     s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, attrs_ptr|
       attrs = walk_attr_array(attrs_ptr)
-      handler.start_element(name, attrs)
+      handler.start_element(utf8(name), attrs)
     end
 
     s[:end_element] = callback(:void, [:pointer, :string]) do |_, name|
-      handler.end_element(name)
+      handler.end_element(utf8(name))
     end
 
     s[:characters] = callback(:void, [:pointer, :pointer, :size_t]) do |_, text_ptr, len|
-      handler.characters(text_ptr.read_bytes(len).force_encoding("UTF-8"))
+      handler.characters(text_ptr.read_bytes(len).force_encoding(Encoding::UTF_8))
     end
 
     s[:comment] = callback(:void, [:pointer, :string]) do |_, comment|
-      handler.comment(comment)
+      handler.comment(utf8(comment))
     end
 
     s[:cdata] = callback(:void, [:pointer, :string]) do |_, cdata|
-      handler.cdata_block(cdata)
+      handler.cdata_block(utf8(cdata))
     end
 
     s[:processing_instruction] = callback(:void, [:pointer, :string, :string]) do |_, target, data|
-      handler.processing_instruction(target, data)
+      handler.processing_instruction(utf8(target), utf8(data))
     end
 
     s[:start_prefix_mapping] = callback(:void, [:pointer, :string, :string]) do |_, prefix, uri|
-      handler.start_prefix_mapping(prefix, uri)
+      handler.start_prefix_mapping(utf8(prefix), utf8(uri))
     end
 
     s[:end_prefix_mapping] = callback(:void, [:pointer, :string]) do |_, prefix|
-      handler.end_prefix_mapping(prefix)
+      handler.end_prefix_mapping(utf8(prefix))
     end
 
     s[:error] = callback(:void, [:pointer, :string, :int, :int]) do |_, msg, line, col|
-      handler.error(msg, line, col)
+      handler.error(utf8(msg), line, col)
     end
 
     s
@@ -126,6 +138,13 @@ class Leptris::XML::SAX::Parser
 
   def callback(return_type, params, blocking: true, &block)
     ::FFI::Function.new(return_type, params, blocking: blocking, &block)
+  end
+
+  # FFI's implicit :string conversion does not set encoding — every
+  # callback string param crosses the seam as ASCII-8BIT unless
+  # corrected here (the headers contract UTF-8; nil for NULL).
+  def utf8(str)
+    str.nil? ? nil : str.force_encoding(Encoding::UTF_8)
   end
 
   # The C `const char** attrs` is a NULL-terminated flat array of

@@ -5,6 +5,36 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.4] - 2026-08-25
+
+### Fixed
+
+- **SAX callback strings arrive UTF-8**: element names, comments,
+  CDATA, PI target/data, prefix mappings, and error messages now
+  cross the seam as UTF-8 (previously ASCII-8BIT — only `characters`
+  was corrected). Non-ASCII SAX content no longer leaks BINARY into
+  handler code.
+
+### Changed
+
+- **NodeSet#xpath de-churn**: search arguments parse once (not per
+  member), results accumulate into one plain array, and a single
+  NodeSet is constructed at the end — the per-member
+  `merge_node_sets` (two `to_a`s + a throwaway NodeSet per element)
+  is gone. ~16% on a 500-member union query. Batch-context eval
+  asked upstream (leptris/leptris#560).
+- **SAX handler struct memoized** per handler; `Parser#document=`
+  invalidates it, so swapping the handler takes effect on the next
+  parse (previously the wiring was rebuilt per parse and the
+  struct ↔ handler coupling was only implied).
+- **XPath variable bindings now raise ArgumentError** instead of
+  being silently ignored (no var-bound eval path exists; wire the
+  real thing when a use case arrives). A single trailing hash
+  remains the namespace hash (Nokogiri semantics).
+- Failed XPath evaluations raise `XPathError` with the engine's
+  last-error detail from both the ad-hoc and compiled paths
+  (previously the ad-hoc path used the generic status string).
+
 ## [1.9.3] - 2026-08-25
 
 ### Fixed
