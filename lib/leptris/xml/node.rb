@@ -205,15 +205,9 @@ class Leptris::XML::Node
 
   # Walks the subtree in post-order DFS (matches Nokogiri's semantics).
   #
-  # Specialized hot path: skips the intermediate NodeSet allocation that
-  # Element#children would create, walking via raw FFI calls and wrapping
-  # nodes directly. Saves one Array + one NodeSet allocation per parent
-  # node. For a tree of N nodes that's ~N fewer allocations on a full
-  # traversal.
-  #
-  # Still pays ~2 FFI calls per visited node (first_child + next_sibling).
-  # Beating Nokogiri on this benchmark needs C-side traverse with a
-  # callback (libleptris #273); the per-node FFI cost is the floor.
+  # One FFI call dispatches the whole walk; the C engine invokes the
+  # callback once per visited node (the only per-node cost is the
+  # C-to-Ruby callback dispatch, not FFI round-trips).
   def traverse
     return enum_for(:traverse) unless block_given?
     ensure_alive!

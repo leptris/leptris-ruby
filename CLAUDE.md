@@ -87,6 +87,9 @@ lib/leptris/xml/css_to_xpath.rb   — minimal CSS translation
 
 ## Reference
 
+- Domain vocabulary: CONTEXT.md. Settled decisions: docs/adr/ —
+  check both before proposing refactors; they exist so reviews
+  stop re-deriving settled questions.
 - libleptris public headers (`src/include/leptris/*.h`) are the
   contract; when symbols change, bump lockstep and audit
   attached-vs-exported (`nm -gU` on a fresh build).

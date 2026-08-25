@@ -287,6 +287,22 @@ class Leptris::XML::Document
     @freed.state == :freed || @c_ptr.nil?
   end
 
+  # The thread-global last-failure [line, column] (1-based), or nil
+  # when no error is recorded — the position companion to
+  # Document#last_error; populated by recover parses.
+  def last_error_position
+    line = ::FFI::MemoryPointer.new(:int)
+    column = ::FFI::MemoryPointer.new(:int)
+    begin
+      Leptris::XML::FFI.leptris_last_error_position(line, column)
+      line.read_int.zero? && column.read_int.zero? ? nil :
+        [line.read_int, column.read_int]
+    ensure
+      line.free
+      column.free
+    end
+  end
+
   # The most recent error recorded against this document, or nil.
   def last_error
     msg = Leptris::XML::FFI.leptris_document_last_error(@c_ptr)

@@ -35,30 +35,34 @@ module Leptris
 
       module_function
 
-      # Translation is a pure function of the rule string, and real
-      # workloads repeat a small selector vocabulary in loops —
-      # memoize. Failed translations raise before caching.
+      # Translation is a pure function of the rule string AND the
+      # context prefix, and real workloads repeat a small selector
+      # vocabulary in loops — memoize. Failed translations raise
+      # before caching. +prefix+ scopes the result: "//" for
+      # document receivers, ".//" for elements and fragments
+      # (Nokogiri receiver-relative semantics).
       CACHE = {}
       private_constant :CACHE
 
-      def convert(rule)
-        key = rule.to_s
-        CACHE.fetch(key) { CACHE[key] = convert_rule(key) }
+      def convert(rule, prefix: "//")
+        key = "#{prefix}\t#{rule}"
+        CACHE.fetch(key) { CACHE[key] = convert_rule(rule, prefix) }
       end
 
-      def convert_rule(rule)
-        rule.split(COMMA_SPLIT).map { |r| convert_one(r.strip) }.join(" | ")
+      def convert_rule(rule, prefix)
+        rule.split(COMMA_SPLIT)
+          .map { |r| convert_one(r.strip, prefix) }.join(" | ")
       end
 
-      def convert_one(rule)
-        return "//*" if rule == "*"
+      def convert_one(rule, prefix)
+        return "#{prefix}*" if rule == "*"
 
         # Tokenize chain first (handles > and whitespace)
         if rule =~ /\s/ || rule.include?(">")
-          return convert_chain(rule)
+          return convert_chain(rule, prefix)
         end
 
-        convert_simple(rule, prefix: "//")
+        convert_simple(rule, prefix: prefix)
       end
 
       # Parse a single simple selector into (tag, predicates) where
@@ -140,9 +144,9 @@ module Leptris
 
       # Tokenize chain into [sel, op, sel, op, sel, ...] where op is :child or
       # :descendant. Then build XPath.
-      def convert_chain(rule)
+      def convert_chain(rule, prefix)
         tokens = tokenize_chain(rule)
-        build_chain_xpath(tokens)
+        build_chain_xpath(tokens, prefix)
       end
       private_class_method :convert_chain
 
@@ -167,11 +171,11 @@ module Leptris
       end
       private_class_method :tokenize_chain
 
-      def build_chain_xpath(tokens)
+      def build_chain_xpath(tokens, prefix)
         first = tokens.shift
         raise ArgumentError, "empty CSS chain" unless first.is_a?(String)
 
-        xpath = convert_simple(first, prefix: "//")
+        xpath = convert_simple(first, prefix: prefix)
         until tokens.empty?
           op = tokens.shift
           sel = tokens.shift
