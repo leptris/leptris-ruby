@@ -78,7 +78,7 @@ module Leptris::XML::Pull
     private
 
     def read_owned(ptr)
-      ptr.null? ? nil : ptr.read_string
+      ptr.null? ? nil : ptr.read_string.force_encoding(Encoding::UTF_8)
     end
 
     def capture_attrs

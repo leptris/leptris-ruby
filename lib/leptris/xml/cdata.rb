@@ -4,7 +4,10 @@ class Leptris::XML::CDATA < Leptris::XML::Text
   def name; "#cdata-section"; end
 
   def content
-    Leptris::XML::FFI.leptris_cdata_node_get_content(@c_ptr)
+    return @content if readonly_cached?(:@content)
+    Leptris::XML::FFI.leptris_cdata_node_get_content(@c_ptr).tap do |text|
+      @content = text if @document&.readonly?
+    end
   end
 
   def content=(new_content)

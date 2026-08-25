@@ -35,8 +35,19 @@ module Leptris
 
       module_function
 
+      # Translation is a pure function of the rule string, and real
+      # workloads repeat a small selector vocabulary in loops —
+      # memoize. Failed translations raise before caching.
+      CACHE = {}
+      private_constant :CACHE
+
       def convert(rule)
-        rule.to_s.split(COMMA_SPLIT).map { |r| convert_one(r.strip) }.join(" | ")
+        key = rule.to_s
+        CACHE.fetch(key) { CACHE[key] = convert_rule(key) }
+      end
+
+      def convert_rule(rule)
+        rule.split(COMMA_SPLIT).map { |r| convert_one(r.strip) }.join(" | ")
       end
 
       def convert_one(rule)

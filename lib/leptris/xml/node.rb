@@ -148,7 +148,10 @@ class Leptris::XML::Node
   end
 
   def element_children
-    children.select(&:element?)
+    return @element_children if readonly_cached?(:@element_children)
+    result = children.select(&:element?)
+    @element_children = result if @document&.readonly?
+    result
   end
   alias_method :elements, :element_children
 
@@ -195,17 +198,26 @@ class Leptris::XML::Node
   end
 
   def path
+    return @path if readonly_cached?(:@path)
     str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
-    return nil if str_ptr.null?
-    Leptris::XML::FFI.read_owned_string(str_ptr)
+    result = str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
+    @path = result if @document&.readonly?
+    result
   end
 
   def css_path
-    return nil if path.nil?
-    path.split("/").filter_map do |part|
-      next nil if part.empty?
-      part.gsub(/\[(\d+)\]/, ':nth-of-type(\1)')
-    end.join(" > ")
+    return @css_path if readonly_cached?(:@css_path)
+    result =
+      if path.nil?
+        nil
+      else
+        path.split("/").filter_map do |part|
+          next nil if part.empty?
+          part.gsub(/\[(\d+)\]/, ':nth-of-type(\1)')
+        end.join(" > ")
+      end
+    @css_path = result if @document&.readonly?
+    result
   end
 
   def dup

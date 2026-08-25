@@ -28,7 +28,8 @@ class Leptris::XML::Attr
   # immutable — the same semantics as leptris_attribute_prefix, so
   # no declaration lookup is involved.
   def prefix
-    @name.include?(":") ? @name.split(":", 2).first : nil
+    i = @name.index(":")
+    i ? @name[0, i] : nil
   end
 
   # The attribute's namespace URI, resolved through the OWNING
@@ -52,14 +53,15 @@ class Leptris::XML::Attr
   def to_str; @value; end
 
   # Serialized attribute form: name="value" with the five XML special
-  # characters escaped in the value.
+  # characters escaped in the value — single pass, no chained gsubs.
+  ESCAPE_TABLE = {
+    "&" => "&amp;", "<" => "&lt;", ">" => "&gt;",
+    '"' => "&quot;", "'" => "&apos;",
+  }.freeze
+  private_constant :ESCAPE_TABLE
+
   def to_xml
-    escaped = @value.to_s.gsub("&", "&amp;")
-                       .gsub("<", "&lt;")
-                       .gsub(">", "&gt;")
-                       .gsub('"', "&quot;")
-                       .gsub("'", "&apos;")
-    "#{@name}=\"#{escaped}\""
+    "#{@name}=\"#{@value.to_s.gsub(/[&<>"']/, ESCAPE_TABLE)}\""
   end
 
   def ==(other)

@@ -247,11 +247,16 @@ class Leptris::XML::Document
   # Document-level processing instructions (not tree nodes):
   # an array of [target, data] pairs in document order.
   def processing_instructions
+    if readonly? && instance_variable_defined?(:@processing_instructions)
+      return @processing_instructions
+    end
     count = Leptris::XML::FFI.leptris_document_pi_count(@c_ptr)
-    count.times.map do |i|
+    result = count.times.map do |i|
       [Leptris::XML::FFI.leptris_document_pi_target(@c_ptr, i),
        Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)]
     end
+    @processing_instructions = result if readonly?
+    result
   end
 
   # Append a document-level processing instruction. Returns self.
