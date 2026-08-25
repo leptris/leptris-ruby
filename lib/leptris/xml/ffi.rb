@@ -553,6 +553,10 @@ module Leptris
         [:leptris_document, :pointer, :pointer], :leptris_status
       attach_function :leptris_status_string, [:leptris_status], :string
       attach_function :leptris_error_message, [:leptris_status], :string
+      # Thread-global last-failure position (error.h): companion to
+      # leptris_last_error; populated by recover parses (#547).
+      attach_function :leptris_last_error_position,
+        [:pointer, :pointer], :void
       # Thread-local since v1.3.0; reliable under the
       # one-document-per-thread contract.
       attach_function :leptris_last_error, [], :string

@@ -197,3 +197,39 @@ RSpec.describe "round IV: borrowed-handle lifetime" do
     expect(live.freed?).to be true
   end
 end
+
+RSpec.describe "round V: fragments search, error position" do
+  it "searches fragments with xpath/css/at_*" do
+    doc = Leptris::XML.parse("<r/>")
+    frag = doc.fragment(%(<a x="1"><n>one</n></a>t<b><n>two</n></b>))
+    expect(frag.xpath(".//n").map(&:content)).to eq(%w[one two])
+    expect(frag.at_xpath("./a")["x"]).to eq("1")
+    expect(frag.css("b > n").map(&:content)).to eq(%w[two])
+    expect(frag.at_css("a").name).to eq("a")
+    expect(frag.search("a").length).to eq(1)
+  end
+
+  it "exposes the thread-global last-failure position" do
+    # Thread-global and sticky (the C contract): it reflects the
+    # most recent failure on this thread, so only the post-failure
+    # shape is assertable here.
+    recovered = Leptris::XML.parse("<broken", recover: true)
+    expect(recovered.last_error_position).to be_a(Array)
+    expect(recovered.last_error_position.length).to eq(2)
+  end
+end
+
+RSpec.describe "round V: receiver-relative css" do
+  it "scopes element css to the element, not the document" do
+    doc = Leptris::XML.parse(<<~XML)
+      <r>
+        <a><n>outer</n></a>
+        <b><inner><n>deep</n></inner></b>
+      </r>
+    XML
+    b = doc.root.element_children.find { |c| c.name == "b" }
+    expect(b.css("n").map(&:content)).to eq(%w[deep])
+    expect(b.css("inner > n").map(&:content)).to eq(%w[deep])
+    expect(doc.css("n").length).to eq(2)
+  end
+end

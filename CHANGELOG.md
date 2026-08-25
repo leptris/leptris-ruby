@@ -5,6 +5,38 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.7] - 2026-08-26
+
+### Added
+
+- **DocumentFragment is searchable**: `fragment.xpath/at_xpath/
+  css/at_css/search` — Nokogiri fragment parity. The engine already
+  accepted the fragment handle as an XPath context node; the Ruby
+  class now includes Searchable.
+- **`Document#last_error_position`** → `[line, column]` (1-based,
+  thread-global and sticky per the C contract) — the position
+  companion to the recover mode's failure detail. Closes an
+  export-audit gap: `leptris_last_error_position` was exported but
+  unattached.
+
+### Changed
+
+- **css is receiver-relative** (Nokogiri semantics): `element.css`
+  and `fragment.css` scope to the receiver (`.//`), `Document#css`
+  stays document-absolute (`//`). Previously every receiver
+  translated to document-absolute XPath — wrong results for any
+  non-root element or fragment context. Document-context behavior
+  is unchanged.
+
+### Meta
+
+- **CONTEXT.md + docs/adr/**: the domain glossary (ownership model,
+  borrowed handles, wrapper identity, readonly contract, the seam
+  and its two faces) and five ADRs recording the settled decisions
+  (lockstep mirror, UTF-8 at the seam, hand-rolled memoization
+  pattern, the lifetime guard and its measured price, autoload
+  ordering) — future reviews stop re-deriving them.
+
 ## [1.9.6] - 2026-08-26
 
 ### Changed

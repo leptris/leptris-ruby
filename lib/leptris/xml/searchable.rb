@@ -44,7 +44,11 @@ module Leptris::XML::Searchable
     handler, ns, _ = parse_search_args(args)
     raise ArgumentError, "namespace bindings not supported in css" if ns && !ns.empty?
     raise ArgumentError, "custom CSS handlers not supported" if handler
-    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r) }.join(" | ")
+    # Nokogiri semantics: css is receiver-relative — absolute "//"
+    # from a Document, descendant ".//" from elements and fragments.
+    prefix = is_a?(Leptris::XML::Document) ? "//" : ".//"
+    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r, prefix: prefix) }
+      .join(" | ")
     xpath(expr)
   end
 

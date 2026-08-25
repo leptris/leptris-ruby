@@ -5,6 +5,8 @@
 # the fragment itself isn't part of any document tree but borrows its
 # document's lifetime.
 class Leptris::XML::DocumentFragment
+  include Leptris::XML::Searchable
+
   attr_reader :document, :c_ptr
 
   def initialize(document, c_ptr)
