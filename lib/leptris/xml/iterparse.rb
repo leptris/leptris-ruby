@@ -18,6 +18,9 @@ require "ffi"
 # Document; #document returns nil and they must not outlive the
 # iteration.
 class Leptris::XML::Iterparse
+  # NOTE: an IO argument is read fully into memory before the C
+  # iterator starts — the bounded-memory path is parse_file (C-side
+  # file streaming). The C API takes one (xml, len) buffer.
   def self.parse(xml_or_io, &block)
     xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
     iterator = new(Leptris::XML::FFI.leptris_iterparse_new(xml, xml.bytesize))
