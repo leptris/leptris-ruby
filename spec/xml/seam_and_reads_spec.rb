@@ -96,3 +96,37 @@ RSpec.describe "read-path performance surface" do
   end
 end
 
+
+RSpec.describe "round IX: readonly [] and materialized NodeSets" do
+  it "serves readonly [] from the memoized attributes hash" do
+    doc = Leptris::XML.parse(%(<r a="1" b="café"><c/></r>), readonly: true)
+    root = doc.root
+    expect(root["a"]).to eq("1")
+    expect(root["b"]).to eq("café")
+    expect(root["a"].encoding).to eq(Encoding::UTF_8)
+    expect(root["missing"]).to be_nil
+    # equivalence with the writable path
+    writable = Leptris::XML.parse(%(<r a="1" b="café"><c/></r>))
+    expect(writable.root["b"]).to eq(root["b"])
+    # writable values track mutation; readonly refuses it
+    writable.root["a"] = "2"
+    expect(writable.root["a"]).to eq("2")
+    expect { root["a"] = "2" }.to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "stops re-batching a materialized NodeSet" do
+    doc = Leptris::XML.parse("<r>" + (1..5).map { |i| "<a>#{i}</a>" }.join + "</r>")
+    ns = doc.root.xpath("//a")
+    first_pass = ns.to_a
+    expect(ns.length).to eq(5)
+    second_pass = []
+    ns.each { |n| second_pass << n }
+    # identical wrapper objects — the materialized array is authoritative
+    expect(second_pass).to eq(first_pass)
+    expect(second_pass.first).to equal(first_pass.first)
+    expect(ns[0]).to equal(first_pass[0])
+    expect(ns[-1]).to equal(first_pass.last)
+    fresh = doc.root.xpath("//a")
+    expect(fresh[-1]).to equal(first_pass.last)
+  end
+end
