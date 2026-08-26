@@ -49,6 +49,41 @@ task spec: :compile unless ENV.key?("LEPTRIS_LIB_PATH")
 
 task default: :spec
 
+# Lockstep drift detector (ADR 0001): ffi.rb mirrors the public
+# header, so attached == exported must hold on the vendored library.
+# Run after `rake compile` and before any lockstep release.
+namespace :audit do
+  desc "Fail when ffi.rb attachments and library exports drift"
+  task :symbols do
+    lib = Dir.glob("lib/libleptris.{dylib,so,dll}").first
+    unless lib && system("which nm > /dev/null 2>&1")
+      abort "audit:symbols: vendored library or nm not found — run rake compile"
+    end
+    exported = `nm -gU #{lib}`
+      .lines.map { |l| l.split[2] }.compact
+      .map { |n| n.sub(/\A_/, "") }
+      .select { |n| n.start_with?("leptris_") }
+      .map { |n| n.sub(/\Aleptris_/, "") }.sort
+    attached = File.read("lib/leptris/xml/ffi.rb")
+      .scan(/attach_function :leptris_([a-z_0-9]+)/).flatten.sort
+    unattached = exported - attached
+    unexported = attached - exported
+    unless unattached.empty?
+      puts "exported but NOT attached (upstream surface drift):"
+      unattached.each { |s| puts "  leptris_#{s}" }
+    end
+    unless unexported.empty?
+      puts "attached but NOT exported (stale attachment):"
+      unexported.each { |s| puts "  leptris_#{s}" }
+    end
+    if unattached.empty? && unexported.empty?
+      puts "audit:symbols: #{attached.length}/#{exported.length} symbols in lockstep"
+    else
+      abort "audit:symbols: drift detected"
+    end
+  end
+end
+
 require "rubygems/package_task"
 
 desc "Build the pure-Ruby gem"

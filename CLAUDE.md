@@ -91,6 +91,7 @@ lib/leptris/xml/css_to_xpath.rb   — minimal CSS translation
   check both before proposing refactors; they exist so reviews
   stop re-deriving settled questions.
 - libleptris public headers (`src/include/leptris/*.h`) are the
-  contract; when symbols change, bump lockstep and audit
-  attached-vs-exported (`nm -gU` on a fresh build).
+  contract; when symbols change, bump lockstep and run
+  `rake audit:symbols` (attached == exported on the vendored
+  library; fails listing both directions of drift).
 - Upstream issues worth tracking live at leptris/leptris.

@@ -5,6 +5,24 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.8] - 2026-08-26
+
+### Added
+
+- **`rake audit:symbols`**: the lockstep drift detector as an
+  executable step — `nm -gU` on the vendored library vs the ffi.rb
+  attach list, failing with both directions of drift (ADR 0001's
+  enforcement arm; previously prose plus ad-hoc pipelines).
+
+### Changed
+
+- ffi.rb attaches the five header-declared exports past cleanups
+  had dropped (element_children, serialize_document,
+  xpath_ns_set_add, xpath_result_get, xpath_result_get_nodes) —
+  mirror-only, supersession noted inline. The audit now runs green:
+  **224/224 symbols in lockstep**. Pull-attribute batch fetch asked
+  upstream (leptris/leptris#562).
+
 ## [1.9.7] - 2026-08-26
 
 ### Added
