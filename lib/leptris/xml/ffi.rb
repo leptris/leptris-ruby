@@ -173,6 +173,10 @@ module Leptris
       # count-only query returning the TOTAL across every child kind.
       attach_function :leptris_node_children,
         [:leptris_node_ref, :pointer, :size_t], :size_t
+      # Element-only batch; mirror-only — fetch_children rides the
+      # all-kind node_children above.
+      attach_function :leptris_element_children,
+        [:leptris_element, :pointer, :size_t], :size_t
       attach_function :leptris_node_as_element,
         [:leptris_node_ref], :leptris_element
       attach_function :leptris_element_as_node,
@@ -402,6 +406,12 @@ module Leptris
       # which (element / synthetic attribute / text / other).
       attach_function :leptris_xpath_result_node_kind,
         [:leptris_xpath_result, :size_t], :int
+      # Pre-_ex variants, superseded by xpath_result_get_nodes_ex /
+      # xpath_result_get_node; mirror-only (ADR 0001).
+      attach_function :leptris_xpath_result_get,
+        [:leptris_xpath_result, :size_t], :leptris_element
+      attach_function :leptris_xpath_result_get_nodes,
+        [:leptris_xpath_result, :pointer, :size_t], :size_t
       attach_function :leptris_xpath_result_get_node,
         [:leptris_xpath_result, :size_t], :leptris_node_ref
       attach_function :leptris_xpath_result_node_name,
@@ -447,6 +457,10 @@ module Leptris
         [:leptris_xpath_ns_set], :void
       # One-call constructor: flat array of 2*pair_count alternating
       # prefix/URI strings.
+      # Per-pair add; superseded by ns_set_new_from_pairs (one call);
+      # mirror-only (ADR 0001).
+      attach_function :leptris_xpath_ns_set_add,
+        [:leptris_xpath_ns_set, :string, :string], :leptris_status
       attach_function :leptris_xpath_ns_set_new_from_pairs,
         [:pointer, :size_t], :leptris_xpath_ns_set
       attach_function :leptris_xpath_eval_ns,
@@ -507,6 +521,10 @@ module Leptris
 
       attach_function :leptris_document_serialize,
         [:leptris_document, :pointer], :pointer
+      # Deprecated automatic-options alias (header: prefer
+      # leptris_document_serialize); mirror-only.
+      attach_function :leptris_serialize_document,
+        [:leptris_document], :pointer
       # libleptris >= 1.9.0: caller-buffer serialization with options
       # (leptris#541). buf=NULL is a size query; the size-query +
       # fill pair reuses one serialization through a per-document

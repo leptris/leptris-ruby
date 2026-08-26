@@ -169,12 +169,13 @@ against a readonly document is legal; mutating the frozen one is not.
 
 == Searching: XPath and CSS
 
-`Document` and `Element` (via `Leptris::XML::Searchable`) support:
+`Document`, `Element`, and `DocumentFragment` (via
+`Leptris::XML::Searchable`) support:
 
 [horizontal]
 `#xpath(*exprs)` :: evaluate XPath; returns `NodeSet`, `true`/`false`, `Float`, or `String` depending on the expression.
 `#at_xpath(*exprs)` :: first match (or scalar), like `xpath(*exprs).first`.
-`#css(*selectors)` :: minimal CSS-to-XPath translation, then `xpath`.
+`#css(*selectors)` :: minimal CSS-to-XPath translation, then `xpath`. Receiver-relative (Nokogiri semantics): scoped to the element or fragment, document-wide from a Document.
 `#at_css(*selectors)` :: first match of `css`.
 `#search(*exprs)` :: dispatches on syntax — `/`-prefixed or `,`-separated → `xpath`, otherwise `css`.
 `#at(*exprs)` :: first match of `search`.
@@ -190,6 +191,11 @@ doc.at_xpath("string(//book[1]/@id)")     # => "b1"
 doc.css("book[lang='en'] title")          # => NodeSet[<title>Refactoring</title>]
 doc.at_css("book#b1 title")               # => <title>Refactoring</title>  (id selector)
 doc.css("book:first-child")               # first <book>
+
+# css is receiver-relative: scoped to the receiver, not the document
+doc.root.at_css("book").css("title")      # titles under THAT book only
+frag = doc.fragment("<a x='1'><n/></a>")
+frag.css("a > n")                         # searches the fragment
 ----
 
 XPath result type follows XPath 1.0 semantics:
