@@ -55,11 +55,20 @@ task default: :spec
 namespace :audit do
   desc "Fail when ffi.rb attachments and library exports drift"
   task :symbols do
+    # nm cannot read MSVC PE export tables (every symbol reports as
+    # unexported -> guaranteed false drift), so Windows skips: the
+    # darwin/linux CI legs enforce the mirror — any one platform's
+    # build of the same C surface suffices.
+    if Gem.win_platform?
+      puts "audit:symbols: skipped on Windows (PE export tables); " \
+           "darwin/linux legs enforce the mirror"
+      next
+    end
     # Probe nm without a shell: the multi-arg system() execs
     # directly, so there is no which/redirect syntax to be
-    # platform-hostile. File::NULL is NUL on Windows, /dev/null
-    # elsewhere; a missing binary raises ENOENT rather than
-    # returning falsy.
+    # platform-hostile. File::NULL is NUL where it must be; a
+    # missing binary is falsy either way (ENOENT rescue belts the
+    # older spawn behavior).
     unless nm_available?
       puts "audit:symbols: skipped (nm unavailable on this platform)"
       next
