@@ -36,7 +36,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # materializes on demand — repeated reads become hash lookups,
     # with no dispatch and no lifetime guard (a hash read cannot
     # use-after-free).
-    if @document&.readonly?
+    if readonly_document?
       cached = attributes[key.to_s]
       return cached.nil? ? nil : cached.value
     end

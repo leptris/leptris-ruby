@@ -3,7 +3,7 @@
 require "ffi"
 
 class Leptris::XML::Document
-  attr_reader :c_ptr, :wrapper_cache
+  attr_reader :c_ptr
 
   # @api private
   # Internal flag container shared between the Document instance and its
@@ -31,7 +31,13 @@ class Leptris::XML::Document
     # the weak map — any GC sweep evicted it and the second call built
     # a fresh object. A strong cache costs at most one wrapper per node
     # actually visited, held until the document dies.
-    @wrapper_cache = {}
+    #
+    # Allocated lazily: parse-heavy loops stop paying one Hash per
+    # document for trees that are freed before any wrap.
+  end
+
+  def wrapper_cache
+    @wrapper_cache ||= {}
   end
 
   def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
@@ -230,7 +236,7 @@ class Leptris::XML::Document
     @freed.state = :freed
     Leptris::XML::FFI.leptris_document_free(@c_ptr) unless @c_ptr.nil?
     @c_ptr = nil
-    @wrapper_cache.clear
+    @wrapper_cache&.clear
   end
 
   # Enable the first-party EXSLT-style extension pack on this
