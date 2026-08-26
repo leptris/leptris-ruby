@@ -32,6 +32,14 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def [](key)
+    # Readonly: the attributes hash cannot go stale (ADR 0003) and
+    # materializes on demand — repeated reads become hash lookups,
+    # with no dispatch and no lifetime guard (a hash read cannot
+    # use-after-free).
+    if @document&.readonly?
+      cached = attributes[key.to_s]
+      return cached.nil? ? nil : cached.value
+    end
     ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute(@c_ptr, key.to_s)
   end

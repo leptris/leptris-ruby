@@ -5,6 +5,34 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.11] - 2026-08-26
+
+### Changed
+
+- **Readonly `Element#[]` serves from the memoized attributes
+  hash** (materializing on demand): repeated reads become hash
+  lookups — no FFI dispatch, no lifetime guard. Completes the
+  readonly contract on its hottest member. Writable documents keep
+  the direct path (values can change).
+- **Materialized NodeSets stop re-batching**: `each`, `[]`, and
+  `length` consult the materialized array first; iterating or
+  indexing after `to_a` no longer re-pays the count + fetch + wrap
+  pass. Repeated iteration measures 2.4x faster.
+- **NodeSet negative indexes are consistent**: `ns[-1]` answers the
+  last element for lazy and eager sets alike (Ruby-Array slice
+  semantics, Nokogiri parity); previously only eager sets
+  supported them.
+- **SAX start_element attributes build pairs in one pass** — no
+  intermediate flat string array or each_slice enumerator per
+  event (~13% on the SAX parse loop).
+
+### Measured and rejected
+
+- A compiled-expression cache for ad-hoc xpath (the round's main
+  hypothesis): compiled vs ad-hoc eval measured within 2.5% on
+  500-member loops — the engine's expression parse is effectively
+  free. Killed before implementation.
+
 ## [1.9.10] - 2026-08-26
 
 ### Changed

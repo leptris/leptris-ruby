@@ -148,8 +148,19 @@ class Leptris::XML::SAX::Parser
   end
 
   # The C `const char** attrs` is a NULL-terminated flat array of
-  # name/value pairs; CStringArray owns the format, we slice into pairs.
+  # name/value pairs. Build the [name, value] pairs in one pass —
+  # no intermediate flat string array, no each_slice enumerator.
   def walk_attr_array(attrs_ptr)
-    Leptris::XML::CStringArray.to_ruby(attrs_ptr).each_slice(2).to_a
+    ptr_size = ::FFI.type_size(:pointer)
+    pairs = []
+    i = 0
+    loop do
+      name_ptr = attrs_ptr.get_pointer(i * ptr_size)
+      break if name_ptr.null?
+      value_ptr = attrs_ptr.get_pointer((i + 1) * ptr_size)
+      pairs << [utf8(name_ptr.read_string), utf8(value_ptr.read_string)]
+      i += 2
+    end
+    pairs
   end
 end

@@ -41,7 +41,8 @@ class Leptris::XML::NodeSet
   end
 
   def length
-    @result_ptr ? Leptris::XML::FFI.leptris_xpath_result_count(@result_ptr) : @array.length
+    return @array.length if @array
+    @result_ptr ? Leptris::XML::FFI.leptris_xpath_result_count(@result_ptr) : 0
   end
   alias_method :size, :length
 
@@ -49,19 +50,26 @@ class Leptris::XML::NodeSet
     length == 0
   end
 
+  # The materialized array (after to_a) is authoritative: every
+  # reader consults it first so a materialized set stops paying the
+  # batch fetch on each iteration or index.
   def [](idx)
+    return @array[idx] if @array
+    # Negative indexes are Ruby-Array semantics (Nokogiri's NodeSet
+    # is slice-like); materialize rather than answer nil
+    # inconsistently with an eager set.
+    return to_a[idx] if idx.negative?
     if @result_ptr
       return nil if idx < 0 || idx >= length
       ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, idx)
       return nil if ptr.null?
       Leptris::XML::Node.wrap(ptr, @document)
-    else
-      @array[idx]
     end
   end
 
   def each
     return enum_for(:each) unless block_given?
+    return @array.each { |n| yield n } if @array
     if @result_ptr
       # Batch-fetch all node pointers through the FFI seam
       # (leptris_xpath_result_get_nodes_ex copies every node kind,
