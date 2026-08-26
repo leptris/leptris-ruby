@@ -56,8 +56,12 @@ namespace :audit do
   desc "Fail when ffi.rb attachments and library exports drift"
   task :symbols do
     lib = Dir.glob("lib/libleptris.{dylib,so,dll}").first
-    unless lib && system("which nm > /dev/null 2>&1")
-      abort "audit:symbols: vendored library or nm not found — run rake compile"
+    unless system("which nm > /dev/null 2>&1")
+      puts "audit:symbols: skipped (nm unavailable on this platform)"
+      next
+    end
+    unless lib
+      abort "audit:symbols: vendored library not found — run rake compile"
     end
     exported = `nm -gU #{lib}`
       .lines.map { |l| l.split[2] }.compact

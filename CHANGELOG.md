@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.9] - 2026-08-26
+
+### Changed
+
+- **CI gates the symbol audit**: the build workflow runs
+  `rake compile audit:symbols` before the suite — upstream surface
+  drift now fails CI on the PR that first sees it instead of
+  relying on someone remembering to run it. The task skips
+  gracefully where nm is unavailable (Windows).
+- **benchmark/leptris_vs_nokogiri.rb prints live provenance**
+  (library, gem, nokogiri, ruby versions) instead of a frozen
+  footer claiming "v0.12.0 / 176 specs".
+- README: the `#search` dispatch description now matches the
+  heuristic the code implements (path-prefix → xpath; everything
+  else translates as CSS, commas included).
+
+### Meta
+
+- **ADR 0006** records the ruby-variant packaging policy as
+  practiced since 1.9.0: the `ruby` platform gem ships as the
+  fallback/source variant without a vendored library, safe under
+  the eager-load failure mode (issue #49) — clarifying the 1.9.0
+  changelog's "platform variants only" phrasing without rewriting
+  history.
+
 ## [1.9.8] - 2026-08-26
 
 ### Added

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Ruby-level performance comparison: Leptris::XML (FFI → libleptris v0.12.0)
+# Ruby-level performance comparison: Leptris::XML (FFI → libleptris) vs Nokogiri
 # vs Nokogiri (C extension → libxml2).
 #
 # Run with: bundle exec ruby -Ilib benchmark/leptris_vs_nokogiri.rb
@@ -99,7 +99,7 @@ ratio("serialize", t, n)
 doc_t.free
 
 puts ""
-puts "libleptris v0.12.0 — all upstream issues closed."
-puts "All 176 Ruby specs passing, 0 pending."
+puts "libleptris #{Leptris::XML::FFI.leptris_version} / leptris-ruby #{Leptris::VERSION} / nokogiri #{Nokogiri::VERSION}"
+puts "ruby #{RUBY_VERSION} on #{RUBY_PLATFORM}"
 
 
