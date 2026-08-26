@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.13] - 2026-08-27
+
+### Changed
+
+- **Cached-true readonly guard**: readonly is one-way, so a node
+  caches TRUE once observed (FALSE stays uncached — the document
+  may still flip). Per-read guards drop from a three-call document
+  round-trip to one ivar check. Harness attr loop 0.061 -> 0.048 s.
+- **Lazy wrapper-cache allocation**: Documents no longer allocate
+  the wrapper-identity Hash up front; parse-heavy loops that free
+  before re-reading stop paying it (~9% on the tiny-doc
+  parse-query-serialize loop). Identity semantics unchanged.
+
+### Measured dead
+
+- Further readonly-[] trimming: the isolated read is at the Ruby
+  call-chain floor (~227 ns across ~7 calls); inlining the
+  attributes build would duplicate memo logic for ~10%.
+
 ## [1.9.12] - 2026-08-27
 
 ### Changed

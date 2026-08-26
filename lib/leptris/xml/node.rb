@@ -104,10 +104,20 @@ class Leptris::XML::Node
   # UseAfterFreeError when it was freed.
   def ensure_writable!
     ensure_alive!
-    if @document&.readonly?
+    if readonly_document?
       raise Leptris::XML::ReadOnlyError,
         "document is readonly — mutation attempted on #{inspect}"
     end
+  end
+
+  # Readonly is one-way, so caching TRUE is sound: once observed,
+  # the document is readonly forever. FALSE stays uncached (the
+  # document may still flip). Saves the document round-trip on
+  # per-read guards.
+  def readonly_document?
+    return true if instance_variable_defined?(:@readonly_document)
+    return false unless @document&.readonly?
+    @readonly_document = true
   end
 
   def line

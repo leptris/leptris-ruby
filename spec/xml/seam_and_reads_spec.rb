@@ -153,3 +153,21 @@ RSpec.describe "round X: iteration materializes; leaner memo guard" do
     expect(a.content).to eq("u")  # no stale memo on writable docs
   end
 end
+
+RSpec.describe "round XI: cached-true readonly; lazy wrapper cache" do
+  it "observes a writable-then-readonly flip" do
+    doc = Leptris::XML.parse(%(<r a="1"><c>t</c></r>))
+    root = doc.root
+    expect(root["a"]).to eq("1")          # writable path, false uncached
+    doc.readonly!
+    expect(root["a"]).to eq("1")          # cached-true observed
+    expect { root["a"] = "2" }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect(root["a"]).to eq("1")
+  end
+
+  it "preserves wrapper identity with the lazily allocated cache" do
+    doc = Leptris::XML.parse("<r><a/></r>")
+    expect(doc.root.element_children.first)
+      .to equal(doc.root.element_children.first)
+  end
+end
