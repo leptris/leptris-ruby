@@ -55,11 +55,16 @@ task default: :spec
 namespace :audit do
   desc "Fail when ffi.rb attachments and library exports drift"
   task :symbols do
-    lib = Dir.glob("lib/libleptris.{dylib,so,dll}").first
-    unless system("which nm > /dev/null 2>&1")
+    # Probe nm without a shell: the multi-arg system() execs
+    # directly, so there is no which/redirect syntax to be
+    # platform-hostile. File::NULL is NUL on Windows, /dev/null
+    # elsewhere; a missing binary raises ENOENT rather than
+    # returning falsy.
+    unless nm_available?
       puts "audit:symbols: skipped (nm unavailable on this platform)"
       next
     end
+    lib = Dir.glob("lib/libleptris.{dylib,so,dll}").first
     unless lib
       abort "audit:symbols: vendored library not found — run rake compile"
     end
@@ -85,6 +90,13 @@ namespace :audit do
     else
       abort "audit:symbols: drift detected"
     end
+  end
+
+  # @api private
+  def nm_available?
+    system("nm", "--version", out: File::NULL, err: File::NULL)
+  rescue Errno::ENOENT
+    false
   end
 end
 
