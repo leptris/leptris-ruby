@@ -46,4 +46,7 @@ jobs:
 
     # rake compile vendors libleptris (Rakefile LIBLEPTRIS_VERSION pin)
     # into lib/ where the FFI search order finds it -- no env var needed.
-    - run: bundle exec rake
+    # The symbol audit gates the suite: attached == exported on the
+    # vendored library, so upstream surface drift fails here first.
+    - run: bundle exec rake compile audit:symbols
+    - run: bundle exec rspec

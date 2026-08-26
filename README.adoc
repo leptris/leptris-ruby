@@ -177,7 +177,7 @@ against a readonly document is legal; mutating the frozen one is not.
 `#at_xpath(*exprs)` :: first match (or scalar), like `xpath(*exprs).first`.
 `#css(*selectors)` :: minimal CSS-to-XPath translation, then `xpath`. Receiver-relative (Nokogiri semantics): scoped to the element or fragment, document-wide from a Document.
 `#at_css(*selectors)` :: first match of `css`.
-`#search(*exprs)` :: dispatches on syntax — `/`-prefixed or `,`-separated → `xpath`, otherwise `css`.
+`#search(*exprs)` :: dispatches on syntax — path-prefixed expressions (`/`, `.`, `..`) go to `xpath`; everything else translates as CSS (comma unions included).
 `#at(*exprs)` :: first match of `search`.
 
 [source,ruby]
