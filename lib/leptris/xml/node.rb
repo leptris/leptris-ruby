@@ -264,8 +264,11 @@ class Leptris::XML::Node
 
   protected
 
+  # Memo presence alone proves readonly: every memo site assigns
+  # only under readonly, and readonly is one-way — so the guard
+  # saves the document round-trip on every memoized read.
   def readonly_cached?(ivar)
-    @document&.readonly? && instance_variable_defined?(ivar)
+    instance_variable_defined?(ivar)
   end
 
   def as_element_or_self

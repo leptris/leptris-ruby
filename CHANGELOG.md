@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.12] - 2026-08-27
+
+### Changed
+
+- **NodeSet#each materializes on the first pass**: the lazy batch
+  fetch builds the array while yielding; every later each/[]/length
+  serves from it. Iterating twice without an explicit to_a paid the
+  batch twice — measured 0.220 s -> 0.127 s (42%) on the repeated-
+  iteration loop, now matching the materialized shape.
+- **Leaner memo guard**: `readonly_cached?` checks ivar presence
+  alone — memo presence proves readonly, because every memo site
+  assigns only under readonly and readonly is one-way. Saves a
+  document round-trip on every memoized read; the harness's
+  readonly loops drop another 22-45% (attrs 0.078 -> 0.061 s,
+  namespaces 0.033 -> 0.018 s, content 0.066 -> 0.037 s).
+
+### Measured and rejected
+
+- SAX bulk pointer read for attribute pairs: a bulk read needs a
+- counting pass first, which adds calls to a one-pass walk — no
+  win, withdrawn on inspection.
+- Unconditional writable-content memoization and version-stamp
+  memoization (see the round-X report): invalidation completeness
+  and a compare costing the read, respectively.
+
 ## [1.9.11] - 2026-08-26
 
 ### Changed

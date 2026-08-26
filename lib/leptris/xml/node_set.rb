@@ -67,43 +67,46 @@ class Leptris::XML::NodeSet
     end
   end
 
+  # Iteration materializes: the first pass batch-fetches into @array
+  # (yielding as it wraps), and every subsequent reader — each, [],
+  # length — serves from the array. Repeated iteration without an
+  # explicit to_a pays the batch exactly once.
   def each
     return enum_for(:each) unless block_given?
-    return @array.each { |n| yield n } if @array
-    if @result_ptr
-      # Batch-fetch all node pointers through the FFI seam
-      # (leptris_xpath_result_get_nodes_ex copies every node kind,
-      # not just elements) and wrap each. Wrappers are cached
-      # per-Document via Node.wrap, so re-iteration of the same
-      # NodeSet hits it.
+    unless @array
+      return self unless @result_ptr
       n = length
       if n > 0
+        # Batch-fetch all node pointers through the FFI seam
+        # (leptris_xpath_result_get_nodes_ex copies every node kind,
+        # not just elements); the batch accessor under-copies
+        # mixed-kind results (upstream leptris#477), so per-index
+        # fetch covers the remainder.
         pointers = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
+        nodes = []
         pointers.each do |ptr|
           next if ptr.null?
-          yield Leptris::XML::Node.wrap(ptr, @document)
+          nodes << Leptris::XML::Node.wrap(ptr, @document)
         end
-        # The batch accessor under-copies mixed-kind results (upstream
-        # leptris#477); fall back to per-index fetch for the remainder.
         (pointers.length...n).each do |i|
           ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
           next if ptr.null?
-          yield Leptris::XML::Node.wrap(ptr, @document)
+          nodes << Leptris::XML::Node.wrap(ptr, @document)
         end
+        @array = nodes
+      else
+        @array = []
       end
-    else
-      @array.each { |n| yield n }
     end
+    @array.each { |n| yield n }
     self
   end
 
   def to_a
     return @array if @array
     return [] if @result_ptr.nil?
-    out = []
-    each { |n| out << n }
-    @array = out  # memoize so subsequent to_a / each avoids re-fetch
-    out
+    each { |n| }  # materializes @array as a side effect
+    @array
   end
   alias_method :to_ary, :to_a
 

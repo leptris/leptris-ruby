@@ -130,3 +130,26 @@ RSpec.describe "round IX: readonly [] and materialized NodeSets" do
     expect(fresh[-1]).to equal(first_pass.last)
   end
 end
+
+RSpec.describe "round X: iteration materializes; leaner memo guard" do
+  it "materializes on the first each, without to_a" do
+    doc = Leptris::XML.parse("<r>" + (1..5).map { |i| "<a>#{i}</a>" }.join + "</r>")
+    ns = doc.root.xpath("//a")
+    first_pass = []
+    ns.each { |n| first_pass << n }
+    second_pass = []
+    ns.each { |n| second_pass << n }
+    expect(second_pass).to eq(first_pass)
+    expect(second_pass.first).to equal(first_pass.first)
+    expect(ns.length).to eq(5)
+    expect(ns[4]).to equal(first_pass.last)
+  end
+
+  it "keeps memo semantics on writable documents" do
+    doc = Leptris::XML.parse("<r><a x='1'>t</a></r>")
+    a = doc.root.element_children.first
+    expect(a.content).to eq("t")
+    a.content = "u"
+    expect(a.content).to eq("u")  # no stale memo on writable docs
+  end
+end
