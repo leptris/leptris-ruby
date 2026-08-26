@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.10] - 2026-08-26
+
+### Changed
+
+- **README: Migrating from Nokogiri, caught up to the 1.9.x
+  surface** — the notable-differences list now covers the lifetime
+  contract (UseAfterFreeError on freed-document reads/mutations),
+  readonly mode, recover parsing + last_error_position, searchable
+  fragments, receiver-relative css, and expanded-name attribute
+  access, each with the migrating reader's context.
+- **Spec organization**: the eight-round perf_surface_spec grab-bag
+  splits into one file per concern (seam_and_reads,
+  sax_and_query_paths, lifetime_contract, fragment_and_position,
+  receiver_relative_css). Suite count unchanged at 274; each file
+  is one scannable context.
+
 ## [1.9.9] - 2026-08-26
 
 ### Changed

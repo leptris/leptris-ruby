@@ -410,7 +410,26 @@ Notable differences:
 * `Node#children` includes whitespace text nodes (same as Nokogiri); use
   `#element_children` or `#first_element_child` to skip them.
 * CSS support is intentionally minimal — for advanced selectors, drop to
-  `xpath`.
+  `xpath`. `css` is receiver-relative (Nokogiri semantics): scoped to
+  an element or fragment, document-wide from a Document.
+* `DocumentFragment` is searchable (`fragment.xpath/at_xpath/css/at_css/search`)
+  — Nokogiri fragment parity.
+* Expanded-name attribute access: `Element#attribute_ns(uri, local)` /
+  `#has_attribute_ns?(uri, local)` — XML Namespaces 1.0 semantics
+  (cross-prefix match, nil URI matches no-namespace, xmlns invisible).
+* `Leptris::XML.parse(xml, recover: true)` returns an empty document
+  with the failure recorded on the thread-global last error instead of
+  raising ParseError — libxml2 `XML_PARSE_RECOVER` semantics. The
+  companion `Document#last_error_position` returns `[line, column]`.
+* `Leptris::XML.parse(xml, readonly: true)` (or `Document#readonly!`)
+  freezes the document for reading: mutations raise ReadOnlyError, read
+  methods memoize aggressively. Faster steady state; no Nokogiri
+  equivalent.
+* **Lifetime contract**: a borrowed handle used after the owning
+  document has been freed (or GC'd) raises `Leptris::XML::UseAfterFreeError`.
+  Nokogiri is silent on this — migrating code that holds Node references
+  past Document disposal will see the error; silence-replace-UAF patterns
+  from Nokogiri do not apply.
 * No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Leptris is XML-only.
 * No XSLT, no RelaxNG / DTD validation, no schema caching.
 * No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
