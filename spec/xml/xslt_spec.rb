@@ -111,11 +111,11 @@ RSpec.describe "libleptris 1.9.3 surface" do
   end
 
   it "normalizes attribute values per XML 1.0 §3.3.3 (#576)" do
-    # Literal whitespace collapses to single spaces; character
-    # REFERENCES to whitespace are appended verbatim (§3.3.3: a
-    # referenced character is appended, not normalized).
+    # CDATA rule: literal whitespace is REPLACED with a space
+    # (tab -> space), not collapsed — runs stay; character
+    # REFERENCES to whitespace append verbatim.
     doc = Leptris::XML.parse(%(<r a=" x	y  z " b="x&#9;y" c="&lt;&gt;&amp;"/>))
-    expect(doc.root["a"]).to eq(" x y z ")
+    expect(doc.root["a"]).to eq(" x y  z ")
     expect(doc.root["b"]).to eq("x\ty")
     expect(doc.root["c"]).to eq("<>&")
   end
