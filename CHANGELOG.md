@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.16] - 2026-08-27
+
+### Changed
+
+- **at_xpath / at_css take the single-node path**: a new
+  `wrap_xpath_first_result` seam answers nodeset results via
+  get_node(0) + wrap + free — no NodeSet container, no AutoPointer,
+  one fewer FFI than xpath().first; scalar results keep full-wrapper
+  semantics. Measured on the canonical scraper loop: at_xpath 0.018 s
+  -> 0.005 s (3.6x — the per-iteration container churn was GC
+  pressure the old path paid twice), at_css ~24%. Equivalence with
+  xpath().first is spec-pinned across nodeset/empty/scalar shapes.
+  Also drops a vestigial `.send(:from_result)` on a public factory.
+
 ## [1.9.15] - 2026-08-27
 
 ### Changed

@@ -269,3 +269,21 @@ RSpec.describe "round XIII: hash-served [], engine-served qualified names" do
     expect(doc.root.first_element_child.name).to eq("b")
   end
 end
+
+RSpec.describe "round XIV: single-node query seam" do
+  it "matches xpath().first across result shapes" do
+    doc = Leptris::XML.parse(%(<r><a id="1"/><a id="2"/></r>))
+    expect(doc.at_xpath("//a")).to eq(doc.xpath("//a").first)
+    expect(doc.at_xpath("//nope")).to be_nil
+    expect(doc.at_xpath("count(//a)")).to eq(2.0)      # scalar keeps semantics
+    expect(doc.at_xpath("string(//a/@id)")).to eq("1") # scalar string
+  end
+
+  it "serves at_css through the same seam" do
+    doc = Leptris::XML.parse(%(<r><item><name>one</name></item><item><name>two</name></item></r>))
+    expect(doc.at_css("item > name").content).to eq("one")
+    expect(doc.at_css("nope")).to be_nil
+    b = doc.root.element_children.last
+    expect(b.at_css("name").content).to eq("two")  # receiver-relative
+  end
+end

@@ -24,8 +24,24 @@ module Leptris::XML::Searchable
   end
 
   def at_xpath(*paths)
-    result = xpath(*paths)
-    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
+    handler, ns, _vars = parse_search_args(paths)
+    raise ArgumentError, "custom XPath handlers not supported" if handler
+    expr = paths.join(" | ")
+
+    doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
+    context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
+
+    result_ptr =
+      if ns && !ns.empty?
+        xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+      else
+        Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
+      end
+    if result_ptr.null?
+      raise Leptris::XML::XPathError,
+        Leptris::XML::FFI.leptris_last_error.to_s
+    end
+    Leptris::XML::Searchable.wrap_xpath_first_result(document, result_ptr)
   end
 
   def search(*args)
@@ -53,8 +69,13 @@ module Leptris::XML::Searchable
   end
 
   def at_css(*args)
-    result = css(*args)
-    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
+    handler, ns, _ = parse_search_args(args)
+    raise ArgumentError, "namespace bindings not supported in css" if ns && !ns.empty?
+    raise ArgumentError, "custom CSS handlers not supported" if handler
+    prefix = is_a?(Leptris::XML::Document) ? "//" : ".//"
+    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r, prefix: prefix) }
+      .join(" | ")
+    at_xpath(expr)
   end
 
   protected
@@ -86,6 +107,22 @@ module Leptris::XML::Searchable
     %r{\A(\./|/|\.\.|\.)}.match?(str)
   end
 
+  # Single-node seam beside wrap_xpath_result: a nodeset answers
+  # via result_get_node(0) + wrap + free — no NodeSet container, no
+  # AutoPointer, one fewer FFI than xpath().first; scalars keep the
+  # full-wrapper semantics.
+  def self.wrap_xpath_first_result(document, result_ptr)
+    type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
+    if type == Leptris::XML::FFI::XPATH_NODESET
+      ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(result_ptr, 0)
+      node = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, document)
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
+      node
+    else
+      wrap_xpath_result(document, result_ptr)
+    end
+  end
+
   # Shared by Searchable#xpath and Leptris::XML::XPath (compiled
   # expressions): wraps a raw XPathResult pointer into the
   # Ruby-typed result and frees the C handle.
@@ -93,7 +130,7 @@ module Leptris::XML::Searchable
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     case type
     when Leptris::XML::FFI::XPATH_NODESET
-      Leptris::XML::NodeSet.send(:from_result, document, result_ptr)
+      Leptris::XML::NodeSet.from_result(document, result_ptr)
     when Leptris::XML::FFI::XPATH_BOOLEAN
       v = Leptris::XML::FFI.leptris_xpath_result_boolean(result_ptr) != 0
       Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
