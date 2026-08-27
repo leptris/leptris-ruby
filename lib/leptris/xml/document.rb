@@ -14,10 +14,27 @@ class Leptris::XML::Document
   # `Document#free` was called explicitly and then GC ran.
   Freed = Struct.new(:state)  # state: :alive | :freed
 
+  # Mutation version: advanced by every data mutation (via
+  # Node#ensure_writable!, root=, add_pi). Node memos stamp the
+  # version they were computed under and recompute after any bump —
+  # the invalidation that makes WRITABLE-document memoization sound.
+  # Readonly documents never advance it, so their memos are forever
+  # valid (ADR 0003 semantics, unchanged).
+  def version
+    @version
+  end
+
+  # Called by the mutation gates (Node#ensure_writable!, root=,
+  # add_pi) — every memo stamped with an older version discards.
+  def advance_version
+    @version += 1
+  end
+
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
     @freed = freed
     @readonly = false
+    @version = 0
     # Per-document STRONG cache for Node wrappers, keyed on c_ptr
     # address. Every wrapper is created through Node.wrap, which is the
     # single construction path, so the same C node always yields the
@@ -142,6 +159,7 @@ class Leptris::XML::Document
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
+    @version += 1
     element
   end
 
@@ -253,15 +271,14 @@ class Leptris::XML::Document
   # Document-level processing instructions (not tree nodes):
   # an array of [target, data] pairs in document order.
   def processing_instructions
-    if readonly? && instance_variable_defined?(:@processing_instructions)
-      return @processing_instructions
-    end
+    return @processing_instructions if @pi_version == @version
     count = Leptris::XML::FFI.leptris_document_pi_count(@c_ptr)
     result = count.times.map do |i|
       [Leptris::XML::FFI.leptris_document_pi_target(@c_ptr, i),
        Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)]
     end
-    @processing_instructions = result if readonly?
+    @processing_instructions = result
+    @pi_version = @version
     result
   end
 
@@ -270,6 +287,7 @@ class Leptris::XML::Document
     witness = Leptris::XML::FFI.leptris_document_add_pi(
       @c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_document_add_pi failed" if witness.null?
+    @version += 1
     self
   end
 

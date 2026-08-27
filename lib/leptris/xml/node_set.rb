@@ -60,7 +60,6 @@ class Leptris::XML::NodeSet
     # inconsistently with an eager set.
     return to_a[idx] if idx.negative?
     if @result_ptr
-      return nil if idx < 0 || idx >= length
       ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, idx)
       return nil if ptr.null?
       Leptris::XML::Node.wrap(ptr, @document)

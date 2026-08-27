@@ -2,20 +2,26 @@
 
 class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def name
-    return @name if readonly_cached?(:@name)
+    return @name if memo_hit?(@name_version)
     ensure_alive!
-    Leptris::XML::FFI.leptris_pi_node_get_target(@c_ptr).tap do |target|
-      @name = target if @document&.readonly?
+    result = Leptris::XML::FFI.leptris_pi_node_get_target(@c_ptr)
+    if @document
+      @name = result
+      @name_version = @document.version
     end
+    result
   end
   alias_method :target, :name
 
   def content
-    return @content if readonly_cached?(:@content)
+    return @content if memo_hit?(@content_version)
     ensure_alive!
-    Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s.tap do |data|
-      @content = data if @document&.readonly?
+    result = Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s
+    if @document
+      @content = result
+      @content_version = @document.version
     end
+    result
   end
 
   def target=(new_target)
