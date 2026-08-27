@@ -240,3 +240,32 @@ RSpec.describe "round XII: versioned writable memoization" do
     expect(doc.version).to eq(0)
   end
 end
+
+RSpec.describe "round XIII: hash-served [], engine-served qualified names" do
+  it "serves bare names from the versioned hash on writable documents" do
+    doc = Leptris::XML.parse(%(<r a="1"><c/></r>))
+    root = doc.root
+    expect(root["a"]).to eq("1")
+    root["a"] = "2"
+    expect(root["a"]).to eq("2")
+  end
+
+  it "routes qualified names to the engine (declaration resolution)" do
+    doc = Leptris::XML.parse(
+      %(<r xmlns:a="urn:x" xmlns:b="urn:x" a:k="1" b:k="2" k="3"/>))
+    root = doc.root
+    expect(root["b:k"]).to eq("1")   # expanded-name match, cross-prefix
+    expect(root["k"]).to eq("3")     # bare = no-namespace
+    expect(root["c:k"]).to be_nil    # undeclared prefix
+  end
+
+  it "memoizes first_element_child with version invalidation" do
+    doc = Leptris::XML.parse(%(<r>t<a/><b/></r>))
+    first = doc.root.first_element_child
+    expect(doc.root.first_element_child).to equal(first)
+    doc.root << doc.create_element("z")
+    expect(doc.root.first_element_child).to equal(first)
+    first.unlink
+    expect(doc.root.first_element_child.name).to eq("b")
+  end
+end

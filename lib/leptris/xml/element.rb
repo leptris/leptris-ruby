@@ -35,16 +35,20 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def [](key)
-    # Readonly: the attributes hash cannot go stale (ADR 0003) and
-    # materializes on demand — repeated reads become hash lookups,
-    # with no dispatch and no lifetime guard (a hash read cannot
-    # use-after-free).
-    if readonly_document?
-      cached = attributes[key.to_s]
+    # BARE names serve from the versioned attributes hash (written
+    # name == the only legal key for a no-namespace attribute);
+    # materializes on demand, invalidates through the mutation gate
+    # (ADR 0003's 1.9.14 extension); a hash read cannot
+    # use-after-free. QUALIFIED names (with a colon) go to the
+    # engine: they resolve through in-scope declarations, where the
+    # written prefix never matters — the hash cannot answer them.
+    name = key.to_s
+    if @document && !name.include?(":")
+      cached = attributes[name]
       return cached.nil? ? nil : cached.value
     end
     ensure_alive!
-    Leptris::XML::FFI.leptris_element_attribute(@c_ptr, key.to_s)
+    Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
   end
   alias_method :attr, :[]
   alias_method :get_attribute, :[]
