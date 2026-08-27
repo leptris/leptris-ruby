@@ -311,6 +311,21 @@ class Leptris::XML::Document
     @freed.state == :freed || @c_ptr.nil?
   end
 
+  # Document-level comments — parsed <!-- ... --> outside the
+  # root element, prolog then epilog, in document order (the
+  # companion reader to #processing_instructions; libleptris
+  # 1.9.3, upstream #578). Version-memoized like the PI list.
+  def comments
+    return @comments if @comments_version == @version
+    count = Leptris::XML::FFI.leptris_document_comment_count(@c_ptr)
+    result = Array.new(count) do |i|
+      Leptris::XML::FFI.leptris_document_comment_content(@c_ptr, i)
+    end
+    @comments = result
+    @comments_version = @version
+    result
+  end
+
   # The thread-global last-failure [line, column] (1-based), or nil
   # when no error is recorded — the position companion to
   # Document#last_error; populated by recover parses.

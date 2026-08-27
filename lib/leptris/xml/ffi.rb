@@ -125,6 +125,13 @@ module Leptris
         [:leptris_document, :size_t], :string
       attach_function :leptris_document_add_pi,
         [:leptris_document, :string, :string], :pointer
+      # Document-level comments (libleptris 1.9.3, #578): parsed
+      # <!-- ... --> outside the root, prolog then epilog, in
+      # document order. Read-only surface (no add_comment yet).
+      attach_function :leptris_document_comment_count,
+        [:leptris_document], :size_t
+      attach_function :leptris_document_comment_content,
+        [:leptris_document, :size_t], :string
       # Options-struct parse (v1.6.0): supersedes the flags variants;
       # the flags path remains bound for compatibility.
       attach_function :leptris_parse_string_ex,
@@ -669,6 +676,7 @@ module Leptris
         leptris_status_string leptris_last_error
         leptris_document_last_error leptris_document_encoding
         leptris_document_pi_target leptris_document_pi_data
+        leptris_document_comment_content
         leptris_element_name leptris_element_text leptris_element_prefix
         leptris_element_namespace
         leptris_element_attribute leptris_element_attribute_ns

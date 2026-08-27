@@ -94,3 +94,29 @@ RSpec.describe Leptris::XML::XSLT do
     expect(doc.to_xml(no_decl: true)).to eq(before)
   end
 end
+
+RSpec.describe "libleptris 1.9.3 surface" do
+  it "reads document-level comments (prolog and epilog, #578)" do
+    doc = Leptris::XML.parse(
+      %(<?pi data?><!-- prolog c --><r/><!-- epilog c -->))
+    expect(doc.comments).to eq([" prolog c ", " epilog c "])
+    expect(doc.comments.first.encoding).to eq(Encoding::UTF_8)
+    expect(doc.processing_instructions).to eq([["pi", "data"]])
+  end
+
+  it "accepts dataless PIs (#577)" do
+    doc = Leptris::XML.parse(%(<?standalone?><r/><?tail?>))
+    expect(doc.processing_instructions)
+      .to eq([["standalone", ""], ["tail", ""]])
+  end
+
+  it "normalizes attribute values per XML 1.0 §3.3.3 (#576)" do
+    # Literal whitespace collapses to single spaces; character
+    # REFERENCES to whitespace are appended verbatim (§3.3.3: a
+    # referenced character is appended, not normalized).
+    doc = Leptris::XML.parse(%(<r a=" x	y  z " b="x&#9;y" c="&lt;&gt;&amp;"/>))
+    expect(doc.root["a"]).to eq(" x y z ")
+    expect(doc.root["b"]).to eq("x\ty")
+    expect(doc.root["c"]).to eq("<>&")
+  end
+end
