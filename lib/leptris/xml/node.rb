@@ -179,14 +179,23 @@ class Leptris::XML::Node
   alias_method :previous, :previous_sibling
 
   def first_element_child
+    return @first_element_child if memo_hit?(@first_element_child_version)
     ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
+    result = nil
     until ptr.nil? || ptr.null?
       node = Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
-      return node if node.element?
+      if node.element?
+        result = node
+        break
+      end
       ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
     end
-    nil
+    if @document
+      @first_element_child = result
+      @first_element_child_version = @document.version
+    end
+    result
   end
 
   def last_element_child

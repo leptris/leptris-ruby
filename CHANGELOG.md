@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.15] - 2026-08-27
+
+### Changed
+
+- **`Element#[]` serves bare names from the versioned attributes
+  hash on every document kind** (writable included): materializes
+  on demand, invalidates through the mutation gate. Qualified names
+  (with a colon) still route to the engine — they resolve through
+  in-scope declarations where the written prefix never matters,
+  which a written-name-keyed hash cannot answer. Writable
+  attribute loops reach readonly parity: 0.196 s -> 0.101 s (2x);
+  the readonly special-case branch is deleted. The qualified/bare
+  split is spec-pinned (cross-prefix match, undeclared-prefix nil).
+- **`first_element_child` memoizes** with version invalidation
+  (structural mutations bump): 0.058 s -> 0.015 s (4x) on the
+  repeat loop.
+
 ## [1.9.14] - 2026-08-27
 
 ### Changed
