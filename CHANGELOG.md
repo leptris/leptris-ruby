@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.21] - 2026-08-27
+
+### Changed
+
+- **`#at` / `#%` take the single-node seam**: the generic entry now
+  dispatches on syntax (like `#search`) and calls `at_xpath` /
+  `at_css` directly instead of routing through
+  `search().first` and its NodeSet container — the round-XIV fast
+  path's last un-routed caller. Measured: `at("item > name")` 0.026 s
+  -> 0.020 s per 2000 iterations (**-23%**, now at parity with
+  `at_css`); scalar semantics for XPath-shaped expressions keep the
+  full-wrapper behavior.
+
 ## [1.9.20] - 2026-08-27
 
 ### Changed
