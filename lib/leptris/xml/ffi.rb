@@ -747,14 +747,27 @@ module Leptris
       end
 
       # XPath result-set batch (leptris_xpath_result_get_nodes_ex):
-      # copies all node kinds into a caller buffer and hands back
-      # the pointer array.
+      # the call fills out_kinds in the 4-value XPATH_NODE space
+      # (ELEMENT/ATTRIBUTE/TEXT/OTHER). ELEMENT is the only value
+      # that maps unambiguously — XPath's data model reports CDATA
+      # as TEXT, so a TEXT hint cannot distinguish Text from CDATA
+      # (different content getters) — everything else falls back to
+      # get_type in the wrapper. Returns [pointers, element_hints].
+      XPATH_KIND_HINT = { XPATH_NODE_ELEMENT => NODE_ELEMENT }.freeze
+
       def self.fetch_result_nodes(result_ptr, count)
-        return [] if count.zero?
+        return [[], nil] if count.zero?
         with_pointer_buffer(count) do |buffer|
-          copied = leptris_xpath_result_get_nodes_ex(
-            result_ptr, buffer, nil, count)
-          buffer.get_array_of_pointer(0, copied)
+          kinds = ::FFI::MemoryPointer.new(:int, count)
+          begin
+            copied = leptris_xpath_result_get_nodes_ex(
+              result_ptr, buffer, kinds, count)
+            hints = kinds.get_array_of_int(0, copied)
+              .map { |k| XPATH_KIND_HINT[k] }
+            [buffer.get_array_of_pointer(0, copied), hints]
+          ensure
+            kinds.free
+          end
         end
       end
 

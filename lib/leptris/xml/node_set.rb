@@ -81,11 +81,11 @@ class Leptris::XML::NodeSet
         # not just elements); the batch accessor under-copies
         # mixed-kind results (upstream leptris#477), so per-index
         # fetch covers the remainder.
-        pointers = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
+        pointers, kinds = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
         nodes = []
-        pointers.each do |ptr|
+        pointers.each_with_index do |ptr, i|
           next if ptr.null?
-          nodes << Leptris::XML::Node.wrap(ptr, @document)
+          nodes << Leptris::XML::Node.wrap(ptr, @document, node_type: kinds[i])
         end
         (pointers.length...n).each do |i|
           ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)

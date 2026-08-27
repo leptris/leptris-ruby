@@ -287,3 +287,23 @@ RSpec.describe "round XIV: single-node query seam" do
     expect(b.at_css("name").content).to eq("two")  # receiver-relative
   end
 end
+
+RSpec.describe "round XV: type-tagged batch materialization" do
+  it "dispatches wrapper classes from the batch-fetched kinds" do
+    doc = Leptris::XML.parse(
+      %(<r>text<!--c--><![CDATA[cd]]><?pi d?><a/></r>))
+    ns = doc.root.xpath("//node()")
+    kinds = ns.map(&:class)
+    # document order: the root element, then its children — the
+    # element hints and the get_type fallbacks agree with the
+    # pre-hint classes (CDATA distinguished despite XPath's data
+    # model folding it to TEXT)
+    expect(kinds).to eq([Leptris::XML::Element, Leptris::XML::Text,
+                         Leptris::XML::Comment, Leptris::XML::CDATA,
+                         Leptris::XML::ProcessingInstruction,
+                         Leptris::XML::Element])
+    expect(ns.last.name).to eq("a")
+    expect(ns[1].content).to eq("text")
+    expect(ns[3].content).to eq("cd")
+  end
+end

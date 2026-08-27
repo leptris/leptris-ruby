@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.17] - 2026-08-27
+
+### Changed
+
+- **Element-hinted batch materialization**: the XPath result-set
+  batch (`leptris_xpath_result_get_nodes_ex`) fills an out_kinds
+  array the binding discarded; `Node.wrap` now accepts a known
+  `node_type:` so element entries skip the per-node get_type
+  dispatch. ELEMENT is the only hintable value — XPath's data
+  model reports CDATA as TEXT, so a TEXT hint cannot distinguish
+  Text from CDATA (different content getters); comments/CDATA/PIs
+  keep the get_type fallback. Cold 500-element materialization:
+  0.131 s -> 0.110 s (~15%). Upstream note: a full-type out_kinds
+  (or kinds on `leptris_node_children`) belongs to the #560/#562
+  ask family.
+
 ## [1.9.16] - 2026-08-27
 
 ### Changed

@@ -12,7 +12,10 @@ class Leptris::XML::Node
     @node_type = node_type
   end
 
-  def self.wrap(c_ptr, document, parent: nil)
+  # node_type: callers holding a batch-fetched kind (the XPath
+  # result-set batch fills out_kinds) pass it so the wrap skips the
+  # get_type dispatch; nil (the default) dispatches as before.
+  def self.wrap(c_ptr, document, parent: nil, node_type: nil)
     # Per-document weak-ref cache. Returns the existing wrapper when the
     # same c_ptr is wrapped twice (common in children/sibling walks,
     # repeated xpath queries, traverse-then-access patterns). The cache
@@ -21,7 +24,7 @@ class Leptris::XML::Node
       return cached
     end
 
-    node_type = Leptris::XML::FFI.leptris_node_get_type(c_ptr)
+    node_type ||= Leptris::XML::FFI.leptris_node_get_type(c_ptr)
     node =
       case node_type
       when Leptris::XML::FFI::NODE_ELEMENT
