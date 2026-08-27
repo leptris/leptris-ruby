@@ -22,6 +22,7 @@ module Leptris
     autoload :Serialization, "leptris/xml/serialization"
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
+    autoload :XSLT, "leptris/xml/xslt"
     autoload :Pull, "leptris/xml/pull"
     autoload :Iterparse, "leptris/xml/iterparse"
 
