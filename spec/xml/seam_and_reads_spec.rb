@@ -307,3 +307,19 @@ RSpec.describe "round XV: type-tagged batch materialization" do
     expect(ns[3].content).to eq("cd")
   end
 end
+
+RSpec.describe "round XVIII: at() on the single-node seam" do
+  it "matches at_xpath and at_css across shapes" do
+    doc = Leptris::XML.parse(%(<r><a id="1"/><a id="2"/><c/></r>))
+    expect(doc.at("//a")).to eq(doc.at_xpath("//a"))
+    expect(doc.at("c")).to eq(doc.at_css("c"))
+    expect(doc.at("nope")).to be_nil
+    expect(doc.at("//nope")).to be_nil
+    # Scalars (count/string) are at_xpath's contract — the generic
+    # at dispatches on path-prefix syntax, same rule as #search.
+    expect(doc.at_xpath("count(//a)")).to eq(2.0)
+    expect(doc % "//a").to eq(doc.at_xpath("//a"))  # the % alias too
+    b = doc.root.element_children.first
+    expect(b.at("./following-sibling::c").name).to eq("c")  # relative xpath
+  end
+end

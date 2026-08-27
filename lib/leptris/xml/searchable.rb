@@ -50,9 +50,16 @@ module Leptris::XML::Searchable
   end
   alias_method :/, :search
 
+  # Single-node seam (round XIV): dispatch on syntax like #search,
+  # then call the at_* fast paths directly — no NodeSet container,
+  # no result handle, one fewer dispatch than search().first.
   def at(*args)
-    result = search(*args)
-    result.is_a?(Leptris::XML::NodeSet) ? result.first : result
+    paths = args.first.is_a?(Array) ? args.first : [args.first]
+    if paths.map(&:to_s).all? { |p| looks_like_xpath?(p) }
+      at_xpath(*paths)
+    else
+      at_css(*args)
+    end
   end
   alias_method :%, :at
 
