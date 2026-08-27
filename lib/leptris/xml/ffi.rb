@@ -43,6 +43,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
       typedef :pointer, :leptris_xslt
+      typedef :pointer, :leptris_sax_recorder
       typedef :pointer, :leptris_pull_parser
       typedef :pointer, :leptris_iterparse
       typedef :pointer, :leptris_xpath_var_set
@@ -80,6 +81,33 @@ module Leptris
           :max_depth, :int,
           :recover, :int
       end
+
+      # LeptrisSaxEventRecord (types.h, issue #585): fixed layout the
+      # header explicitly freezes for FFI mirrors. Strings are NOT
+      # inline — name/text/attrs slice the recorder's arena.
+      class SaxEventRecord < ::FFI::Struct
+        layout :kind, :uint8,
+               :reserved, [:uint8, 7],
+               :name_off, :uint32, :name_len, :uint32,
+               :text_off, :uint32, :text_len, :uint32,
+               :attrs_off, :uint32, :attr_count, :uint32,
+               :line, :uint32, :column, :uint32
+      end
+
+      SAX_EVENT_START_DOCUMENT = 0
+      SAX_EVENT_END_DOCUMENT   = 1
+      SAX_EVENT_START_ELEMENT  = 2
+      SAX_EVENT_END_ELEMENT    = 3
+      SAX_EVENT_CHARACTERS     = 4
+      SAX_EVENT_COMMENT        = 5
+      SAX_EVENT_CDATA          = 6
+      SAX_EVENT_PI             = 7
+      SAX_EVENT_START_PREFIX   = 8
+      SAX_EVENT_END_PREFIX     = 9
+      SAX_EVENT_ERROR          = 10
+
+      ITERPARSE_TOP_LEVEL      = 0
+      ITERPARSE_FULL_DOCUMENT  = 1
 
       # struct LeptrisPullEvent (leptris/sax.h): FFI::Struct derives
       # the field offsets from the layout, so ABI changes are a
@@ -499,6 +527,19 @@ module Leptris
         [:pointer, :pointer], :leptris_sax_parser
       attach_function :leptris_sax_parser_feed,
         [:leptris_sax_parser, :string, :size_t, :int], :int
+      # Chunked event recorder (libleptris 1.9.4, #585): buffers
+      # events C-side (fixed records + packed arena); the host
+      # drains in bulk — callbacks become O(chunks), not O(events).
+      attach_function :leptris_sax_recorder_new,
+        [], :leptris_sax_recorder
+      attach_function :leptris_sax_recorder_feed,
+        [:leptris_sax_recorder, :string, :size_t, :int], :int
+      attach_function :leptris_sax_recorder_records,
+        [:leptris_sax_recorder, :pointer], :pointer
+      attach_function :leptris_sax_recorder_arena,
+        [:leptris_sax_recorder, :pointer], :pointer
+      attach_function :leptris_sax_recorder_free,
+        [:leptris_sax_recorder], :void
       attach_function :leptris_sax_parser_free,
         [:leptris_sax_parser], :void
       attach_function :leptris_sax_parser_set_streaming,
@@ -528,6 +569,19 @@ module Leptris
         [:string], :leptris_iterparse
       attach_function :leptris_iterparse_next,
         [:leptris_iterparse], :leptris_element
+      # iterparse v2 (libleptris 1.9.4, #586): explicit yield mode
+      # (top-level children or full-document post-order), namespace
+      # resolution on the last yielded element, error channel.
+      attach_function :leptris_iterparse_new_ex,
+        [:string, :size_t, :int], :leptris_iterparse
+      attach_function :leptris_iterparse_new_file_ex,
+        [:string, :int], :leptris_iterparse
+      attach_function :leptris_iterparse_ns_count,
+        [:leptris_iterparse], :size_t
+      attach_function :leptris_iterparse_ns_uri,
+        [:leptris_iterparse, :string], :string
+      attach_function :leptris_iterparse_error,
+        [:leptris_iterparse], :string
       attach_function :leptris_iterparse_free,
         [:leptris_iterparse], :void
 

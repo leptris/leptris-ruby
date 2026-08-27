@@ -5,6 +5,47 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.22] - 2026-08-27
+
+### Added
+
+- **libleptris 1.9.4 lockstep** (leptris/leptris#585, #586): Rakefile
+  pin bumped; symbol audit 242/242 attached-vs-exported with the ten
+  new functions.
+- **`SAX::Recorder`**: public chunked-event API over the C recorder —
+  `Recorder.parse(xml_or_io)` / `Recorder#feed` / `#each_event`
+  yield `kind, name, text, attrs, line, column` with UTF-8 strings,
+  drained as one bulk read per chunk (records via `read_bytes` +
+  `unpack` against the packed string arena — no per-event FFI
+  struct). NOT wired into `SAX::Parser#parse_memory`: measured
+  parity-to-−30% vs the callback path (per-parse recorder setup
+  scales with input size; findings and measurements filed upstream
+  as leptris/leptris#594). It remains the right shape for hosts
+  that drain bulk events per chunk.
+- **Iterparse v2** (#586): `Iterparse.parse` / `.parse_file` take
+  `mode:` — `:top_level` (v1: the root's completed children) or
+  `:full_document` (every element, post-order, child before parent).
+  `#namespace_uri(prefix)` / `#namespace_count` resolve prefixes on
+  the last yielded element's in-scope snapshot (call inside the run
+  block); `#error` reports truncated/malformed input.
+
+### Changed
+
+- **Iterparse lifecycle**: `#run` no longer frees in `ensure` — the
+  block form of `.parse`/`.parse_file` frees on return (Pull's
+  pattern), the no-block form returns a live iterator for explicit
+  `#free`. This fixes the `enum_for` path, which previously freed
+  the handle before the enumerator drove it, and lets `#error`
+  stay readable after the run (`#free` snapshots the terminal
+  message). Full-document mode measures +36% CPU over top-level —
+  proportional to yielding every element instead of root children.
+
+### Meta
+
+- Head-to-head vs published 1.9.21 (engine 1.9.0 vs 1.9.4): SAX
+  callback parsing and iterparse at parity across two passes; no
+  regression from the engine bump.
+
 ## [1.9.21] - 2026-08-27
 
 ### Changed
