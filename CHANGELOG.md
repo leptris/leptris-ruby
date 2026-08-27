@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.24] - 2026-08-27
+
+### Changed
+
+- **Interest-proportional SAX (both transports)**: the handler's
+  declared interest — which event methods it overrides — now decides
+  what the transport dispatches or drains.
+  - `SAX::Parser` attaches a callback only when the handler defines
+    the method beyond `SAX::Document`'s no-ops; the C engine already
+    skips NULL callbacks, so unwanted events cost nothing on either
+    side. Measured per parse of a 1.9 MB / 250k-event document:
+    text-only handler 151 ms -> 22 ms (**6.9x**); a handler that
+    overrides nothing runs at the C floor, 151 ms -> 7 ms
+    (**22x**); elements-only 151 ms -> 121 ms (-20%, the remainder
+    is attribute walking). Handlers overriding most kinds stay at
+    parity. Duck-typed handlers attach exactly what they define.
+  - `SAX::Recorder#each_event(*kinds)` (and `Recorder.parse(...,
+    kinds:)`, `#feed_stream(..., kinds:)`) skips records of other
+    kinds BEFORE slicing any strings from the arena — an unwanted
+    event costs one Array read. Filtered `:characters` drain 201 ms
+    -> 119 ms (**-41%**); unknown kinds raise ArgumentError. The
+    kind lookup table is now an Array indexed by the event code.
+  - Transport choice, by measurement: the pruned callback transport
+    beats the filtered recorder for selective consumers (C-side
+    emission is skipped entirely), so callbacks remain the default;
+    the recorder keeps its niche — bulk raw-event drains per chunk.
+
 ## [1.9.23] - 2026-08-27
 
 ### Added

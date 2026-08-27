@@ -83,57 +83,93 @@ class Leptris::XML::SAX::Parser
   private
 
   # Build a LeptrisSAXHandler struct populated with FFI::Function callbacks
-  # that dispatch to the Ruby handler.
+  # that dispatch to the Ruby handler. Only the callbacks the handler
+  # actually overrides are attached: the C engine skips NULL callbacks,
+  # so cost scales with the handler's declared interest, not with the
+  # document's event mix (measured 4.9x for an elements-only handler on
+  # a 1.9 MB stream).
   def build_handler_struct
     s = Leptris::XML::FFI::SAXHandler.new
     handler = @document  # capture in closures
 
-    s[:start_document] = callback(:void, [:pointer]) do |_|
-      handler.start_document
+    if overridden?(:start_document)
+      s[:start_document] = callback(:void, [:pointer]) do |_|
+        handler.start_document
+      end
     end
 
-    s[:end_document] = callback(:void, [:pointer]) do |_|
-      handler.end_document
+    if overridden?(:end_document)
+      s[:end_document] = callback(:void, [:pointer]) do |_|
+        handler.end_document
+      end
     end
 
-    s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, attrs_ptr|
-      attrs = walk_attr_array(attrs_ptr)
-      handler.start_element(utf8(name), attrs)
+    if overridden?(:start_element)
+      s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, attrs_ptr|
+        attrs = walk_attr_array(attrs_ptr)
+        handler.start_element(utf8(name), attrs)
+      end
     end
 
-    s[:end_element] = callback(:void, [:pointer, :string]) do |_, name|
-      handler.end_element(utf8(name))
+    if overridden?(:end_element)
+      s[:end_element] = callback(:void, [:pointer, :string]) do |_, name|
+        handler.end_element(utf8(name))
+      end
     end
 
-    s[:characters] = callback(:void, [:pointer, :pointer, :size_t]) do |_, text_ptr, len|
-      handler.characters(text_ptr.read_bytes(len).force_encoding(Encoding::UTF_8))
+    if overridden?(:characters)
+      s[:characters] = callback(:void, [:pointer, :pointer, :size_t]) do |_, text_ptr, len|
+        handler.characters(text_ptr.read_bytes(len).force_encoding(Encoding::UTF_8))
+      end
     end
 
-    s[:comment] = callback(:void, [:pointer, :string]) do |_, comment|
-      handler.comment(utf8(comment))
+    if overridden?(:comment)
+      s[:comment] = callback(:void, [:pointer, :string]) do |_, comment|
+        handler.comment(utf8(comment))
+      end
     end
 
-    s[:cdata] = callback(:void, [:pointer, :string]) do |_, cdata|
-      handler.cdata_block(utf8(cdata))
+    if overridden?(:cdata_block)
+      s[:cdata] = callback(:void, [:pointer, :string]) do |_, cdata|
+        handler.cdata_block(utf8(cdata))
+      end
     end
 
-    s[:processing_instruction] = callback(:void, [:pointer, :string, :string]) do |_, target, data|
-      handler.processing_instruction(utf8(target), utf8(data))
+    if overridden?(:processing_instruction)
+      s[:processing_instruction] = callback(:void, [:pointer, :string, :string]) do |_, target, data|
+        handler.processing_instruction(utf8(target), utf8(data))
+      end
     end
 
-    s[:start_prefix_mapping] = callback(:void, [:pointer, :string, :string]) do |_, prefix, uri|
-      handler.start_prefix_mapping(utf8(prefix), utf8(uri))
+    if overridden?(:start_prefix_mapping)
+      s[:start_prefix_mapping] = callback(:void, [:pointer, :string, :string]) do |_, prefix, uri|
+        handler.start_prefix_mapping(utf8(prefix), utf8(uri))
+      end
     end
 
-    s[:end_prefix_mapping] = callback(:void, [:pointer, :string]) do |_, prefix|
-      handler.end_prefix_mapping(utf8(prefix))
+    if overridden?(:end_prefix_mapping)
+      s[:end_prefix_mapping] = callback(:void, [:pointer, :string]) do |_, prefix|
+        handler.end_prefix_mapping(utf8(prefix))
+      end
     end
 
-    s[:error] = callback(:void, [:pointer, :string, :int, :int]) do |_, msg, line, col|
-      handler.error(utf8(msg), line, col)
+    if overridden?(:error)
+      s[:error] = callback(:void, [:pointer, :string, :int, :int]) do |_, msg, line, col|
+        handler.error(utf8(msg), line, col)
+      end
     end
 
     s
+  end
+
+  # True when the handler defines the event method beyond the no-op
+  # every SAX::Document carries — subclasses, included modules, and
+  # duck-typed handlers all qualify; a handler that overrides nothing
+  # attaches nothing and the parse runs at the C floor.
+  def overridden?(name)
+    @document.method(name).owner != Leptris::XML::SAX::Document
+  rescue NameError
+    false
   end
 
   def callback(return_type, params, blocking: true, &block)
