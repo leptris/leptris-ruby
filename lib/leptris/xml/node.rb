@@ -19,9 +19,15 @@ class Leptris::XML::Node
     # Per-document weak-ref cache. Returns the existing wrapper when the
     # same c_ptr is wrapped twice (common in children/sibling walks,
     # repeated xpath queries, traverse-then-access patterns). The cache
-    # dies with the document so no stale entries.
-    if document && (cached = document.wrapper_cache[c_ptr.address])
-      return cached
+    # dies with the document so no stale entries. The miss path
+    # resolves the cache and address once — a cold walk wraps every
+    # node exactly once and pays both only on the store.
+    if document
+      cache = document.wrapper_cache
+      address = c_ptr.address
+      if (cached = cache[address])
+        return cached
+      end
     end
 
     node_type ||= Leptris::XML::FFI.leptris_node_get_type(c_ptr)
@@ -41,7 +47,7 @@ class Leptris::XML::Node
         new(c_ptr, document, parent: parent, node_type: node_type)
       end
 
-    document.wrapper_cache[c_ptr.address] = node if document
+    cache[address] = node if document
     node
   end
 

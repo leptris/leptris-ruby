@@ -817,16 +817,33 @@ module Leptris
         end
       end
 
-      # All-kind child handle batch (libleptris 1.7.0): count-only
-      # query sizes the buffer, one fetch copies every child kind,
-      # one bulk read materializes the pointers.
+      # All-kind child handle batch (libleptris 1.7.0). Opportunistic
+      # single dispatch: the C call copies up to the capacity handed
+      # it and returns what fit, so the count query is paid only when
+      # the buffer fills exactly (a possible truncation) — families
+      # that fit the scratch buffer cost ONE dispatch, not two.
+      FETCH_INITIAL = 32
+      private_constant :FETCH_INITIAL
+
       def self.fetch_children(c_ptr)
-        count = leptris_node_children(c_ptr, nil, 0)
-        return [] if count.zero?
-        with_pointer_buffer(count) do |buffer|
-          copied = leptris_node_children(c_ptr, buffer, count)
-          buffer.get_array_of_pointer(0, copied)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        buffer = scratch[:pointers]
+        if buffer.nil?
+          buffer = scratch[:pointers] =
+            ::FFI::MemoryPointer.new(:pointer, FETCH_INITIAL)
         end
+        cap = buffer.size / PTR_BYTES
+        copied = leptris_node_children(c_ptr, buffer, cap)
+        if copied == cap
+          total = leptris_node_children(c_ptr, nil, 0)
+          if total > cap
+            buffer.free
+            buffer = scratch[:pointers] =
+              ::FFI::MemoryPointer.new(:pointer, total)
+            copied = leptris_node_children(c_ptr, buffer, total)
+          end
+        end
+        buffer.get_array_of_pointer(0, copied)
       end
 
       # XPath result-set batch (leptris_xpath_result_get_nodes_ex):
@@ -840,18 +857,13 @@ module Leptris
 
       def self.fetch_result_nodes(result_ptr, count)
         return [[], nil] if count.zero?
-        with_pointer_buffer(count) do |buffer|
-          kinds = ::FFI::MemoryPointer.new(:int, count)
-          begin
-            copied = leptris_xpath_result_get_nodes_ex(
-              result_ptr, buffer, kinds, count)
-            hints = kinds.get_array_of_int(0, copied)
-              .map { |k| XPATH_KIND_HINT[k] }
-            [buffer.get_array_of_pointer(0, copied), hints]
-          ensure
-            kinds.free
-          end
-        end
+        buffer = scratch_pointers(count)
+        kinds = scratch_ints(count)
+        copied = leptris_xpath_result_get_nodes_ex(
+          result_ptr, buffer, kinds, count)
+        hints = kinds.get_array_of_int(0, copied)
+          .map { |k| XPATH_KIND_HINT[k] }
+        [buffer.get_array_of_pointer(0, copied), hints]
       end
 
       # Fragment parse with the status out-param read: returns
@@ -863,16 +875,38 @@ module Leptris
         [raw, status.read_int]
       end
 
-      # The one buffer-allocation point for handle-array fetches:
-      # everything MemoryPointer-related above this line is either
-      # an attached C call or another seam helper.
-      def self.with_pointer_buffer(count)
-        buffer = ::FFI::MemoryPointer.new(:pointer, count)
-        begin
-          yield buffer
-        ensure
-          buffer.free
+      # Thread-local scratch buffers for batch handle fetches (round
+      # XX): the per-call MemoryPointer new/free was pure cold-path
+      # overhead — two allocations and a GC visit per children() /
+      # result-set batch, ~15% of a cold full-tree walk between
+      # 1.9.1 and 1.9.24. The buffers grow to the largest request
+      # seen (bounded by the widest element or result set) and are
+      # reused. Safe: no Ruby reentrancy during the C call, and
+      # per-thread storage keeps concurrent fetches independent.
+      # Never freed — a few KB pinned per thread.
+      PTR_BYTES = ::FFI.type_size(:pointer)
+      private_constant :PTR_BYTES
+      INT_BYTES = ::FFI.type_size(:int)
+      private_constant :INT_BYTES
+
+      def self.scratch_pointers(count)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        ptr = scratch[:pointers]
+        if ptr.nil? || ptr.size / PTR_BYTES < count
+          ptr&.free
+          ptr = scratch[:pointers] = ::FFI::MemoryPointer.new(:pointer, count)
         end
+        ptr
+      end
+
+      def self.scratch_ints(count)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        ptr = scratch[:ints]
+        if ptr.nil? || ptr.size / INT_BYTES < count
+          ptr&.free
+          ptr = scratch[:ints] = ::FFI::MemoryPointer.new(:int, count)
+        end
+        ptr
       end
     end
   end

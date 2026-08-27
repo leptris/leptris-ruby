@@ -323,3 +323,40 @@ RSpec.describe "round XVIII: at() on the single-node seam" do
     expect(b.at("./following-sibling::c").name).to eq("c")  # relative xpath
   end
 end
+
+RSpec.describe "round XX: scratch-buffered batch fetches" do
+  it "grows the scratch buffer past a 32-child family and reads every child" do
+    wide = (1..80).map { |i| "<n#{i}/>x" }.join
+    root = Leptris::XML::Document.parse("<r>#{wide}</r>").root
+    expect(root.children.size).to eq(160)
+    expect(root.children.map(&:name)).to include("n1", "n80")
+  end
+
+  it "reuses the grown buffer across narrower families without crosstalk" do
+    doc = Leptris::XML::Document.parse(
+      "<r><wide>#{(1..40).map { |i| "<c#{i}/>" }.join}</wide><tiny><one/></tiny></r>")
+    wide, tiny = doc.root.element_children.first, doc.root.element_children.last
+    expect(wide.children.size).to eq(40)
+    expect(tiny.children.size).to eq(1)
+    expect(tiny.children.first.name).to eq("one")
+    # drain in the opposite order too — the buffer is shared per thread
+    expect(tiny.children.size).to eq(1)
+    expect(wide.children.map(&:name)).to eq((1..40).map { |i| "c#{i}" })
+  end
+
+  it "keeps concurrent fetches independent across threads" do
+    doc = Leptris::XML::Document.parse(
+      "<r>#{(1..50).map { |i| "<c#{i}/>t" }.join}</r>")
+    root = doc.root
+    threads = 4.times.map do
+      Thread.new do
+        10.times do
+          kids = root.children.to_a
+          raise "size #{kids.size}" unless kids.size == 100
+        end
+      end
+    end
+    threads.each(&:join)
+    expect(root.children.size).to eq(100)
+  end
+end
