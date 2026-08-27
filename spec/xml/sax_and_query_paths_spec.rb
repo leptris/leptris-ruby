@@ -96,3 +96,61 @@ RSpec.describe "round XVII: pull hot-loop reads" do
     expect(inner.attrs).to be_nil
   end
 end
+
+RSpec.describe "libleptris 1.9.4 surface" do
+  it "records events in bulk with UTF-8 strings (SAX::Recorder)" do
+    kinds = []
+    attrs = nil
+    Leptris::XML::SAX::Recorder.parse(
+      %(<r k="v">caf\xc3\xa9<!--c--></r>)) do |kind, name, text, a, _l, _c|
+      kinds << kind
+      attrs = a if kind == :start_element
+      expect([name, text].compact.map(&:encoding)).to all(eq(Encoding::UTF_8)) if text
+    end
+    expect(kinds).to eq(%i[start_document start_element characters comment
+                           end_element end_document])
+    expect(attrs).to eq({ "k" => "v" })
+  end
+
+  it "streams recorder events from an IO chunk by chunk" do
+    require "stringio"
+    kinds = []
+    Leptris::XML::SAX::Recorder.parse(StringIO.new(%(<r><a/><b/></r>))) do |kind, *|
+      kinds << kind
+    end
+    expect(kinds).to eq(%i[start_document start_element start_element
+                           end_element start_element end_element
+                           end_element end_document])
+  end
+
+  it "iterates full-document mode in post-order (v2 #586)" do
+    order = []
+    Leptris::XML::Iterparse.parse(
+      %(<r><a><b/></a><c/></r>), mode: :full_document) do |el|
+      order << el.name
+    end
+    expect(order).to eq(%w[b a c r])  # child before parent
+  end
+
+  it "resolves namespaces on the last yielded element" do
+    scopes = []
+    iter = Leptris::XML::Iterparse.parse(
+      %(<r xmlns:p="urn:p"><p:a/><q:b xmlns:q="urn:q"/></r>))
+    iter.run do |el|
+      scopes << [el.name, iter.namespace_uri("p"), iter.namespace_uri("nope"),
+                 iter.namespace_count, iter.error]
+    end
+    iter.free
+    # element_name is the local name (DOM-consistent); the iterator's
+    # snapshot is what resolves prefixes to URIs.
+    expect(scopes).to eq(
+      [["a", "urn:p", nil, 1, nil],
+       ["b", "urn:p", nil, 2, nil]])
+    expect(iter.error).to be_nil
+  end
+
+  it "reports the error channel for truncated input" do
+    it = Leptris::XML::Iterparse.parse(%(<r><a>)) { |el| }
+    expect(it.error).to be_a(String)
+  end
+end
