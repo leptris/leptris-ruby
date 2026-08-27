@@ -5,6 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.19] - 2026-08-27
+
+Lockstep with libleptris 1.9.3 — unblocks the 1.9.18 release
+(v1.9.2 did not compile on musl, upstream #582).
+
+### Added
+
+- **`Document#comments`**: document-level comments — parsed
+  `<!-- ... -->` outside the root, prolog then epilog, in document
+  order (upstream #578). UTF-8, version-memoized like the PI list;
+  the companion reader to `#processing_instructions`.
+
+### Fixed
+
+- Rides the engine's v1.9.3 fixes: dataless PIs parse correctly
+  (#577 — `<?pi?>` no longer clobbers its closing `?`), epilog
+  comments are kept and serialize after the root (#578), and
+  attribute values normalize per XML 1.0 §3.3.3 (#576 — whitespace
+  collapsing and entity decoding in attribute values).
+
 ## [1.9.18] - 2026-08-27
 
 Lockstep with libleptris 1.9.2 (covers 1.9.1 — the XSLT engine — and
