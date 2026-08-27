@@ -42,6 +42,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_result
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
+      typedef :pointer, :leptris_xslt
       typedef :pointer, :leptris_pull_parser
       typedef :pointer, :leptris_iterparse
       typedef :pointer, :leptris_xpath_var_set
@@ -478,7 +479,11 @@ module Leptris
       attach_function :leptris_xpath_compiled_eval_vars,
         [:leptris_xpath_compiled, :leptris_document, :leptris_element,
          :leptris_xpath_var_set], :leptris_xpath_result
+      # Source text of a compiled expression (owned by the handle).
+      attach_function :leptris_xpath_compiled_text,
+        [:leptris_xpath_compiled], :string
       attach_function :leptris_xpath_compiled_free,
+
         [:leptris_xpath_compiled], :void
 
       attach_function :leptris_sax_parse,
@@ -539,7 +544,23 @@ module Leptris
         [:leptris_element, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_save_file,
         [:leptris_document, :string, :pointer], :leptris_status
+      # XSLT 1.0 engine (libleptris 1.9.1): compile once, apply many.
+      attach_function :leptris_xslt_parse,
+        [:string, :size_t], :leptris_xslt
+      attach_function :leptris_xslt_parse_file,
+        [:string], :leptris_xslt
+      attach_function :leptris_xslt_free,
+        [:leptris_xslt], :void
+      # Result tree is a document (free with document_free); errors
+      # surface via document_last_error on NULL.
+      attach_function :leptris_xslt_apply,
+        [:leptris_xslt, :leptris_document], :leptris_document
+      # apply + serialize in one call, keeping top-level text nodes
+      # and result fragments the tree API would flatten.
+      attach_function :leptris_xslt_apply_string,
+        [:leptris_xslt, :leptris_document], :pointer
       attach_function :leptris_c14n_canonicalize,
+
         [:leptris_document, :int, :int], :pointer
       attach_function :leptris_c14n_canonicalize_subtree,
         [:leptris_element, :int, :int], :pointer

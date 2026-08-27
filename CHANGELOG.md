@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.18] - 2026-08-27
+
+Lockstep with libleptris 1.9.2 (covers 1.9.1 — the XSLT engine — and
+1.9.2, the options-struct ABI freeze; the binding's three-field
+SerializeOptions layout is the frozen shape, so no binding change was
+required for the fix).
+
+### Added
+
+- **`Leptris::XML::XSLT` — XSLT 1.0 transforms**: the engine compiles
+  a stylesheet ONCE into an immutable instruction forest, then applies
+  it to any number of documents. `XSLT.parse(xml)` /
+  `XSLT.parse_file(path)` (resolves §2.7 embedded stylesheets);
+  `Stylesheet#apply_to(doc)` returns the result as an owning,
+  queryable Document; `Stylesheet#serialize(doc)` keeps top-level
+  text nodes and result fragments. Bad select expressions are
+  rejected at COMPILE time. The custom XPath-function handler seam
+  attaches mirror-only until a use case arrives.
+
 ## [1.9.17] - 2026-08-27
 
 ### Changed
