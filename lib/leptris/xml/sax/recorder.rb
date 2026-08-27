@@ -29,6 +29,10 @@ class Leptris::XML::SAX::Recorder
     Leptris::XML::FFI::SAX_EVENT_ERROR => :error,
   }.freeze
 
+  # Kind symbol per code byte — Array indexing in the drain loop,
+  # not a Hash lookup per event.
+  KIND_BY_CODE = Array.new(KINDS.size) { |code| KINDS[code] }.freeze
+
   def self.open
     raw = Leptris::XML::FFI.leptris_sax_recorder_new
     if raw.null?
@@ -38,14 +42,17 @@ class Leptris::XML::SAX::Recorder
   end
 
   # One-shot parse over a complete document, yielding Record structs.
-  def self.parse(xml_or_io)
+  # +kinds+ filters the drain (see #each_event) — pass e.g.
+  # `kinds: [:start_element]` to slice strings only for the events
+  # you consume.
+  def self.parse(xml_or_io, kinds: nil)
     recorder = open
     begin
       if xml_or_io.respond_to?(:read)
-        recorder.feed_stream(xml_or_io) { |*args| yield(*args) }
+        recorder.feed_stream(xml_or_io, kinds: kinds) { |*args| yield(*args) }
       else
         recorder.feed(xml_or_io.to_s, final: true)
-        recorder.each_event { |*args| yield(*args) }
+        recorder.each_event(*Array(kinds)) { |*args| yield(*args) }
       end
     ensure
       recorder.free
@@ -72,19 +79,23 @@ class Leptris::XML::SAX::Recorder
   end
 
   # Feed an IO in chunks, draining events after each chunk.
-  def feed_stream(io, chunk_size = 65_536, &block)
+  def feed_stream(io, chunk_size = 65_536, kinds: nil, &block)
     while (chunk = io.read(chunk_size))
       feed(chunk)
-      each_event(&block)
+      each_event(*Array(kinds), &block)
     end
     feed("", final: true)
-    each_event(&block)
+    each_event(*Array(kinds), &block)
   end
 
   # Drains the current chunk's records: bulk-reads the record array
   # and the packed arena (two FFI calls), then slices every string
-  # from the arena in Ruby — no per-string FFI.
-  def each_event
+  # from the arena in Ruby — no per-string FFI. With +kinds+, records
+  # of other kinds are skipped BEFORE any string is sliced: an
+  # unwanted event costs one Array read, and cost scales with what
+  # the consumer asked for, not with the document's event mix.
+  def each_event(*kinds)
+    wanted = kinds.empty? ? nil : wanted_set(kinds)
     count_ptr = ::FFI::MemoryPointer.new(:size_t)
     len_ptr = ::FFI::MemoryPointer.new(:size_t)
     begin
@@ -108,8 +119,8 @@ class Leptris::XML::SAX::Recorder
 
       i = 0
       while i < count
-        kind = KINDS[fields[i * 9]]
-        if kind
+        kind = KIND_BY_CODE[fields[i * 9]]
+        if kind && (wanted.nil? || wanted[kind])
           base = i * 9 + 1
           yield kind,
                 slice(arena, fields[base], fields[base + 1]),
@@ -127,6 +138,18 @@ class Leptris::XML::SAX::Recorder
   end
 
   private
+
+  def wanted_set(kinds)
+    unknown = kinds.each_with_object([]) do |kind, acc|
+      acc << kind unless KINDS.value?(kind)
+    end
+    unless unknown.empty?
+      raise ArgumentError,
+        "unknown event kinds #{unknown.inspect} " \
+        "(known: #{KINDS.values.inspect})"
+    end
+    kinds.each_with_object({}) { |kind, set| set[kind] = true }
+  end
 
   # Zero-length slices are empty strings, not nil — the default
   # namespace prefix is legitimately "" (START_PREFIX: name may be

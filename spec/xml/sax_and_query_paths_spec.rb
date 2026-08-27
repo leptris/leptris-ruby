@@ -154,3 +154,89 @@ RSpec.describe "libleptris 1.9.4 surface" do
     expect(it.error).to be_a(String)
   end
 end
+
+RSpec.describe "round XIX: interest-proportional SAX" do
+  it "leaves callbacks NULL when the handler does not override them" do
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name, attrs = []| }
+    end.new
+    struct = Leptris::XML::SAX::Parser.new(handler).handler_struct
+    expect(struct[:start_element]).not_to be_null
+    expect(struct[:characters]).to be_null
+    expect(struct[:end_element]).to be_null
+    expect(struct[:error]).to be_null
+  end
+
+  it "delivers the overridden events with their payloads" do
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name, attrs = []| seen << [:start, name, attrs] }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(%(<r a="1"><a/>text</r>))
+    expect(seen).to eq([[:start, "r", [["a", "1"]]], [:start, "a", []]])
+  end
+
+  it "parses with a handler that overrides nothing" do
+    expect {
+      Leptris::XML::SAX::Parser.new(Leptris::XML::SAX::Document.new)
+        .parse(%(<r><a>x</a></r>))
+    }.not_to raise_error
+  end
+
+  it "attaches what a duck-typed handler defines" do
+    seen = []
+    duck = Class.new do
+      define_method(:start_element) { |name, attrs = []| seen << [:start, name] }
+      define_method(:characters) { |text| seen << [:text, text] }
+    end.new
+    Leptris::XML::SAX::Parser.new(duck).parse(%(<r>x</r>))
+    expect(seen).to eq([[:start, "r"], [:text, "x"]])
+  end
+
+  it "streams an IO through the pruned struct" do
+    require "stringio"
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:end_element) { |name| seen << name }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(StringIO.new(%(<r><a/></r>)))
+    expect(seen).to eq(%w[a r])
+  end
+
+  it "drains only the requested kinds from the recorder" do
+    seen = []
+    Leptris::XML::SAX::Recorder.parse(
+      %(<r a="1">t<!--c--></r>), kinds: [:start_element]) do |kind, name, _t, attrs|
+      seen << [kind, name, attrs]
+    end
+    expect(seen).to eq([[:start_element, "r", { "a" => "1" }]])
+  end
+
+  it "filters per-chunk drains too" do
+    require "stringio"
+    seen = []
+    Leptris::XML::SAX::Recorder.parse(
+      StringIO.new(%(<r><a/>t</r>)), kinds: [:end_element]) do |kind, name|
+      seen << [kind, name]
+    end
+    expect(seen).to eq([[:end_element, "a"], [:end_element, "r"]])
+  end
+
+  it "supports each_event filtering directly" do
+    recorder = Leptris::XML::SAX::Recorder.open
+    begin
+      recorder.feed(%(<r><a/>t</r>), final: true)
+      seen = []
+      recorder.each_event(:characters) { |kind, _n, text| seen << [kind, text] }
+      expect(seen).to eq([[:characters, "t"]])
+    ensure
+      recorder.free
+    end
+  end
+
+  it "rejects unknown kinds" do
+    expect {
+      Leptris::XML::SAX::Recorder.parse(%(<r/>), kinds: [:nope]) { |*| }
+    }.to raise_error(ArgumentError, /unknown event kinds/)
+  end
+end
