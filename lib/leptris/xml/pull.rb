@@ -60,6 +60,14 @@ module Leptris::XML::Pull
       self
     end
 
+    # Hot-loop offsets: derived from PullEventStruct's layout (the
+    # struct stays the single source of truth for the ABI), read via
+    # get_int/get_pointer so the per-event struct-wrapper allocation
+    # disappears from streaming loops.
+    NAME_OFFSET = Leptris::XML::FFI::PullEventStruct.offset_of(:name)
+    TEXT_OFFSET = Leptris::XML::FFI::PullEventStruct.offset_of(:text)
+    private_constant :NAME_OFFSET, :TEXT_OFFSET
+
     # Advances the cursor and returns the next Event, or nil after the
     # end of the document. Attribute values are captured during
     # start_element because the C accessors are valid only for the
@@ -67,26 +75,31 @@ module Leptris::XML::Pull
     def next_event
       raw = Leptris::XML::FFI.leptris_pull_next(@handle)
       return nil if raw.null?
-      event = Leptris::XML::FFI::PullEventStruct.new(raw)
-      type = TYPES[event[:type]]
-      name = read_owned(event[:name])
-      text = read_owned(event[:text])
+      type = TYPES[raw.get_int(0)]
+      name_ptr = raw.get_pointer(NAME_OFFSET)
+      text_ptr = raw.get_pointer(TEXT_OFFSET)
       attrs = type == :start_element ? capture_attrs : nil
-      Event.new(type: type, name: name, text: text, attrs: attrs)
+      Event.new(
+        type: type,
+        name: name_ptr.null? ? nil : name_ptr.read_string.force_encoding(Encoding::UTF_8),
+        text: text_ptr.null? ? nil : text_ptr.read_string.force_encoding(Encoding::UTF_8),
+        attrs: attrs
+      )
     end
 
     private
 
-    def read_owned(ptr)
-      ptr.null? ? nil : ptr.read_string.force_encoding(Encoding::UTF_8)
-    end
-
     def capture_attrs
       count = Leptris::XML::FFI.leptris_pull_attr_count(@handle)
-      count.times.each_with_object({}) do |i, hash|
+      return nil if count.zero?
+      hash = {}
+      i = 0
+      while i < count
         hash[Leptris::XML::FFI.leptris_pull_attr_name(@handle, i)] =
           Leptris::XML::FFI.leptris_pull_attr_value(@handle, i)
+        i += 1
       end
+      hash
     end
   end
 

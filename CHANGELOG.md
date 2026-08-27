@@ -5,6 +5,27 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.20] - 2026-08-27
+
+### Changed
+
+- **Pull event loop allocation trim**: `Parser#next_event` reads the
+  event's type/name/text through layout-derived offsets
+  (`PullEventStruct.offset_of` — the struct stays the ABI's single
+  source of truth) instead of allocating a struct wrapper per event;
+  `capture_attrs` builds its hash without the enumerator machinery
+  and answers nil for zero attributes. Streaming a 300-element
+  document: 2.9 ms -> 2.3 ms per parse (**-20%**). The remaining
+  per-event cost is FFI dispatch — the batch ask is filed upstream
+  (leptris/leptris#589).
+
+### Meta
+
+- Streaming-path benchmarks added to the round's report: pull with
+  events measured 145x slower than DOM-parsing the same bytes
+  (dispatch-dominated); iterparse's 60% system-time signature
+  documented on leptris/leptris#563 (C-side release churn).
+
 ## [1.9.19] - 2026-08-27
 
 Lockstep with libleptris 1.9.3 — unblocks the 1.9.18 release

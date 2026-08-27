@@ -67,3 +67,32 @@ RSpec.describe "round III: SAX adapter and query paths" do
   end
 end
 
+
+RSpec.describe "round XVII: pull hot-loop reads" do
+  it "reads events through the layout-derived offsets" do
+    events = []
+    Leptris::XML::Pull.parse(%(<?pi data?><!-- c --><r k="v">t<b/></r>)) do |e|
+      events << e
+    end
+    types = events.map(&:type)
+    expect(types).to eq(%i[pi comment start_element text start_element
+                           end_element end_element end_document])
+    pi = events.first
+    expect(pi.name).to eq("pi")
+    expect(pi.text).to eq("data")
+    expect(pi.text.encoding).to eq(Encoding::UTF_8)
+    start = events.find { |e| e.type == :start_element }
+    expect(start.name).to eq("r")
+    expect(start.attrs).to eq({ "k" => "v" })
+    expect(start.attrs.keys.first.encoding).to eq(Encoding::UTF_8)
+    text = events.find { |e| e.type == :text }
+    expect(text.text).to eq("t")
+  end
+
+  it "answers nil attrs when the element has none" do
+    events = []
+    Leptris::XML::Pull.parse(%(<r><a/></r>)) { |e| events << e }
+    inner = events.find { |e| e.name == "a" }
+    expect(inner.attrs).to be_nil
+  end
+end
