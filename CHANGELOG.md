@@ -5,6 +5,34 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.25] - 2026-08-28
+
+### Fixed
+
+- **Cold full-tree walk regression (1.9.1 → 1.9.24, ~1.4-1.5x)
+  recovered to parity**: the batch-fetch era (1.9.11-1.9.17) bought
+  its warm-path wins with per-call machinery the cold branch paid
+  on every children() — reproduced, bisected across every published
+  release, and profiled end to end this round. Raw cold walk of a
+  ~4,200-node catalog (interleaved best-of-5): 1.9.24 5,441 µs ->
+  **4,519 µs (-17%)**, vs 1.9.1's 4,369 µs = parity. Through moxml
+  the same shape improves 20.1 ms -> 16.5 ms (-18%).
+  - `FFI.fetch_children` (and the XPath result batch) now use
+    thread-local scratch buffers that grow to the largest family
+    seen and are reused — no MemoryPointer allocation/free per
+    call, and materially less GC. The count query is paid only when
+    the buffer fills exactly (possible truncation): a family that
+    fits costs ONE dispatch, not two.
+  - `Node.wrap`'s miss path resolves the wrapper cache and pointer
+    address once instead of twice — a cold walk wraps every node
+    exactly once, so the cache is 100% misses and every redundant
+    resolution was pure cost. Identity semantics unchanged.
+  - Kept: the per-field version-stamped memo stores on writable
+    documents (ADR-0003's writable extension — the residual ~3% vs
+    1.9.1 is that feature working) and the batch architecture
+    itself (never more FFI dispatches than the linked-list walk,
+    and 2 vs 701 for the 700-child root).
+
 ## [1.9.24] - 2026-08-27
 
 ### Changed
