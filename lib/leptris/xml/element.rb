@@ -17,11 +17,14 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :node_name=, :name=
 
   def content
-    return @content if readonly_cached?(:@content)
+    return @content if memo_hit?(@content_version)
     ensure_alive!
-    Leptris::XML::FFI.leptris_element_text(@c_ptr).tap do |text|
-      @content = text if @document&.readonly?
+    result = Leptris::XML::FFI.leptris_element_text(@c_ptr)
+    if @document
+      @content = result
+      @content_version = @document.version
     end
+    result
   end
 
   def content=(new_content)
@@ -104,31 +107,43 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def keys
-    return @keys if readonly_cached?(:@keys)
+    return @keys if memo_hit?(@keys_version)
     result = each_attribute.to_a.map(&:name)
-    @keys = result if @document&.readonly?
+    if @document
+      @keys = result
+      @keys_version = @document.version
+    end
     result
   end
 
   def values
-    return @values if readonly_cached?(:@values)
+    return @values if memo_hit?(@values_version)
     result = each_attribute.to_a.map(&:value)
-    @values = result if @document&.readonly?
+    if @document
+      @values = result
+      @values_version = @document.version
+    end
     result
   end
 
   def attributes
-    return @attributes if readonly_cached?(:@attributes)
+    return @attributes if memo_hit?(@attributes_version)
     result = {}
     each_attribute { |attr| result[attr.name] = attr }
-    @attributes = result if @document&.readonly?
+    if @document
+      @attributes = result
+      @attributes_version = @document.version
+    end
     result
   end
 
   def attribute_nodes
-    return @attribute_nodes if readonly_cached?(:@attribute_nodes)
+    return @attribute_nodes if memo_hit?(@attribute_nodes_version)
     result = each_attribute.to_a
-    @attribute_nodes = result if @document&.readonly?
+    if @document
+      @attribute_nodes = result
+      @attribute_nodes_version = @document.version
+    end
     result
   end
 
@@ -247,7 +262,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :<<, :add_child
 
   def namespace
-    return @namespace if readonly_cached?(:@namespace)
+    return @namespace if memo_hit?(@namespace_version)
     ensure_alive!
     uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
     result =
@@ -261,12 +276,15 @@ class Leptris::XML::Element < Leptris::XML::Node
         prefix = nil if prefix.nil? || prefix.empty?
         Leptris::XML::Namespace.new(self, uri, prefix: prefix)
       end
-    @namespace = result if @document&.readonly?
+    if @document
+      @namespace = result
+      @namespace_version = @document.version
+    end
     result
   end
 
   def namespace_definitions
-    return @namespace_definitions if readonly_cached?(:@namespace_definitions)
+    return @namespace_definitions if memo_hit?(@namespace_definitions_version)
     ensure_alive!
     count = Leptris::XML::FFI.leptris_element_namespace_count(@c_ptr)
     result = count.times.map do |i|
@@ -274,12 +292,15 @@ class Leptris::XML::Element < Leptris::XML::Node
       uri = Leptris::XML::FFI.leptris_element_namespace_decl_uri(@c_ptr, i)
       Leptris::XML::Namespace.new(self, uri, prefix: prefix)
     end
-    @namespace_definitions = result if @document&.readonly?
+    if @document
+      @namespace_definitions = result
+      @namespace_definitions_version = @document.version
+    end
     result
   end
 
   def namespaces
-    return @namespaces if readonly_cached?(:@namespaces)
+    return @namespaces if memo_hit?(@namespaces_version)
     scopes = {}
     node = self
     while node.is_a?(Leptris::XML::Element)
@@ -289,7 +310,10 @@ class Leptris::XML::Element < Leptris::XML::Node
       end
       node = node.parent
     end
-    @namespaces = scopes if @document&.readonly?
+    if @document
+      @namespaces = scopes
+      @namespaces_version = @document.version
+    end
     scopes
   end
 

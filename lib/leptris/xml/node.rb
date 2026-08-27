@@ -101,13 +101,19 @@ class Leptris::XML::Node
   end
 
   # Raises ReadOnlyError when the owning document was marked readonly,
-  # UseAfterFreeError when it was freed.
+  # UseAfterFreeError when it was freed. Every node-level mutation
+  # passes through this gate, so it is where the document's mutation
+  # version advances — the invalidation behind writable-document
+  # memoization. Bumping before the C call is conservative: a failed
+  # mutation merely discards memos.
   def ensure_writable!
     ensure_alive!
     if readonly_document?
       raise Leptris::XML::ReadOnlyError,
         "document is readonly — mutation attempted on #{inspect}"
     end
+    @document.advance_version
+    nil
   end
 
   # Readonly is one-way, so caching TRUE is sound: once observed,
@@ -142,14 +148,17 @@ class Leptris::XML::Node
   def children
     # Immutable in readonly mode: the batch fetch plus wrapper
     # construction is paid once.
-    return @children if readonly_cached?(:@children)
+    return @children if memo_hit?(@children_version)
     ensure_alive!
     parent = as_element_or_self
     nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
       Leptris::XML::Node.wrap(ptr, @document, parent: parent)
     end
     result = Leptris::XML::NodeSet.new(@document, nodes)
-    @children = result if @document&.readonly?
+    if @document
+      @children = result
+      @children_version = @document.version
+    end
     result
   end
 
@@ -185,9 +194,12 @@ class Leptris::XML::Node
   end
 
   def element_children
-    return @element_children if readonly_cached?(:@element_children)
+    return @element_children if memo_hit?(@element_children_version)
     result = children.select(&:element?)
-    @element_children = result if @document&.readonly?
+    if @document
+      @element_children = result
+      @element_children_version = @document.version
+    end
     result
   end
   alias_method :elements, :element_children
@@ -230,16 +242,19 @@ class Leptris::XML::Node
   end
 
   def path
-    return @path if readonly_cached?(:@path)
+    return @path if memo_hit?(@path_version)
     ensure_alive!
     str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
     result = str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
-    @path = result if @document&.readonly?
+    if @document
+      @path = result
+      @path_version = @document.version
+    end
     result
   end
 
   def css_path
-    return @css_path if readonly_cached?(:@css_path)
+    return @css_path if memo_hit?(@css_path_version)
     result =
       if path.nil?
         nil
@@ -249,7 +264,10 @@ class Leptris::XML::Node
           part.gsub(/\[(\d+)\]/, ':nth-of-type(\1)')
         end.join(" > ")
       end
-    @css_path = result if @document&.readonly?
+    if @document
+      @css_path = result
+      @css_path_version = @document.version
+    end
     result
   end
 
@@ -274,11 +292,15 @@ class Leptris::XML::Node
 
   protected
 
-  # Memo presence alone proves readonly: every memo site assigns
-  # only under readonly, and readonly is one-way — so the guard
-  # saves the document round-trip on every memoized read.
-  def readonly_cached?(ivar)
-    instance_variable_defined?(ivar)
+  # A memo is valid while the document's mutation version has not
+  # advanced since that memo was stored. Each memoized field carries
+  # its OWN stamp — a shared node-level stamp would let one field's
+  # recompute resurrect another field's stale memo. Readonly
+  # documents never advance the version, so their memos are forever
+  # valid (ADR 0003 semantics); writable documents gain memos
+  # between mutations.
+  def memo_hit?(stamp)
+    @document && stamp == @document.version
   end
 
   def as_element_or_self

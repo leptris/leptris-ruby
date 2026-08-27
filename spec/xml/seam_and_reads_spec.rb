@@ -58,13 +58,19 @@ RSpec.describe "read-path performance surface" do
         .to equal(doc.processing_instructions)
     end
 
-    it "does not memoize on writable documents" do
+    it "memoizes writable documents between mutations, never stale after" do
       writable = Leptris::XML.parse(
         %(<r xmlns:p="urn:p"><c p:a="1"/></r>))
       c = writable.root.element_children.first
-      expect(c.namespaces).not_to equal(c.namespaces)
+      expect(c.namespaces).to equal(c.namespaces)  # memoized: no mutation yet
       writable.root.element_children.first["p:a"] = "2"
-      expect(c["p:a"]).to eq("2")
+      expect(c["p:a"]).to eq("2")                  # [] re-reads (writable FFI path)
+      c2 = writable.root.element_children.first
+      expect(c2.attributes["p:a"].value).to eq("2") # mutation invalidated memos
+      c3 = Leptris::XML.parse(
+        %(<r xmlns:p="urn:p"><c p:a="1"/></r>)).root.element_children.first
+      c3.content = "changed"
+      expect(c3.content).to eq("changed")           # own-field memo refreshed
     end
   end
 
@@ -169,5 +175,68 @@ RSpec.describe "round XI: cached-true readonly; lazy wrapper cache" do
     doc = Leptris::XML.parse("<r><a/></r>")
     expect(doc.root.element_children.first)
       .to equal(doc.root.element_children.first)
+  end
+end
+
+RSpec.describe "round XII: versioned writable memoization" do
+  def doc_with_memoized_reads
+    doc = Leptris::XML.parse(
+      %(<r xmlns:p="urn:p"><c a="1" p:k="2">old<!--cm--></c><sib/></r>))
+    c = doc.root.element_children.first
+    c.children; c.element_children; c.keys; c.values; c.attributes
+    c.attribute_nodes; c.namespace; c.namespace_definitions; c.namespaces
+    c.content; c.path; c.css_path
+    [doc, c]
+  end
+
+  it "memoizes between mutations, recomputes after (content)" do
+    doc, c = doc_with_memoized_reads
+    v0 = doc.version
+    c.content = "new"
+    expect(doc.version).to eq(v0 + 1)
+    expect(c.content).to eq("new")
+    fresh_text = c.children.find(&:text?)
+    expect(fresh_text.content).to eq("new")
+  end
+
+  it "invalidates after attribute mutation" do
+    doc, c = doc_with_memoized_reads
+    c["a"] = "9"
+    expect(c["a"]).to eq("9")
+    expect(c.attributes["a"].value).to eq("9")
+    expect(c.values).to include("9")
+    expect(c.keys.sort).to eq(c.attribute_nodes.map(&:name).sort)
+  end
+
+  it "invalidates after structural mutation" do
+    doc, c = doc_with_memoized_reads
+    before = c.children.length
+    c << doc.create_element("added")
+    expect(c.children.length).to eq(before + 1)
+    expect(c.element_children.map(&:name)).to eq(["added"])
+    expect(c.element_children.first.path).to include("added")
+  end
+
+  it "invalidates after namespace mutation" do
+    doc, c = doc_with_memoized_reads
+    c.add_namespace_definition("q", "urn:q")
+    expect(c.namespaces).to include("xmlns:q" => "urn:q")
+    expect(c.namespace_definitions.map(&:prefix)).to include("q")
+  end
+
+  it "invalidates after root replacement and document PIs" do
+    doc, = doc_with_memoized_reads
+    doc.add_pi("t", "d")
+    expect(doc.processing_instructions).to eq([["t", "d"]])
+    doc.root = doc.create_element("newroot")
+    expect(doc.root.name).to eq("newroot")
+  end
+
+  it "keeps readonly semantics: version never advances" do
+    doc = Leptris::XML.parse(%(<r a="1"/>), readonly: true)
+    expect(doc.version).to eq(0)
+    expect(doc.root.attributes).to equal(doc.root.attributes)
+    expect { doc.root["a"] = "x" }.to raise_error(Leptris::XML::ReadOnlyError)
+    expect(doc.version).to eq(0)
   end
 end

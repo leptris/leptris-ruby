@@ -1,4 +1,20 @@
-# ADR 0003: readonly memoization stays hand-rolled
+# ADR 0003: memoization stays hand-rolled; writable docs memoize via version stamps
+
+## 2026-08-27 extension (leptris-ruby 1.9.14)
+
+Writable documents now memoize too: Document carries a mutation
+version advanced at every mutation gate (Node#ensure_writable!,
+root=, add_pi), and each memoized field stores its OWN version
+stamp (`return @x if memo_hit?(@x_version)`). A shared node-level
+stamp was tried and rejected — one field's recompute resurrects
+another field's stale memo. Readonly semantics are unchanged
+(their version never advances). Round X's "version-stamp rejected:
+the compare costs the read" was corrected: the compare is cheap
+against multi-FFI reads.
+
+The hand-rolled per-site pattern (below) still stands; only the
+guard gained a version argument.
+
 
 ## Context
 Every readonly-mode read repeats the same three lines:

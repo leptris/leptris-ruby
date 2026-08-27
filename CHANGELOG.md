@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.14] - 2026-08-27
+
+### Changed
+
+- **Writable documents memoize** — the versioned read cache. A
+  per-document mutation version advances at every mutation gate
+  (ensure_writable!, root=, add_pi); each memoized field carries
+  its own version stamp and recomputes after any bump. Readonly
+  semantics unchanged (their version never advances — memos
+  forever valid). Measured on writable documents: namespace
+  inspection 0.392 s -> 0.013 s (**31x**, readonly parity),
+  children 0.154 s -> 0.014 s (**11x**). The read-heavy
+  DOM-editing workload (parse, query repeatedly, mutate
+  occasionally) now performs like the readonly one between
+  mutations. Staleness is test-pinned: a mutation-invalidation
+  matrix covers content, attribute, structural, namespace, root=,
+  and PI mutations against every memoized read. The shared
+  node-level stamp variant was tried and rejected in favor of
+  per-field stamps (one field's recompute must not resurrect
+  another's stale memo). ADR 0003 extended.
+- NodeSet#[] drops the Ruby-side bounds FFI (the C accessor
+  already returns NULL out of range).
+
 ## [1.9.13] - 2026-08-27
 
 ### Changed
