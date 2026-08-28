@@ -72,6 +72,12 @@ module Leptris
           :encoding, :pointer
       end
 
+      # LeptrisSerializeExtOptions (1.9.9, #129): display-form
+      # serialization knobs beyond the ABI-frozen options struct.
+      class SerializeExtStruct < ::FFI::Struct
+        layout :indent_text, :int
+      end
+
       # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
       # recover field; earlier fields unchanged since v1.6.0).
       class ParseOptionsStruct < ::FFI::Struct
@@ -156,6 +162,11 @@ module Leptris
         [:leptris_document, :size_t], :string
       attach_function :leptris_document_pi_data,
         [:leptris_document, :size_t], :string
+      # Document-level PI removal by target or index (1.9.9, #612):
+      # unlinks from the child chain; the node is pool-owned and
+      # stays valid until document free.
+      attach_function :leptris_document_remove_pi,
+        [:leptris_document, :string, :size_t], :leptris_node_ref
       attach_function :leptris_document_add_pi,
         [:leptris_document, :string, :string], :pointer
       # Document-level comments (libleptris 1.9.3, #578): parsed
@@ -611,6 +622,11 @@ module Leptris
       # (leptris#541). buf=NULL is a size query; the size-query +
       # fill pair reuses one serialization through a per-document
       # cache invalidated on mutation.
+      # Display-form variant (1.9.9, #129): the ext struct carries
+      # indent_text; returns an OWNED string — read via
+      # read_owned_string (the seam frees it).
+      attach_function :leptris_document_serialize_ext,
+        [:leptris_document, :pointer, :pointer], :pointer
       attach_function :leptris_document_serialize_into,
         [:leptris_document, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_get_dtd,

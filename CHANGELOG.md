@@ -5,6 +5,44 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.35] - 2026-08-28
+
+### Added
+
+- **libleptris 1.9.9 lockstep**: pin bumped; symbol audit 249/249
+  with `leptris_document_remove_pi` and
+  `leptris_document_serialize_ext` attached. Engine fixes ride
+  along: CDATA `]]>` runs split across node boundaries, XSLT
+  suite 144 -> 152/205, attribute-axis entity expansion.
+- **Document-level PIs fully mutable (leptris-ruby#92, upstream
+  #612)**: parse-created document-level PIs carry document
+  linkage — `target=`/`data=` work like on any tree PI (the
+  1.9.32 contract-error mapping is removed). `PI#unlink` on a
+  document-level PI routes through the new document-level removal,
+  identity-matched by index so the right same-target PI comes out.
+  New `Document#remove_pi(target_or_index)` — by target or 0-based
+  index, returns the removed (pool-owned) PI or nil.
+- **`Document#to_xml(indent_text: true)`** — display-form
+  serialization (upstream #129): text and mixed content indent;
+  output is display-oriented and not round-trip-guaranteed.
+
+### Changed
+
+- **Inline memo on `Element#[]`**: the external battery caught
+  attribute reads ~1.6x behind Nokogiri — six method dispatches
+  per read through the attributes/memo_hit? tower. The guard is
+  now spelled inline over a values hash materialized alongside the
+  Attr objects (same ADR-0003 semantics, misses included).
+
+### Meta
+
+- External head-to-head battery vs Nokogiri 1.19.4 (big.xml):
+  parse 12.3x, css 4.8x, xpath nodeset 3.0x, serialize 2.3x,
+  at_css 1.4x, SAX both shapes (round XXVI). Two shapes remain
+  behind and are C-side-bound: cold full walk 1.4x (needs
+  node_children out_kinds to skip per-node get_type — filing
+  upstream) and scalar xpath 1.5x (engine-side scalar eval).
+
 ## [1.9.34] - 2026-08-28
 
 ### Changed

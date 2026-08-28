@@ -263,12 +263,8 @@ class Leptris::XML::Node
 
   def unlink
     ensure_writable!
-    rc = Leptris::XML::FFI.leptris_node_unlink(@c_ptr)
-    if rc == Leptris::XML::FFI::LEPTRIS_ERROR_NOT_FOUND && processing_instruction?
-      raise Leptris::XML::Error,
-        Leptris::XML::ProcessingInstruction::READ_ONLY_NATIVE
-    end
-    Leptris::XML::FFI.check_status(rc)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_node_unlink(@c_ptr))
     @parent = nil
     self
   end

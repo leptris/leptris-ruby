@@ -44,8 +44,18 @@ class Leptris::XML::Element < Leptris::XML::Node
     # written prefix never matters — the hash cannot answer them.
     name = key.to_s
     if @document && !name.include?(":")
-      cached = attributes[name]
-      return cached.nil? ? nil : cached.value
+      # The hottest read in the library: the memo guard is spelled
+      # INLINE rather than through attributes/#memo_hit? — six
+      # method dispatches per read was ~40% of the read cost, and
+      # the external head-to-head (nokogiri's one C call) was
+      # winning on it. Same three-line memo semantics (ADR 0003),
+      # incl. the nil-miss — the hash answers misses too.
+      values = @attr_values
+      unless values && @attributes_version == @document.version
+        attributes
+        values = @attr_values
+      end
+      return values[name]
     end
     ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
@@ -133,9 +143,14 @@ class Leptris::XML::Element < Leptris::XML::Node
   def attributes
     return @attributes if memo_hit?(@attributes_version)
     result = {}
-    each_attribute { |attr| result[attr.name] = attr }
+    values = {}
+    each_attribute do |attr|
+      result[attr.name] = attr
+      values[attr.name] = attr.value
+    end
     if @document
       @attributes = result
+      @attr_values = values
       @attributes_version = @document.version
     end
     result
