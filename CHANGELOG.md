@@ -5,6 +5,46 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.36] - 2026-08-29
+
+### Fixed
+
+- **SAX attribute corruption (leptris-ruby#95)** — fixed fully in
+  the binding. The engine's streaming attribute buffer loses
+  leading attribute pairs when several nested ancestor levels each
+  carry attributes; all THREE streaming surfaces are affected (the
+  callback transport, the recorder's arena, and pull attrs — each
+  verified on the issue fixture, which also yields run-varying
+  uninitialized bytes), while the DOM parser reads the same bytes
+  correctly. `SAX::Parser` now delivers from a DOM parse by
+  default (`SAX::DomDispatch`): one parse, then a lean walk
+  reproducing the streaming call shapes exactly —
+  attach-only-overridden kinds, one-arg arity dispatch, QName
+  element names, UTF-8, PI-data normalization. The issue fixture
+  is a regression spec (all 7 image attributes intact; the entire
+  existing SAX suite passes byte-identically through the new
+  path). The engine transports remain available via
+  `Parser.new(handler, streaming: true)` — and return as the
+  default the moment the engine fix lands. Correctness-first tax,
+  measured on big.xml: all-events 375 ms (engine 112, nokogiri
+  130); the bisection (not positional, not attribute length;
+  trigger = nested attr-carrying ancestors; all three surfaces
+  share the buffer) is filed upstream for the C fix.
+
+### Added
+
+- **libleptris 1.9.10 lockstep**: pin bumped; audit 250/250 with
+  `leptris_sax_recorder_reset` attached. `SAX::Recorder#reset` —
+  reuse one recorder across documents (upstream #594's
+  one-document-per-instance finding): fresh parser state, record/
+  arena buffers retained.
+
+### Meta
+
+- Memory battery (first measurement, 10 x big.xml held): leptris
+  **17.5 MB/doc vs nokogiri 31.3** (1.8x lighter); both free
+  cleanly.
+
 ## [1.9.35] - 2026-08-28
 
 ### Added
