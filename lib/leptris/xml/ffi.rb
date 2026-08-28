@@ -924,6 +924,16 @@ module Leptris
         [raw, status.read_int]
       end
 
+      # libxml2 consumes the whole whitespace run following the PI
+      # target when parsing; the engine retains it as data
+      # (leptris-ruby#85). Every Ruby-facing PI-data read normalizes
+      # here — whitespace-only data becomes "" so
+      # "pi-without-data" PIs report empty consistently. Read-time
+      # only: PI#data= stores verbatim.
+      def self.read_pi_data(data)
+        data&.sub(/\A[ \t\r\n]+/, "")
+      end
+
       # Thread-local scratch buffers for batch handle fetches (round
       # XX): the per-call MemoryPointer new/free was pure cold-path
       # overhead — two allocations and a GC visit per children() /

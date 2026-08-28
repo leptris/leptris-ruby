@@ -149,7 +149,8 @@ class Leptris::XML::SAX::Parser
 
     if overridden?(:processing_instruction)
       s[:processing_instruction] = callback(:void, [:pointer, :string, :string]) do |_, target, data|
-        handler.processing_instruction(utf8(target), utf8(data))
+        handler.processing_instruction(
+          utf8(target), Leptris::XML::FFI.read_pi_data(utf8(data)))
       end
     end
 

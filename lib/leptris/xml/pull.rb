@@ -84,13 +84,14 @@ module Leptris::XML::Pull
           base = i * stride
           name_ptr = buffer.get_pointer(base + name_off)
           text_ptr = buffer.get_pointer(base + text_off)
-          Event.new(
-            TYPES[buffer.get_int(base + type_off)],
+          type = TYPES[buffer.get_int(base + type_off)]
+          text = text_ptr.null? ? nil :
+            text_ptr.read_string.force_encoding(Encoding::UTF_8)
+          text = Leptris::XML::FFI.read_pi_data(text) if type == :pi
+          Event.new(type,
             name_ptr.null? ? nil :
               name_ptr.read_string.force_encoding(Encoding::UTF_8),
-            text_ptr.null? ? nil :
-              text_ptr.read_string.force_encoding(Encoding::UTF_8),
-            nil
+            text, nil
           )
         end
         # The attr mirror holds the batch's most recent start.
@@ -125,11 +126,13 @@ module Leptris::XML::Pull
       name_ptr = raw.get_pointer(NAME_OFFSET)
       text_ptr = raw.get_pointer(TEXT_OFFSET)
       attrs = type == :start_element ? capture_attrs : nil
+      text = text_ptr.null? ? nil :
+        text_ptr.read_string.force_encoding(Encoding::UTF_8)
+      text = Leptris::XML::FFI.read_pi_data(text) if type == :pi
       Event.new(
         type,
         name_ptr.null? ? nil : name_ptr.read_string.force_encoding(Encoding::UTF_8),
-        text_ptr.null? ? nil : text_ptr.read_string.force_encoding(Encoding::UTF_8),
-        attrs
+        text, attrs
       )
     end
 

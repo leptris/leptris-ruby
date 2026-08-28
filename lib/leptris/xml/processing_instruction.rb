@@ -16,7 +16,8 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def content
     return @content if memo_hit?(@content_version)
     ensure_alive!
-    result = Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr).to_s
+    result = Leptris::XML::FFI.read_pi_data(
+      Leptris::XML::FFI.leptris_pi_node_get_data(@c_ptr)).to_s
     if @document
       @content = result
       @content_version = @document.version

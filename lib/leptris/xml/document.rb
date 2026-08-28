@@ -295,7 +295,8 @@ class Leptris::XML::Document
     count = Leptris::XML::FFI.leptris_document_pi_count(@c_ptr)
     result = count.times.map do |i|
       [Leptris::XML::FFI.leptris_document_pi_target(@c_ptr, i),
-       Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)]
+       Leptris::XML::FFI.read_pi_data(
+         Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)).to_s]
     end
     @processing_instructions = result
     @pi_version = @version
