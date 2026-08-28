@@ -151,6 +151,26 @@ class Leptris::XML::Document
     Leptris::XML::Node.wrap(ptr, self)
   end
 
+  # The document node — navigation head over the whole tree chain
+  # [prolog comments/PIs, root element, epilog comments/PIs] in
+  # document order (libleptris 1.9.7, upstream #580: the libxml2
+  # model; XPath /comment() and //processing-instruction() see the
+  # document-level nodes). A stable, document-owned singleton —
+  # Node.wrap's cache keeps the returned wrapper identical.
+  def node
+    raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    @node ||= Leptris::XML::Node.wrap(
+      Leptris::XML::FFI.leptris_document_node(@c_ptr), self)
+  end
+
+  # The document's children, via the document node: prolog
+  # comments/PIs, the root element, epilog comments/PIs, in
+  # document order (Nokogiri-parity shape).
+  def children
+    doc_node = node
+    doc_node ? doc_node.children : Leptris::XML::NodeSet.new(self, [])
+  end
+
   # Attach +element+ as the document's root element. The element must
   # have been created against this document and must not already have
   # a parent. Any previous root is left detached (still owned by the

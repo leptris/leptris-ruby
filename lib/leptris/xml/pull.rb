@@ -14,7 +14,10 @@ require "ffi"
 #     end
 #
 module Leptris::XML::Pull
-  Event = Struct.new(:type, :name, :text, :attrs, keyword_init: true)
+  # Constructed positionally by the parser: the keyword-init
+  # variant cost ~220ns/event in batch drains (round XXI). Readers
+  # (event.type, event.attrs, ...) are unchanged.
+  Event = Struct.new(:type, :name, :text, :attrs)
 
   TYPES = {
     Leptris::XML::FFI::PULL_START_ELEMENT => :start_element,
@@ -60,6 +63,49 @@ module Leptris::XML::Pull
       self
     end
 
+    # Bulk-delivers events (libleptris 1.9.7, upstream #589): ONE C
+    # call stages up to +max_count+ events — the per-event dispatch
+    # that made streaming ~145x slower than a DOM parse collapses to
+    # amortized noise. Per the engine's protocol, attributes are
+    # captured only for the LAST start_element of each batch
+    # (earlier starts in the same batch carry nil attrs — segment
+    # boundaries fall where they fall); use #each when every
+    # start's attrs must be captured.
+    def each_batch(max_count = 256)
+      return enum_for(:each_batch, max_count) unless block_given?
+      stride = Leptris::XML::FFI::PullEventStruct.size
+      type_off = 0
+      name_off = Leptris::XML::FFI::PullEventStruct.offset_of(:name)
+      text_off = Leptris::XML::FFI::PullEventStruct.offset_of(:text)
+      buffer = Leptris::XML::FFI.scratch_events(max_count)
+      while (n = Leptris::XML::FFI.leptris_pull_next_batch(
+               @handle, buffer, max_count)) > 0
+        events = Array.new(n) do |i|
+          base = i * stride
+          name_ptr = buffer.get_pointer(base + name_off)
+          text_ptr = buffer.get_pointer(base + text_off)
+          Event.new(
+            TYPES[buffer.get_int(base + type_off)],
+            name_ptr.null? ? nil :
+              name_ptr.read_string.force_encoding(Encoding::UTF_8),
+            text_ptr.null? ? nil :
+              text_ptr.read_string.force_encoding(Encoding::UTF_8),
+            nil
+          )
+        end
+        # The attr mirror holds the batch's most recent start.
+        last_start = nil
+        events.each_with_index do |event, i|
+          last_start = i if event.type == :start_element
+        end
+        events[last_start].attrs = capture_attrs if last_start
+        events.each { |event| yield event }
+        tail = events.last.type
+        break if tail == :end_document || tail == :error
+      end
+      self
+    end
+
     # Hot-loop offsets: derived from PullEventStruct's layout (the
     # struct stays the single source of truth for the ABI), read via
     # get_int/get_pointer so the per-event struct-wrapper allocation
@@ -80,23 +126,32 @@ module Leptris::XML::Pull
       text_ptr = raw.get_pointer(TEXT_OFFSET)
       attrs = type == :start_element ? capture_attrs : nil
       Event.new(
-        type: type,
-        name: name_ptr.null? ? nil : name_ptr.read_string.force_encoding(Encoding::UTF_8),
-        text: text_ptr.null? ? nil : text_ptr.read_string.force_encoding(Encoding::UTF_8),
-        attrs: attrs
+        type,
+        name_ptr.null? ? nil : name_ptr.read_string.force_encoding(Encoding::UTF_8),
+        text_ptr.null? ? nil : text_ptr.read_string.force_encoding(Encoding::UTF_8),
+        attrs
       )
     end
 
     private
 
+    # One count-only query plus one flat copy (leptris_pull_attrs,
+    # 1.9.7) — the char** wire format the SAX callbacks already use —
+    # replaces the 2N per-index dispatches.
     def capture_attrs
-      count = Leptris::XML::FFI.leptris_pull_attr_count(@handle)
-      return nil if count.zero?
+      total = Leptris::XML::FFI.leptris_pull_attrs(@handle, nil, 0)
+      return nil if total.zero?
+      buffer = Leptris::XML::FFI.scratch_pointers(2 * total)
+      copied = Leptris::XML::FFI.leptris_pull_attrs(@handle, buffer, total)
+      ptr_size = ::FFI.type_size(:pointer)
       hash = {}
       i = 0
-      while i < count
-        hash[Leptris::XML::FFI.leptris_pull_attr_name(@handle, i)] =
-          Leptris::XML::FFI.leptris_pull_attr_value(@handle, i)
+      while i < copied
+        name = buffer.get_pointer(2 * i * ptr_size).read_string
+          .force_encoding(Encoding::UTF_8)
+        value = buffer.get_pointer((2 * i + 1) * ptr_size).read_string
+          .force_encoding(Encoding::UTF_8)
+        hash[name] = value
         i += 1
       end
       hash

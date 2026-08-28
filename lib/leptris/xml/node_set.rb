@@ -127,24 +127,23 @@ class Leptris::XML::NodeSet
   end
   alias_method :text, :inner_text
 
-  # Union semantics: evaluate the expression against each element
-  # member (one C eval per member — the engine has no multi-context
-  # eval yet; leptris/leptris ask pending) and accumulate into ONE
-  # NodeSet, instead of merging NodeSets per member.
+  # Union semantics: ONE engine call evaluates the expression
+  # against every element member and merges the results into a
+  # de-duplicated, document-ordered nodeset (libleptris 1.9.7,
+  # upstream #589 — the per-member Ruby loop this replaces could
+  # neither dedup nor order).
   def xpath(*paths)
     handler, _ns, _vars = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
-    accumulated = []
-    each do |node|
-      next unless node.is_a?(Leptris::XML::Element)
-      result_ptr = Leptris::XML::FFI.leptris_xpath_eval(
-        @document.c_ptr, node.c_ptr, expr)
-      next if result_ptr.null?
-      accumulated.concat(
-        Leptris::XML::NodeSet.from_result(@document, result_ptr).to_a)
-    end
-    Leptris::XML::NodeSet.new(@document, accumulated)
+    contexts = to_a.select { |node| node.is_a?(Leptris::XML::Element) }
+    return Leptris::XML::NodeSet.new(@document, []) if contexts.empty?
+    buffer = Leptris::XML::FFI.scratch_pointers(contexts.size)
+    buffer.write_array_of_pointer(contexts.map(&:c_ptr))
+    result_ptr = Leptris::XML::FFI.leptris_xpath_eval_nodeset(
+      @document.c_ptr, buffer, contexts.size, expr)
+    return Leptris::XML::NodeSet.new(@document, []) if result_ptr.null?
+    Leptris::XML::NodeSet.from_result(@document, result_ptr)
   end
 
   def inspect
