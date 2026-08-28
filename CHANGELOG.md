@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.28] - 2026-08-28
+
+### Changed
+
+- **Element-child reads pay only for elements** — the
+  interest-proportional principle applied to tree navigation:
+  - `#element_children` on element receivers rides the element-only
+    batch (`leptris_element_children`, opportunistic single
+    dispatch on the shared scratch): text/comment children are
+    never wrapped, and every kept element carries the ELEMENT hint
+    so the per-child `get_type` disappears. Cold pass over
+    big.xml's 25,000 items: 160 -> **117 ms per doc (-27%)**.
+    Non-element receivers (the document node) keep the filter.
+  - `#first_element_child` types candidate siblings with one raw
+    `get_type` each — nothing wrapped or cached until the element
+    is found (it previously full-wrapped leading text nodes).
+  - `#last_element_child` on element receivers wraps only the
+    batch's final pointer (it previously materialized every child,
+    text wraps included, to scan backwards). The first/last pair
+    across fresh docs: **-46%**.
+  - The all-kind `#children` path is untouched — the cold full-tree
+    walk battery stays at parity.
+
 ## [1.9.27] - 2026-08-28
 
 ### Fixed
