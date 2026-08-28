@@ -533,7 +533,6 @@ module Leptris
       attach_function :leptris_xpath_compiled_free,
 
         [:leptris_xpath_compiled], :void
-
       attach_function :leptris_sax_parse,
         [:string, :size_t, :pointer, :pointer], :int
       attach_function :leptris_sax_parser_create,
@@ -878,7 +877,10 @@ module Leptris
         cap = buffer.size / PTR_BYTES
         copied = leptris_element_children(el_ptr, buffer, cap)
         if copied == cap
-          total = leptris_element_children(el_ptr, nil, 0)
+          # leptris_element_children has NO count-only mode (NULL
+          # returns 0, unlike leptris_node_children) — size the
+          # regrow from the dedicated counter.
+          total = leptris_element_child_count(el_ptr)
           if total > cap
             buffer.free
             buffer = scratch[:pointers] =

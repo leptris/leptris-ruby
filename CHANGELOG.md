@@ -5,6 +5,38 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.29] - 2026-08-28
+
+### Fixed
+
+- **Element-batch truncation (1.9.28 regression)**:
+  `fetch_element_children`'s opportunistic growth read its sizing
+  from `leptris_element_children(ptr, NULL, 0)` — but that entry
+  point has NO count-only mode (NULL returns 0, unlike
+  `leptris_node_children`), so the truncation check always judged
+  "fits" and wide element families were cut to the scratch
+  capacity (32 on a fresh thread/process). `#element_children`
+  and `#last_element_child` both affected; elements with 32 or
+  fewer element children — and any process whose scratch had
+  already grown — were unaffected, which is why the round-XXIII
+  suite passed. Sizing now comes from the dedicated
+  `leptris_element_child_count`. Two fresh-Thread regression
+  specs pin the fresh-scratch state (the scratch is thread-local:
+  same-process test ordering had masked it); they fail on 1.9.28.
+  The count query fires only when the buffer fills exactly —
+  steady-state cost unchanged, the batch's -27% element_children
+  win holds.
+
+### Meta
+
+- Compiled-expression cache for `Searchable#xpath` prototyped and
+  retired by measurement: mixed deltas across expression shapes,
+  one stable regression (parent-axis `..` +58% through
+  `leptris_xpath_compiled_eval` vs string eval, three interleaved
+  passes), suggesting the engine's string path already amortizes
+  compilation. Reverted in full; the parent-axis asymmetry is
+  worth an upstream look.
+
 ## [1.9.28] - 2026-08-28
 
 ### Changed
