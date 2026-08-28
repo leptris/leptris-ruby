@@ -8,9 +8,18 @@ class Leptris::XML::SAX::Parser
 
   attr_reader :document, :encoding
 
-  def initialize(handler = Leptris::XML::SAX::Document.new, encoding = nil)
+  # streaming: false (default) delivers from a DOM parse —
+  # leptris-ruby#95: the engine's streaming SAX transports corrupt
+  # attribute state on nested attribute-heavy shapes while the DOM
+  # parser reads the same bytes correctly. streaming: true opts
+  # back into the engine transports (bulk/callback by override
+  # weight) once the engine fix lands, or for consumers that
+  # accept the risk.
+  def initialize(handler = Leptris::XML::SAX::Document.new,
+                 encoding = nil, streaming: false)
     @document = handler
     @encoding = encoding
+    @streaming = streaming
   end
 
   # Swapping the handler invalidates the memoized callback struct so
@@ -41,6 +50,11 @@ class Leptris::XML::SAX::Parser
 
   def parse_memory(string)
     string = string.dup.force_encoding("UTF-8")
+    unless @streaming
+      Leptris::XML::SAX::DomDispatch.parse(
+        @document, dispatched_kinds, string)
+      return self
+    end
     if bulk_dispatch?
       parse_memory_bulk(string)
     else
@@ -133,6 +147,10 @@ class Leptris::XML::SAX::Parser
   end
 
   def parse_io(io)
+    unless @streaming
+      parse_memory(io.read)
+      return self
+    end
     handler_struct = self.handler_struct
     parser_ptr = Leptris::XML::FFI.leptris_sax_parser_create(
       handler_struct.pointer, nil)
@@ -159,7 +177,11 @@ class Leptris::XML::SAX::Parser
   end
 
   def parse_file(path)
-    File.open(path, "r") { |f| parse_io(f) }
+    if @streaming
+      File.open(path, "r") { |f| parse_io(f) }
+    else
+      parse_memory(File.read(path))
+    end
   end
 
   private

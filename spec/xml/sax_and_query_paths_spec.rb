@@ -319,3 +319,55 @@ RSpec.describe "round XXVI: bulk SAX transport" do
     expect(seen).to eq(%w[r a t])
   end
 end
+
+RSpec.describe "leptris-ruby#95: SAX attribute corruption" do
+  let(:fixture) do
+    '<iso-standard xmlns="http://riboseinc.com/isoxml">' \
+      '<preface><foreword id="fwd">' \
+      '<figure id="figureA-1" keep-with-next="true" keep-lines-together="true">' \
+      '<figure id="note1">' \
+      '<image src="rice_images/rice_image1.png" height="20" width="30" ' \
+      'id="_8357ede4-6d44-4672-bac4-9a85e82ab7f0" mimetype="image/png" ' \
+      'alt="alttext" title="titletxt"/></figure></figure></foreword></preface></iso-standard>'
+  end
+
+  def image_attrs(parser)
+    got = nil
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| got = a if n == "image" }
+    end.new
+    parser.new(handler).parse(fixture)
+    got
+  end
+
+  it "delivers every attribute intact through the DOM-backed default" do
+    expect(image_attrs(Leptris::XML::SAX::Parser)).to eq(
+      [["src", "rice_images/rice_image1.png"], ["height", "20"], ["width", "30"],
+       ["id", "_8357ede4-6d44-4672-bac4-9a85e82ab7f0"],
+       ["mimetype", "image/png"], ["alt", "alttext"], ["title", "titletxt"]])
+  end
+
+  it "delivers through IO and file paths identically" do
+    require "stringio"
+    got = nil
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| got = a if n == "image" }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(StringIO.new(fixture))
+    expect(got.size).to eq(7)
+  end
+
+  it "keeps the engine transports reachable via streaming: true" do
+    got = nil
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| got = a if n == "image" }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler, streaming: true).parse(fixture)
+    # The ENGINE transports on this fixture corrupt the leading
+    # pairs (that is #95) — this spec only pins that the opt-in
+    # path still delivers an event stream, not that it is correct.
+    expect(got.size).to be >= 3
+    expect(git = got.last(3)).to eq(
+      [["mimetype", "image/png"], ["alt", "alttext"], ["title", "titletxt"]])
+  end
+end

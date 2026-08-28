@@ -69,6 +69,18 @@ class Leptris::XML::SAX::Recorder
     @handle = nil
   end
 
+  # Resets a finished recorder for the next document (libleptris
+  # 1.9.10, upstream #594): fresh parser state, record/arena
+  # buffers retained — a one-document-per-parse loop reuses ONE
+  # recorder without new/free churn. Records restart empty.
+  def reset
+    rc = Leptris::XML::FFI.leptris_sax_recorder_reset(@handle)
+    if rc != 0
+      raise Leptris::XML::Error, "leptris_sax_recorder_reset failed"
+    end
+    self
+  end
+
   # Feed one chunk; records/arena reset at feed entry, so drain
   # after every feed. Returns self.
   def feed(chunk, final: false)

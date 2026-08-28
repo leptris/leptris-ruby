@@ -561,6 +561,11 @@ module Leptris
         [:leptris_sax_recorder, :pointer], :pointer
       attach_function :leptris_sax_recorder_arena,
         [:leptris_sax_recorder, :pointer], :pointer
+      # Reuse across documents (1.9.10, #594): swaps in fresh parser
+      # state, RETAINS the record/arena buffers — a
+      # one-document-per-parse loop stops paying new/free churn.
+      attach_function :leptris_sax_recorder_reset,
+        [:leptris_sax_recorder], :int
       attach_function :leptris_sax_recorder_free,
         [:leptris_sax_recorder], :void
       attach_function :leptris_sax_parser_free,
