@@ -360,3 +360,53 @@ RSpec.describe "round XX: scratch-buffered batch fetches" do
     expect(root.children.size).to eq(100)
   end
 end
+
+RSpec.describe "round XXIII: element-only child batch" do
+  it "returns only the element children, in order, for mixed content" do
+    root = Leptris::XML::Document.parse(
+      "<r>t1<a/><!--c--><![CDATA[x]]><?pi p?><b/>t2</r>").root
+    expect(root.children.map(&:type)).to include(
+      Leptris::XML::FFI::NODE_TEXT, Leptris::XML::FFI::NODE_COMMENT,
+      Leptris::XML::FFI::NODE_CDATA, Leptris::XML::FFI::NODE_PI)
+    expect(root.element_children.map(&:name)).to eq(%w[a b])
+    expect(root.element_children.map(&:type)).to all(
+      eq(Leptris::XML::FFI::NODE_ELEMENT))
+  end
+
+  it "keeps the filter path for non-element receivers" do
+    doc = Leptris::XML::Document.parse(
+      "<?pi p?><!--c--><r><a/></r><!--e-->")
+    expect(doc.node.element_children.map(&:name)).to eq(%w[r])
+    expect(doc.children.select(&:element?).map(&:name)).to eq(%w[r])
+  end
+
+  it "invalidates after a mutation adds an element child" do
+    doc = Leptris::XML::Document.parse("<r><a/></r>")
+    root = doc.root
+    expect(root.element_children.map(&:name)).to eq(%w[a])
+    b = doc.create_element("b")
+    root.add_child(b)
+    expect(root.element_children.map(&:name)).to eq(%w[a b])
+  end
+end
+
+RSpec.describe "round XXIII: first/last element child scans" do
+  it "skips leading text and trailing comments without wrapping them" do
+    root = Leptris::XML::Document.parse(
+      "<r>text<a/>mid<b/><!--trailing--></r>").root
+    expect(root.first_element_child.name).to eq("a")
+    expect(root.last_element_child.name).to eq("b")
+  end
+
+  it "answers nil when no element child exists" do
+    root = Leptris::XML::Document.parse("<r>text<!--c--></r>").root
+    expect(root.first_element_child).to be_nil
+    expect(root.last_element_child).to be_nil
+  end
+
+  it "keeps the fallback for non-element receivers" do
+    doc = Leptris::XML::Document.parse("<?pi?><!--c--><r><a/><b/></r><!--e-->")
+    expect(doc.node.first_element_child.name).to eq("r")
+    expect(doc.node.last_element_child.name).to eq("r")
+  end
+end

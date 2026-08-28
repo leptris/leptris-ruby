@@ -863,6 +863,32 @@ module Leptris
         buffer.get_array_of_pointer(0, copied)
       end
 
+      # Element-only child batch (the mirror of fetch_children over
+      # leptris_element_children): element receivers skip wrapping —
+      # and paying for — the text/comment children they will filter
+      # out anyway; every wrap carries the ELEMENT hint so the
+      # per-child get_type dispatch disappears too.
+      def self.fetch_element_children(el_ptr)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        buffer = scratch[:pointers]
+        if buffer.nil?
+          buffer = scratch[:pointers] =
+            ::FFI::MemoryPointer.new(:pointer, FETCH_INITIAL)
+        end
+        cap = buffer.size / PTR_BYTES
+        copied = leptris_element_children(el_ptr, buffer, cap)
+        if copied == cap
+          total = leptris_element_children(el_ptr, nil, 0)
+          if total > cap
+            buffer.free
+            buffer = scratch[:pointers] =
+              ::FFI::MemoryPointer.new(:pointer, total)
+            copied = leptris_element_children(el_ptr, buffer, total)
+          end
+        end
+        buffer.get_array_of_pointer(0, copied)
+      end
+
       # XPath result-set batch (leptris_xpath_result_get_nodes_ex):
       # the call fills out_kinds in the 4-value XPATH_NODE space
       # (ELEMENT/ATTRIBUTE/TEXT/OTHER). ELEMENT is the only value

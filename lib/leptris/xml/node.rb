@@ -190,12 +190,17 @@ class Leptris::XML::Node
   def first_element_child
     return @first_element_child if memo_hit?(@first_element_child_version)
     ensure_alive!
+    # Raw pointer scan: non-element siblings are typed with one C
+    # call each — never wrapped, never cached — and the found
+    # element carries the ELEMENT hint into the wrap.
     ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
     result = nil
     until ptr.nil? || ptr.null?
-      node = Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
-      if node.element?
-        result = node
+      if Leptris::XML::FFI.leptris_node_get_type(ptr) ==
+          Leptris::XML::FFI::NODE_ELEMENT
+        result = Leptris::XML::Node.wrap(
+          ptr, @document, parent: as_element_or_self,
+          node_type: Leptris::XML::FFI::NODE_ELEMENT)
         break
       end
       ptr = Leptris::XML::FFI.leptris_node_next_sibling(ptr)
@@ -208,12 +213,34 @@ class Leptris::XML::Node
   end
 
   def last_element_child
+    # Element receivers: the element-only batch fetches pointers
+    # without wrapping any text child; only the last is wrapped.
+    if is_a?(Leptris::XML::Element)
+      kids = Leptris::XML::FFI.fetch_element_children(@c_ptr)
+      return nil if kids.empty?
+      return Leptris::XML::Node.wrap(
+        kids.last, @document, parent: self,
+        node_type: Leptris::XML::FFI::NODE_ELEMENT)
+    end
     children.reverse_each.find(&:element?)
   end
 
   def element_children
     return @element_children if memo_hit?(@element_children_version)
-    result = children.select(&:element?)
+    ensure_alive!
+    # Element receivers ride the element-only batch: text/comment
+    # children are never wrapped (nor their get_type paid — the
+    # ELEMENT hint rides along). Other nodes keep the filter.
+    result =
+      if is_a?(Leptris::XML::Element)
+        parent = as_element_or_self
+        Leptris::XML::FFI.fetch_element_children(@c_ptr).map do |ptr|
+          Leptris::XML::Node.wrap(ptr, @document, parent: parent,
+                                  node_type: Leptris::XML::FFI::NODE_ELEMENT)
+        end
+      else
+        children.select(&:element?)
+      end
     if @document
       @element_children = result
       @element_children_version = @document.version
