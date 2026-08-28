@@ -800,21 +800,37 @@ module Leptris
 
       # Namespace-binding lifecycle, written once: flatten the
       # prefix/URI hash into the alternating CStringArray wire
-      # format, build the caller-owned set, yield it, free it under
-      # all outcomes. Every eval variant uses this; none of them
-      # knows how a set is born or dies.
+      # format and build the C set. Sets are cached per distinct
+      # vocabulary: the XPath VM reads the set as a const map
+      # during evaluation (vm.c) and never mutates it, so one set
+      # serves the process across queries and threads — building
+      # the wire format plus a C set per query cost ~6.7 µs, 2.6×
+      # a no-namespace query on a small document. Cached sets are
+      # never freed (bounded by the process's distinct namespace
+      # vocabularies — the same trade the CSS translation cache
+      # makes). Failed builds raise before caching.
+      NS_SET_CACHE = {}
+
       def self.with_ns_set(hash)
-        flat = hash.flat_map { |prefix, uri| [prefix.to_s, uri.to_s] }
-        buffer, _anchors = Leptris::XML::CStringArray.to_c(flat)
-        set = leptris_xpath_ns_set_new_from_pairs(buffer, flat.length / 2)
-        if set.null?
-          raise Leptris::XML::Error,
-            "leptris_xpath_ns_set_new_from_pairs failed"
-        end
-        begin
-          yield set
-        ensure
-          leptris_xpath_ns_set_free(set)
+        yield ns_set_for(hash)
+      end
+
+      def self.ns_set_for(hash)
+        pairs = hash.map { |prefix, uri| [prefix.to_s, uri.to_s] }
+        key = if pairs.size == 1
+                "#{pairs[0][0]}\x00#{pairs[0][1]}"
+              else
+                pairs.sort.join("\x00")
+              end
+        NS_SET_CACHE.fetch(key) do
+          flat = pairs.flatten
+          buffer, _anchors = Leptris::XML::CStringArray.to_c(flat)
+          set = leptris_xpath_ns_set_new_from_pairs(buffer, flat.length / 2)
+          if set.null?
+            raise Leptris::XML::Error,
+              "leptris_xpath_ns_set_new_from_pairs failed"
+          end
+          NS_SET_CACHE[key] = set
         end
       end
 

@@ -556,3 +556,42 @@ RSpec.describe "leptris-ruby#92: document-level PI writes name the contract" do
     expect(added.content).to eq("z")
   end
 end
+
+RSpec.describe "round XXV: cached namespace binding sets" do
+  it "returns stable results across repeated queries with the same hash" do
+    doc = Leptris::XML::Document.parse(
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:x="http://x">' \
+      "<x:rect id=\"r1\"/><circle/><x:rect id=\"r2\"/></svg>")
+    5.times do
+      expect(doc.xpath("//x:rect", { "x" => "http://x" }).map { |e| e["id"] })
+        .to eq(%w[r1 r2])
+    end
+  end
+
+  it "does not collide across vocabularies" do
+    doc = Leptris::XML::Document.parse(
+      '<r xmlns:a="urn:a" xmlns:b="urn:b"><a:t/><b:t/></r>')
+    expect(doc.xpath("//a:t", { "a" => "urn:a" }).size).to eq(1)
+    expect(doc.xpath("//b:t", { "b" => "urn:b" }).size).to eq(1)
+    expect(doc.xpath("//a:t | //b:t", { "a" => "urn:a", "b" => "urn:b" }).size).to eq(2)
+  end
+
+  it "treats symbol and string keys as the same vocabulary" do
+    doc = Leptris::XML::Document.parse('<r xmlns:x="urn:x"><x:t/></r>')
+    expect(doc.xpath("//x:t", { x: "urn:x" }).size).to eq(1)
+    expect(doc.xpath("//x:t", { "x" => "urn:x" }).size).to eq(1)
+  end
+
+  it "serves concurrent queries with the same vocabulary" do
+    doc = Leptris::XML::Document.parse(
+      '<r xmlns:x="urn:x">' + (1..40).map { |i| %(<x:t id="t#{i}"/>) }.join + "</r>")
+    threads = 4.times.map do
+      Thread.new do
+        20.times do
+          raise "size" unless doc.xpath("//x:t", { "x" => "urn:x" }).size == 40
+        end
+      end
+    end
+    threads.each(&:join)
+  end
+end
