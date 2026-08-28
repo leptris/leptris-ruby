@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.31] - 2026-08-28
+
+### Fixed
+
+- **PI data consumes the leading whitespace run (leptris-ruby#85,
+  libxml2 parity)**: the engine retains the full whitespace run
+  after the PI target as data where libxml2 consumes it at parse
+  time — every Ruby-facing PI-data read now normalizes through one
+  seam helper (`FFI.read_pi_data`): `PI#content`,
+  `Document#processing_instructions` pairs, the SAX
+  `processing_instruction` callback, pull `:pi` events, and
+  recorder `:pi` events. Whitespace-only data reads as `""`, so
+  "pi-without-data" PIs report empty consistently; trailing
+  whitespace is kept (libxml2 trims only the leading run).
+  Read-time only — `PI#data=` still stores verbatim.
+
 ## [1.9.30] - 2026-08-28
 
 ### Fixed

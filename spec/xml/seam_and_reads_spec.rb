@@ -434,3 +434,59 @@ RSpec.describe "round XXIV: element-batch truncation regression" do
     expect(last).to eq("c60")
   end
 end
+
+RSpec.describe "leptris-ruby#85: PI data consumes the leading whitespace run" do
+  let(:xml) do
+    %(<?xml-stylesheet   href="doc.xsl" type="text/xsl"   ?><r/><?pi-without-data     ?>)
+  end
+
+  it "normalizes PI#content" do
+    pis = Leptris::XML.parse(xml).children.select(&:pi?)
+    expect(pis.map(&:content)).to eq(
+      ['href="doc.xsl" type="text/xsl"   ', ""])
+  end
+
+  it "normalizes Document#processing_instructions data" do
+    expect(Leptris::XML.parse(xml).processing_instructions).to eq(
+      [["xml-stylesheet", 'href="doc.xsl" type="text/xsl"   '],
+       ["pi-without-data", ""]])
+  end
+
+  it "normalizes SAX processing_instruction delivery" do
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:processing_instruction) { |t, d| seen << [t, d] }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(xml)
+    expect(seen).to eq(
+      [["xml-stylesheet", 'href="doc.xsl" type="text/xsl"   '],
+       ["pi-without-data", ""]])
+  end
+
+  it "normalizes pull PI events" do
+    seen = []
+    Leptris::XML::Pull.parse(xml) do |e|
+      seen << [e.name, e.text] if e.type == :pi
+    end
+    expect(seen).to eq(
+      [["xml-stylesheet", 'href="doc.xsl" type="text/xsl"   '],
+       ["pi-without-data", ""]])
+  end
+
+  it "normalizes recorder PI events" do
+    seen = []
+    Leptris::XML::SAX::Recorder.parse(xml, kinds: [:pi]) do |kind, name, text|
+      seen << [name, text]
+    end
+    expect(seen).to eq(
+      [["xml-stylesheet", 'href="doc.xsl" type="text/xsl"   '],
+       ["pi-without-data", ""]])
+  end
+
+  it "keeps deliberately-set data verbatim through the setter round-trip" do
+    doc = Leptris::XML.parse("<r/>")
+    pi = doc.create_processing_instruction("t", "d")
+    pi.data = "  keep  "
+    expect(pi.content).to eq("keep  ")
+  end
+end

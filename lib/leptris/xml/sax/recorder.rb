@@ -122,9 +122,11 @@ class Leptris::XML::SAX::Recorder
         kind = KIND_BY_CODE[fields[i * 9]]
         if kind && (wanted.nil? || wanted[kind])
           base = i * 9 + 1
+          text = slice(arena, fields[base + 2], fields[base + 3])
+          text = Leptris::XML::FFI.read_pi_data(text) if kind == :pi
           yield kind,
                 slice(arena, fields[base], fields[base + 1]),
-                slice(arena, fields[base + 2], fields[base + 3]),
+                text,
                 attrs_from(arena, fields[base + 4], fields[base + 5]),
                 fields[base + 6], fields[base + 7]
         end
