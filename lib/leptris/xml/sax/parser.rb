@@ -105,9 +105,21 @@ class Leptris::XML::SAX::Parser
     end
 
     if overridden?(:start_element)
-      s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, attrs_ptr|
-        attrs = walk_attr_array(attrs_ptr)
-        handler.start_element(utf8(name), attrs)
+      # Arity-declared interest: a start_element that takes exactly
+      # one argument declares name-only — the attr walk (2N pointer
+      # reads + N string pairs per start; 3.7x of an elements-only
+      # parse on the 1.9 MB stream) never runs. It is also the only
+      # way a 1-arg handler can receive events: the two-argument
+      # call raises ArgumentError.
+      if @document.method(:start_element).arity == 1
+        s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, _|
+          handler.start_element(utf8(name))
+        end
+      else
+        s[:start_element] = callback(:void, [:pointer, :string, :pointer]) do |_, name, attrs_ptr|
+          attrs = walk_attr_array(attrs_ptr)
+          handler.start_element(utf8(name), attrs)
+        end
       end
     end
 

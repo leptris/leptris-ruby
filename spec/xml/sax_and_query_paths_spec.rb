@@ -240,3 +240,35 @@ RSpec.describe "round XIX: interest-proportional SAX" do
     }.to raise_error(ArgumentError, /unknown event kinds/)
   end
 end
+
+RSpec.describe "round XXII: arity-declared SAX attrs interest" do
+  it "delivers name-only to a one-argument start_element" do
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name| seen << name }
+    end.new
+    expect {
+      Leptris::XML::SAX::Parser.new(handler).parse(%(<r a="1"><b x="2"/></r>))
+    }.not_to raise_error
+    expect(seen).to eq(%w[r b])
+  end
+
+  it "still delivers attr pairs to optional-argument handlers" do
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name, attrs = []| seen << [name, attrs] }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(%(<r a="1"><b/></r>))
+    expect(seen).to eq([["r", [["a", "1"]]], ["b", []]])
+  end
+
+  it "delivers name-only through the IO path too" do
+    require "stringio"
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name| seen << name }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(StringIO.new(%(<r><a/></r>)))
+    expect(seen).to eq(%w[r a])
+  end
+end
