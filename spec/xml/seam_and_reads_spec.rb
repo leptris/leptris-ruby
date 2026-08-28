@@ -410,3 +410,27 @@ RSpec.describe "round XXIII: first/last element child scans" do
     expect(doc.node.last_element_child.name).to eq("r")
   end
 end
+
+RSpec.describe "round XXIV: element-batch truncation regression" do
+  # The scratch is thread-local: a fresh thread deterministically
+  # reproduces the fresh-process state where 1.9.28 truncated wide
+  # element families to the initial scratch capacity.
+  it "returns every element child from a fresh scratch (thread)" do
+    xml = "<r>#{(1..80).map { |i| "<n#{i}/>" }.join}</r>"
+    names = []
+    Thread.new do
+      root = Leptris::XML::Document.parse(xml).root
+      names = root.element_children.map(&:name)
+    end.join
+    expect(names).to eq((1..80).map { |i| "n#{i}" })
+  end
+
+  it "answers the true last element child from a fresh scratch" do
+    xml = "<r>#{(1..60).map { |i| "<c#{i}/>" }.join}</r>"
+    last = nil
+    Thread.new do
+      last = Leptris::XML::Document.parse(xml).root.last_element_child&.name
+    end.join
+    expect(last).to eq("c60")
+  end
+end
