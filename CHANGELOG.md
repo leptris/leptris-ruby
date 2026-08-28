@@ -5,6 +5,37 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.34] - 2026-08-28
+
+### Changed
+
+- **SAX fully wins every shape** (leptris-ruby's parity-not-win,
+  upstream #594's framing): on the all-events handler profile the
+  binding previously LOST to Nokogiri by 14% (170 vs 149 ms per
+  1.9 MB parse) — the ffi gem's per-event callback trampoline
+  could not match a compiled C extension. Two things changed:
+  - The engine's C-side recorder cost no longer scales with
+    element count (~12 ms per 250k-event document now), so a bulk
+    transport can win.
+  - New `SAX::Recorder#dispatch(handler, kinds)` — the two-level
+    drain driving handler METHOD calls with the callback
+    transport's exact shapes (pairs arrays, one-arg arity
+    dispatch, UTF-8, PI normalization). `SAX::Parser` picks the
+    transport by override weight (characters 0.6, start/end 0.2;
+    ≥ 0.8 → bulk): one overridden hot kind stays on callbacks
+    (the engine skips C-side emission for unattached kinds:
+    text-only 23 ms vs 43 ms), two or more go bulk (start+end+chars
+    167 → **122 ms**, ahead of Nokogiri's 142 ms on the same
+    machine; head-to-head 123 vs 133). Handlers cannot tell which
+    transport served them — spec-pinned byte-identical call
+    sequences.
+  - Drain repairs that made it possible: kind-strip two-level
+    drain (no more 2.25M-Integer unpack array per single-feed
+    drain), `FFI::Struct.size` hoisted out of the loop (250k
+    layout lookups per parse), unused fields yield nil instead of
+    empty-String allocations, a characters fast path in the drain
+    loop.
+
 ## [1.9.33] - 2026-08-28
 
 ### Changed

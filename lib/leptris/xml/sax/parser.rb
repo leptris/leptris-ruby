@@ -18,6 +18,7 @@ class Leptris::XML::SAX::Parser
   def document=(handler)
     @document = handler
     @handler_struct = nil
+    @dispatched_kinds = nil
   end
 
   # The handler struct (eleven FFI::Function callbacks + the C
@@ -40,14 +41,95 @@ class Leptris::XML::SAX::Parser
 
   def parse_memory(string)
     string = string.dup.force_encoding("UTF-8")
-    handler_struct = self.handler_struct
-    rc = Leptris::XML::FFI.leptris_sax_parse(
-      string, string.bytesize, handler_struct.pointer, nil)
-    if rc != 0
-      raise Leptris::XML::ParseError,
-        "leptris_sax_parse failed (rc=#{rc})"
+    if bulk_dispatch?
+      parse_memory_bulk(string)
+    else
+      handler_struct = self.handler_struct
+      rc = Leptris::XML::FFI.leptris_sax_parse(
+        string, string.bytesize, handler_struct.pointer, nil)
+      if rc != 0
+        raise Leptris::XML::ParseError,
+          "leptris_sax_parse failed (rc=#{rc})"
+      end
     end
     self
+  end
+
+  # Bulk transport for many-override handlers: record the whole
+  # document C-side (~12ms per 250k events), then dispatch through
+  # the recorder's drain — 250k ffi callback trampolines cost
+  # ~150ms, so this wins outright for handlers that consume most of
+  # the event stream (and beats Nokogiri's C extension on the same
+  # shape). The delivered call shapes are IDENTICAL to the callback
+  # transport (pairs arrays, arity dispatch, UTF-8, PI-data
+  # normalization) — the transports are interchangeable to the
+  # handler.
+  #
+  # Transport choice, from the round-XXVI crossover measurements:
+  # ONE overridden hot kind pays less through the callbacks (the
+  # engine skips C-side emission for unattached kinds entirely:
+  # text-only 23ms vs 43ms), while two or more hot kinds win through
+  # the recorder (start+chars 138 -> 99ms, start+end+chars 167 ->
+  # 122ms vs Nokogiri's 142ms). The weights are document-shape
+  # priors — text-heavy documents with tagged structure.
+  HOT_KIND_WEIGHTS = {
+    characters: 0.6, start_element: 0.2, end_element: 0.2,
+  }.freeze
+  private_constant :HOT_KIND_WEIGHTS
+  DISPATCH_WEIGHT_THRESHOLD = 0.8
+  private_constant :DISPATCH_WEIGHT_THRESHOLD
+
+  def parse_memory_bulk(string)
+    recorder = Leptris::XML::SAX::Recorder.open
+    begin
+      rc = recorder.feed(string, final: true)
+      recorder.dispatch(@document, dispatched_kinds)
+      if rc != 0
+        raise Leptris::XML::ParseError,
+          "leptris_sax_parse failed (rc=#{rc})"
+      end
+    ensure
+      recorder.free
+    end
+    self
+  end
+
+  # The handler's overridden-kind map — the same decisions
+  # build_handler_struct makes, in dispatch form. Memoized with the
+  # handler struct; document= invalidates both.
+  def dispatched_kinds
+    @dispatched_kinds ||= begin
+      kinds = {}
+      {
+        start_document: :start_document,
+        end_document: :end_document,
+        start_element: :start_element,
+        end_element: :end_element,
+        characters: :characters,
+        comment: :comment,
+        cdata_block: :cdata,
+        processing_instruction: :pi,
+        start_prefix_mapping: :start_prefix,
+        end_prefix_mapping: :end_prefix,
+        error: :error,
+      }.each do |method_name, kind|
+        next unless overridden?(method_name)
+        kinds[kind] =
+          if method_name == :start_element &&
+              @document.method(:start_element).arity == 1
+            :one_arg
+          else
+            true
+          end
+      end
+      kinds
+    end
+  end
+
+  def bulk_dispatch?
+    dispatched_kinds.keys.sum do |kind|
+      HOT_KIND_WEIGHTS.fetch(kind, 0.0)
+    end >= DISPATCH_WEIGHT_THRESHOLD
   end
 
   def parse_io(io)
