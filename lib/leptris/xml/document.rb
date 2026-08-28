@@ -266,9 +266,16 @@ class Leptris::XML::Document
   end
   alias_method :internal_subset, :doctype
 
-  def to_xml(indent: 0, no_decl: false, encoding: nil)
+  # indent_text: true selects the display form (libleptris 1.9.9,
+  # #129): text and mixed content indent too — the output is
+  # display-oriented and not round-trip-guaranteed.
+  def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
+    if indent_text
+      return Leptris::XML::Serialization.to_xml_display(
+        @c_ptr, indent: indent, no_decl: no_decl, encoding: encoding)
+    end
     Leptris::XML::Serialization.to_xml(
       Leptris::XML::FFI.method(:leptris_document_serialize_into), @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
@@ -336,6 +343,25 @@ class Leptris::XML::Document
     @processing_instructions = result
     @pi_version = @version
     result
+  end
+
+  # Removes a document-level processing instruction — by target
+  # (String/Symbol) or by 0-based index among the document's PIs
+  # (Integer) (libleptris 1.9.9, upstream #612). Returns the removed
+  # PI — pool-owned and valid until #free — or nil when nothing
+  # matched.
+  def remove_pi(target_or_index)
+    raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    if target_or_index.is_a?(Integer)
+      ptr = Leptris::XML::FFI.leptris_document_remove_pi(
+        @c_ptr, nil, target_or_index)
+    else
+      ptr = Leptris::XML::FFI.leptris_document_remove_pi(
+        @c_ptr, target_or_index.to_s, 0)
+    end
+    return nil if ptr.null?
+    @version += 1
+    Leptris::XML::Node.wrap(ptr, self)
   end
 
   # Append a document-level processing instruction. Returns self.

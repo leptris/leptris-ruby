@@ -538,11 +538,45 @@ RSpec.describe "leptris-ruby#91: built documents list the attached root" do
 end
 
 RSpec.describe "leptris-ruby#92: document-level PI writes name the contract" do
-  it "raises the contract error on target=/data=/unlink" do
-    pi = Leptris::XML::Document.parse(%q{<?pi x?><root/>}).children.to_a[0]
-    [-> { pi.target = "t" }, -> { pi.data = "y" }, -> { pi.unlink }].each do |op|
-      expect(&op).to raise_error(Leptris::XML::Error, /document-level PI/)
-    end
+  it "mutates and unlinks document-level PIs (libleptris 1.9.9, #612)" do
+    doc = Leptris::XML::Document.parse(%q{<?pi x?><root/>})
+    pi = doc.children.to_a[0]
+    pi.target = "t"
+    pi.data = "y"
+    expect(pi.name).to eq("t")
+    expect(pi.content).to eq("y")
+    expect(pi.unlink).to equal(pi)
+    expect(doc.children.map { |c| c.pi? ? c.name : "root" }).to eq(%w[root])
+  end
+
+  it "removes document-level PIs by target and by index" do
+    doc = Leptris::XML::Document.parse(%q{<?a x?><?b y?><?b z?><root/>})
+    removed = doc.remove_pi("b")
+    expect(removed.name).to eq("b")
+    expect(removed.content).to eq("y")
+    expect(doc.processing_instructions.map(&:first)).to eq(%w[a b])
+    by_index = doc.remove_pi(1)
+    expect(by_index.content).to eq("z")
+    expect(doc.remove_pi("nope")).to be_nil
+    expect(doc.processing_instructions.map(&:first)).to eq(%w[a])
+  end
+
+  it "unlinks the right same-target PI (identity match)" do
+    doc = Leptris::XML::Document.parse(%q{<?b y?><?b z?><root/>})
+    second = doc.children.to_a[1]
+    second.unlink
+    expect(doc.processing_instructions.map(&:last)).to eq(%w[y])
+  end
+
+  it "serializes the display form with indent_text" do
+    doc = Leptris::XML::Document.parse("<r><a/>text<b/></r>")
+    compact = doc.to_s(indent: 2)
+    display = doc.to_s(indent: 2, indent_text: true)
+    expect(display).not_to eq(compact)
+    # display form is not round-trip-guaranteed: re-parsing yields
+    # whitespace-only text nodes; the element structure survives.
+    expect(Leptris::XML.parse(display).root.element_children.map(&:name))
+      .to eq(doc.root.element_children.map(&:name))
   end
 
   it "keeps tree-level and add_pi PIs mutable" do

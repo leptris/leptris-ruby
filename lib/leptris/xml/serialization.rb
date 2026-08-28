@@ -33,6 +33,25 @@ module Leptris::XML::Serialization
     Leptris::XML::FFI.serialize_into_string(ffi_function, c_ptr, opts.pointer)
   end
 
+  # Display-form document serialization (libleptris 1.9.9, #129):
+  # the ext struct's indent_text hands ALL whitespace to the
+  # formatter — text and mixed content indent too. Display-oriented:
+  # the output is NOT guaranteed to round-trip byte-exactly.
+  INDENT_TEXT_EXT = begin
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    ext[:indent_text] = 1
+    ext
+  end
+  private_constant :INDENT_TEXT_EXT
+
+  def self.to_xml_display(c_ptr, indent: 0, no_decl: false, encoding: nil)
+    opts, encoding_anchor = build_options(
+      indent: indent, no_decl: no_decl, encoding: encoding)
+    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext(
+      c_ptr, opts.pointer, INDENT_TEXT_EXT.pointer)
+    Leptris::XML::FFI.read_owned_string(str_ptr)
+  end
+
   # +ffi_function+ is a bound FFI function taking
   # (c_ptr, version, mode, ns_ptr, flags): leptris_c14n_canonicalize_ex
   # or leptris_c14n_canonicalize_subtree_ex.
