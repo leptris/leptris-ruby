@@ -263,27 +263,56 @@ class Leptris::XML::Node
 
   def unlink
     ensure_writable!
-    Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_node_unlink(@c_ptr))
+    rc = Leptris::XML::FFI.leptris_node_unlink(@c_ptr)
+    if rc == Leptris::XML::FFI::LEPTRIS_ERROR_NOT_FOUND && processing_instruction?
+      raise Leptris::XML::Error,
+        Leptris::XML::ProcessingInstruction::READ_ONLY_NATIVE
+    end
+    Leptris::XML::FFI.check_status(rc)
     @parent = nil
     self
   end
   alias_method :remove, :unlink
 
-  # Walks the subtree in post-order DFS (matches Nokogiri's semantics).
+  # Walks the subtree in post-order DFS (matches Nokogiri's
+  # semantics): the receiver, its descendants, nothing else.
   #
   # One FFI call dispatches the whole walk; the C engine invokes the
   # callback once per visited node (the only per-node cost is the
   # C-to-Ruby callback dispatch, not FFI round-trips).
+  #
+  # Subtree-bounded by abort-at-self (leptris-ruby#89): the C
+  # walker was never bounded — after visiting the receiver it
+  # pushes the receiver's NEXT SIBLING and continues to the end of
+  # the document chain. In post-order the receiver is the LAST
+  # node of its own subtree, so returning non-zero at self stops
+  # the walk exactly at the boundary (the C loop honors a non-zero
+  # callback return). The self comparison is by address; the
+  # receiver's handle is stable for the walk's duration.
+  #
+  # Exceptions raised by the block are re-raised after the walk
+  # (leptris-ruby#90): a rescue inside the callback stashes the
+  # exception and returns non-zero, aborting the C walk — without
+  # it the FFI dispatch silently swallowed the exception and the
+  # walk continued with partially processed data.
   def traverse
     return enum_for(:traverse) unless block_given?
     ensure_alive!
+    error = nil
+    self_address = @c_ptr.address
     callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
-      yield Leptris::XML::Node.wrap(node_ptr, @document)
-      0
+      begin
+        yield Leptris::XML::Node.wrap(node_ptr, @document)
+        node_ptr.address == self_address ? 1 : 0
+      rescue Exception => e # rubocop:disable Lint/RescueException
+        error = e
+        1
+      end
     end
     Leptris::XML::FFI.leptris_node_traverse(
       @c_ptr, Leptris::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
+    raise error if error
+    self
   end
 
   def path

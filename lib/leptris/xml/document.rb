@@ -166,9 +166,44 @@ class Leptris::XML::Document
   # The document's children, via the document node: prolog
   # comments/PIs, the root element, epilog comments/PIs, in
   # document order (Nokogiri-parity shape).
+  #
+  # On programmatically built documents the C document node's chain
+  # misses a root attached via #root= until some other document
+  # mutation refreshes it (leptris-ruby#91 — libleptris's
+  # document_set_root does not register into the chain). The merge
+  # below splices the attached root in by document order whenever
+  # the chain lacks it, so parsed and built documents read the
+  # same. Prolog/epilog placement uses node_compare against the
+  # root.
   def children
     doc_node = node
-    doc_node ? doc_node.children : Leptris::XML::NodeSet.new(self, [])
+    return Leptris::XML::NodeSet.new(self, []) if doc_node.nil?
+    kids = doc_node.children.to_a
+    root_ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
+    return kids if root_ptr.null?
+    return kids if kids.any? { |child| child.c_ptr == root_ptr }
+    root = Leptris::XML::Node.wrap(root_ptr, self)
+    # A replaced root stays in the C chain until another document
+    # mutation refreshes it — the chain's element slots other than
+    # the current root are stale old roots. The new root inherits
+    # the first stale slot's position (the prolog/epilog split
+    # follows where the old root sat); with no stale element
+    # (programmatically built documents) placement falls back to
+    # document-order comparison.
+    stale = kids.select do |child|
+      child.element? && child.c_ptr != root_ptr
+    end
+    if stale.any?
+      kept = kids.reject { |child| stale.include?(child) }
+      slot = kids.index(stale.first)
+      kept.insert(slot, root)
+      Leptris::XML::NodeSet.new(self, kept)
+    else
+      prolog, epilog = kids.partition do |child|
+        Leptris::XML::FFI.leptris_node_compare(child.c_ptr, root_ptr).negative?
+      end
+      Leptris::XML::NodeSet.new(self, prolog + [root] + epilog)
+    end
   end
 
   # Attach +element+ as the document's root element. The element must

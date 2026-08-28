@@ -490,3 +490,69 @@ RSpec.describe "leptris-ruby#85: PI data consumes the leading whitespace run" do
     expect(pi.content).to eq("keep  ")
   end
 end
+
+RSpec.describe "leptris-ruby#89/#90: traverse bounds and exception escape" do
+  it "is subtree-bounded from an element — no following siblings" do
+    doc = Leptris::XML::Document.parse(%q{<r><a><x/></a><b><y/></b><c/></r>})
+    names = []
+    doc.root.children.to_a[0].traverse { |n| names << n.name }
+    expect(names).to eq(%w[x a])
+  end
+
+  it "is subtree-bounded from the root — no epilog nodes" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/></r><!--epilog--><?pe e?>})
+    names = []
+    doc.root.traverse { |n| names << n.name }
+    expect(names).to eq(%w[a r])
+  end
+
+  it "re-raises exceptions raised inside the callback and stops the walk" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/><b/><c/></r>})
+    count = 0
+    expect {
+      doc.root.traverse { |n| count += 1; raise "boom" if count == 2 }
+    }.to raise_error(RuntimeError, "boom")
+    expect(count).to eq(2)
+  end
+end
+
+RSpec.describe "leptris-ruby#91: built documents list the attached root" do
+  it "children reflects root= immediately" do
+    doc = Leptris::XML::Document.create
+    doc.root = doc.create_element("built")
+    expect(doc.children.map(&:class)).to eq([Leptris::XML::Element])
+  end
+
+  it "splices the root in document order against prolog/epilog" do
+    doc = Leptris::XML::Document.parse(%q{<?pi p?><!--c--><old/><!--e-->})
+    doc.root = doc.create_element("new")
+    names = doc.children.map { |n| n.pi? ? "pi" : (n.element? ? "root" : "comment") }
+    expect(names).to eq(%w[pi comment root comment])
+  end
+
+  it "leaves parsed documents unchanged" do
+    doc = Leptris::XML::Document.parse(%q{<?pi p?><r/><!--e-->})
+    expect(doc.children.map { |n| n.pi? ? "pi" : (n.element? ? "root" : "comment") })
+      .to eq(%w[pi root comment])
+  end
+end
+
+RSpec.describe "leptris-ruby#92: document-level PI writes name the contract" do
+  it "raises the contract error on target=/data=/unlink" do
+    pi = Leptris::XML::Document.parse(%q{<?pi x?><root/>}).children.to_a[0]
+    [-> { pi.target = "t" }, -> { pi.data = "y" }, -> { pi.unlink }].each do |op|
+      expect(&op).to raise_error(Leptris::XML::Error, /document-level PI/)
+    end
+  end
+
+  it "keeps tree-level and add_pi PIs mutable" do
+    doc = Leptris::XML::Document.parse("<r><?p v?></r>")
+    tree_pi = doc.root.children.to_a[0]
+    tree_pi.data = "w"
+    expect(tree_pi.content).to eq("w")
+    doc.add_pi("n", "v")
+    added = doc.children.to_a.find(&:pi?)
+    added.data = "z"
+    expect(added.content).to eq("z")
+  end
+end
