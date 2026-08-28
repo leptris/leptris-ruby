@@ -9,6 +9,14 @@ class Leptris::XML::ParseOptions
   # way do not round-trip pretty-printed formatting byte-for-byte.
   NOBLANKS = Leptris::XML::FFI::LEPTRIS_PARSE_DROP_WS_TEXT
 
+  # Apply DTD ATTLIST default (and #FIXED) attribute values at parse
+  # time (libleptris >= 1.9.8, leptris/leptris#606). Matches libxml2's
+  # XML_PARSE_DTDATTR and Nokogiri's dtdload+dtdattr semantics. Off by
+  # default: the ecosystem compares against libxml2's no-DTDATTR
+  # default, and W3C C14N 1.1 example 3.3's canonical form excludes
+  # defaulted attributes.
+  DTDATTR = Leptris::XML::FFI::LEPTRIS_PARSE_DTDATTR
+
   attr_reader :flags
 
   # Recover (libleptris 1.9.0, #547): a parse failure returns an
@@ -34,6 +42,18 @@ class Leptris::XML::ParseOptions
 
   def noblanks?
     @flags & NOBLANKS != 0
+  end
+
+  def self.dtdattr
+    new(DTDATTR)
+  end
+
+  def dtdattr?
+    @flags & DTDATTR != 0
+  end
+
+  def dtdattr=(value)
+    if value then @flags |= DTDATTR else @flags &= ~DTDATTR end
   end
 
   def recover?

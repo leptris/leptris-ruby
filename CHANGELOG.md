@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.30] - 2026-08-28
+
+### Fixed
+
+- **DTD ATTLIST defaults no longer injected by default** (vendored
+  libleptris 1.9.8, leptris/leptris#606): raw parses leave ATTLIST
+  default attributes out — the libxml2/Nokogiri default the ecosystem
+  compares against, and what W3C C14N 1.1 example 3.3's canonical
+  form assumes. New `Leptris::XML::ParseOptions::DTDATTR` /
+  `.dtdattr` / `#dtdattr?` / `#dtdattr=` opts in (libxml2
+  XML_PARSE_DTDATTR parity).
+
 ## [1.9.29] - 2026-08-28
 
 ### Fixed

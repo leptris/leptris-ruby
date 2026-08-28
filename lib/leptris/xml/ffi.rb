@@ -734,6 +734,10 @@ module Leptris
 
       LEPTRIS_PARSE_DEFAULT = 0
       LEPTRIS_PARSE_DROP_WS_TEXT = 1
+      # libleptris >= 1.9.8 (#606): apply DTD ATTLIST default (and
+      # #FIXED) attribute values at parse time — libxml2
+      # XML_PARSE_DTDATTR opt-in parity.
+      LEPTRIS_PARSE_DTDATTR = 2
 
       # The headers' contract is UTF-8 for every C string, but FFI's
       # read_string hands back ASCII-8BIT — the platform default
