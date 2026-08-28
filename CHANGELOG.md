@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.33] - 2026-08-28
+
+### Changed
+
+- **Cached namespace binding sets**: every namespaced query
+  previously built its binding set from scratch (flatten the hash,
+  allocate the CStringArray wire format, `ns_set_new_from_pairs`,
+  eval, free) — ~6.7 µs of construction, 2.6× the same query
+  without namespaces on a small document. The XPath VM reads the
+  set as a const map during evaluation (vm.c) and never mutates
+  it, so sets are now cached per distinct prefix/URI vocabulary and
+  shared across queries and threads. Measured: namespaced
+  `//x:rect` 10.9 -> **6.9 µs per query (-38%)**; `at_xpath` -26%.
+  Single-pair key fast path; failed builds raise before caching;
+  symbol- and string-keyed hashes share one entry. The remaining
+  gap vs no-namespace queries is the VM's prefix resolution.
+
 ## [1.9.32] - 2026-08-28
 
 ### Fixed
