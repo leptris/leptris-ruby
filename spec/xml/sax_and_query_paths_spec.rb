@@ -14,6 +14,12 @@ RSpec.describe "round III: SAX adapter and query paths" do
   end
 
   it "delivers every SAX string kind as UTF-8" do
+    # leptris/leptris#626: MSVC builds' DOM path rejects non-ASCII
+    # element NAMES (signed-char name validation — comments and PI
+    # data with the same bytes parse fine, and the streaming
+    # transports accept the names). Unskip when the engine fix
+    # lands; mac/linux cover the full fixture meanwhile.
+    skip "engine DOM parse rejects non-ASCII names on MSVC builds" if Gem.win_platform?
     handler = EncodingProbeHandler.new
     Leptris::XML::SAX::Parser.new(handler).parse(<<~XML)
       <!-- café -->
