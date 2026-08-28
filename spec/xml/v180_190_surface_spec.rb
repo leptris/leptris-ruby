@@ -166,3 +166,55 @@ RSpec.describe "libleptris 1.8.0 / 1.9.0 surface" do
     end
   end
 end
+
+RSpec.describe "libleptris 1.9.6/1.9.7 surface" do
+  it "exposes the document node as the tree navigation head (#580)" do
+    doc = Leptris::XML.parse(
+      "<?pi p?><!--c1--><r/><!--c2--><?pe e?>")
+    expect(doc.children.map { |n| [n.type, n.name] }).to eq(
+      [[Leptris::XML::FFI::NODE_PI, "pi"],
+       [Leptris::XML::FFI::NODE_COMMENT, "comment"],
+       [Leptris::XML::FFI::NODE_ELEMENT, "r"],
+       [Leptris::XML::FFI::NODE_COMMENT, "comment"],
+       [Leptris::XML::FFI::NODE_PI, "pe"]])
+    expect(doc.node.equal?(doc.node)).to be(true)
+    expect(doc.children.include?(doc.root)).to be(true)
+  end
+
+  it "lets document-level XPath axes see prolog/epilog nodes (#580)" do
+    doc = Leptris::XML.parse(
+      "<?pi p?><!--c--><r><c/></r><?pe e?>")
+    expect(doc.xpath("/comment()").size).to eq(1)
+    expect(doc.xpath("//processing-instruction()").size).to eq(2)
+  end
+
+  it "batch-delivers pull events without per-event dispatch (#589)" do
+    xml = "<r><a x=\"1\">t</a><b y=\"2\" z=\"3\"/></r>"
+    cursor = []
+    Leptris::XML::Pull.parse(xml) { |e| cursor << [e.type, e.name, e.text, e.attrs] }
+    batched = []
+    Leptris::XML::Pull::Parser.parse(xml).each_batch(2) do |e|
+      batched << [e.type, e.name, e.text, e.attrs]
+    end
+    expect(batched).to eq(cursor)
+  end
+
+  it "serves attrs only for a batch's last start_element (engine protocol)" do
+    # Batches (max 3): [start r, start a, end a] then [start b, ...].
+    # The attr mirror holds each batch's LAST start — r, earlier in
+    # its batch than a, loses its (empty) attrs; both attr-bearing
+    # starts here happen to be their batch's last.
+    seen = []
+    Leptris::XML::Pull::Parser.parse("<r><a x=\"1\"/><b y=\"2\"/>t</r>")
+      .each_batch(3) { |e| seen << [e.name, e.attrs] if e.type == :start_element }
+    expect(seen).to eq([["r", nil], ["a", { "x" => "1" }], ["b", { "y" => "2" }]])
+  end
+
+  it "evaluates NodeSet#xpath as one de-duplicated union (#589)" do
+    doc = Leptris::XML.parse("<r><x><t>1</t></x><y><x><t>2</t></x></y></r>")
+    contexts = doc.root.xpath("./x | ./y") # a real NodeSet: x, y
+    union = contexts.xpath("//x")
+    expect(union.map(&:name)).to eq(%w[x x])
+    expect(union.map { |e| e.at_xpath("t").text }).to eq(%w[1 2])
+  end
+end

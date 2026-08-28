@@ -143,6 +143,11 @@ module Leptris
         [:leptris_document, :leptris_element], :leptris_status
       attach_function :leptris_document_root,
         [:leptris_document], :leptris_element
+      # The document node — navigation head over the whole tree
+      # chain [prolog comments/PIs, root, epilog...] (libleptris
+      # 1.9.7, upstream #580; the libxml2 model).
+      attach_function :leptris_document_node,
+        [:leptris_document], :leptris_node_ref
       # Document-level PIs (v1.6.0): not tree nodes — enumerate via
       # these accessors only.
       attach_function :leptris_document_pi_count,
@@ -430,6 +435,14 @@ module Leptris
         [:leptris_document, :leptris_element, :string], :leptris_xpath_result
       attach_function :leptris_xpath_eval_with_vars,
         [:leptris_document, :string, :leptris_xpath_var_set], :leptris_xpath_result
+      # Union semantics (NodeSet#xpath): N contexts, ONE call — the
+      # engine merges the per-context results into a de-duplicated,
+      # document-ordered nodeset (libleptris 1.9.7, upstream #589).
+      attach_function :leptris_xpath_eval_nodeset,
+        [:leptris_document, :pointer, :size_t, :string], :leptris_xpath_result
+      attach_function :leptris_xpath_compiled_eval_nodeset,
+        [:leptris_document, :pointer, :size_t, :leptris_xpath_compiled],
+        :leptris_xpath_result
       attach_function :leptris_xpath_eval_with_vars_context,
         [:leptris_document, :leptris_element, :string, :leptris_xpath_var_set],
         :leptris_xpath_result
@@ -552,12 +565,16 @@ module Leptris
         [:string], :leptris_pull_parser
       attach_function :leptris_pull_next,
         [:leptris_pull_parser], :pointer
+      attach_function :leptris_pull_next_batch,
+        [:leptris_pull_parser, :pointer, :size_t], :size_t
       attach_function :leptris_pull_attr_count,
         [:leptris_pull_parser], :size_t
       attach_function :leptris_pull_attr_name,
         [:leptris_pull_parser, :size_t], :string
       attach_function :leptris_pull_attr_value,
         [:leptris_pull_parser, :size_t], :string
+      attach_function :leptris_pull_attrs,
+        [:leptris_pull_parser, :pointer, :size_t], :size_t
       attach_function :leptris_pull_free,
         [:leptris_pull_parser], :void
 
@@ -905,6 +922,20 @@ module Leptris
         if ptr.nil? || ptr.size / INT_BYTES < count
           ptr&.free
           ptr = scratch[:ints] = ::FFI::MemoryPointer.new(:int, count)
+        end
+        ptr
+      end
+
+      # Pull-event staging block for leptris_pull_next_batch (the
+      # #589 bulk transport): LeptrisPullEvent records, stride from
+      # the struct layout that mirrors the ABI.
+      def self.scratch_events(count)
+        need = count * PullEventStruct.size
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        ptr = scratch[:pull_events]
+        if ptr.nil? || ptr.size < need
+          ptr&.free
+          ptr = scratch[:pull_events] = ::FFI::MemoryPointer.new(need)
         end
         ptr
       end

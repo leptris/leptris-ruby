@@ -5,6 +5,44 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.26] - 2026-08-28
+
+### Added
+
+- **libleptris 1.9.7 lockstep** (upstream #602/#604): Rakefile pin
+  bumped; symbol audit 247/247 with the five new functions.
+- **`Pull::Parser#each_batch(max = 256)`** — the #589 batch
+  transport: ONE C call stages up to max events (scratch-staged,
+  layout-offset drain, no per-event dispatch). Streaming big.xml
+  (250k events): 408 ms -> **210 ms per parse (-48%)**; the cursor
+  path also drops to 347 ms (Events are now constructed
+  positionally — the keyword-init Struct cost ~220 ns/event; a
+  minor API change: `Pull::Event` no longer takes keyword args,
+  readers unchanged). Per the engine's attr-mirror protocol,
+  attributes are captured for each batch's LAST start_element —
+  use `#each` when every start's attrs must be present. Attr
+  capture on both paths is now one count query + one flat copy
+  (`leptris_pull_attrs`) instead of 2N per-index dispatches.
+- **`Document#node` / `Document#children`** (#580, our upstream
+  ask): document-level PIs/comments are tree children behind a
+  stable singleton navigation head — `children` is
+  [prolog…, root, epilog…] in document order (the libxml2/Nokogiri
+  model), and `/comment()` / `//processing-instruction()` see the
+  document-level nodes. The dedicated memoized
+  `#processing_instructions` / `#comments` readers are unchanged.
+- **`NodeSet#xpath` through the union entry** (`leptris_xpath_
+  eval_nodeset`, #589): one C call for N contexts — results
+  de-duplicated and document-ordered, which the per-member Ruby
+  loop it replaces could not guarantee.
+
+### Meta
+
+- Engine swap 1.9.4 -> 1.9.7 regression battery (interleaved
+  best-of-3): cold walk 4,637 vs 4,652 µs, DOM parse 72 vs 73 µs,
+  SAX text-only 22.7 vs 22.6 ms — parity across the board. The
+  v1.9.6 XPath fixes (`/descendant::` root inclusion, $var head
+  dropping) are covered by the existing suite plus the new specs.
+
 ## [1.9.25] - 2026-08-28
 
 ### Fixed
