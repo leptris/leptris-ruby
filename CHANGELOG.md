@@ -5,6 +5,42 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.32] - 2026-08-28
+
+### Fixed
+
+- **traverse is subtree-bounded (leptris-ruby#89)**: the C walker
+  was never bounded — after visiting the receiver it pushed the
+  receiver's next sibling and continued to the end of the document
+  chain, so `element.traverse` swept following siblings and their
+  subtrees, and `root.traverse` swept the epilog. In post-order the
+  receiver is the LAST node of its own subtree, so the callback now
+  returns non-zero at self — the C loop honors it and the walk
+  stops exactly at the boundary.
+- **traverse re-raises callback exceptions (leptris-ruby#90)**: a
+  rescue inside the FFI callback stashes the exception and returns
+  non-zero (aborting the walk); the stashed exception is re-raised
+  after `leptris_node_traverse` returns. Previously the dispatch
+  silently swallowed Ruby exceptions and the walk continued with
+  partially processed data.
+- **built documents list the attached root (leptris-ruby#91)**:
+  libleptris's `document_set_root` does not register the root into
+  the document node's child chain, so `Document#children` missed it
+  until another document mutation refreshed the chain. `#children`
+  now splices the attached root in: a replaced root's stale chain
+  entry is dropped and the new root inherits its position (the
+  prolog/epilog split follows the old slot); on rootless chains
+  placement falls back to document-order comparison. Parsed and
+  built documents read the same.
+- **document-level PI writes name the contract (leptris-ruby#92)**:
+  parse-created document-level PIs carry no document linkage in
+  libleptris, so `target=`/`data=` fail INVALID_ARG and `unlink`
+  NOT_FOUND while tree-level and `Document#add_pi` PIs mutate fine.
+  Those failures now raise a descriptive error naming the contract
+  (mutable alternatives included) instead of a bare "Invalid
+  argument". Full write-through and a remove API need C surface
+  (filed upstream); the binding cannot supply them.
+
 ## [1.9.31] - 2026-08-28
 
 ### Fixed
