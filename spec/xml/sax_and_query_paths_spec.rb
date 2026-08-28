@@ -272,3 +272,50 @@ RSpec.describe "round XXII: arity-declared SAX attrs interest" do
     expect(seen).to eq(%w[r a])
   end
 end
+
+RSpec.describe "round XXVI: bulk SAX transport" do
+  class CallRecorder < Leptris::XML::SAX::Document
+    attr_reader :calls
+    def initialize; @calls = []; end
+    def start_document; @calls << :start_document; end
+    def end_document; @calls << :end_document; end
+    def start_element(name, attrs = []); @calls << [:start, name, attrs]; end
+    def end_element(name); @calls << [:end, name]; end
+    def characters(text); @calls << [:text, text]; end
+    def comment(text); @calls << [:comment, text]; end
+    def cdata_block(text); @calls << [:cdata, text]; end
+    def processing_instruction(target, data); @calls << [:pi, target, data]; end
+  end
+
+  it "delivers identical calls through the auto-chosen bulk transport" do
+    xml = %(<?pi p?><!--c--><r a="1"><a/>t<![CDATA[x]]></r>)
+    via_parser = CallRecorder.new
+    Leptris::XML::SAX::Parser.new(via_parser).parse(xml)
+    via_dispatch = CallRecorder.new
+    recorder = Leptris::XML::SAX::Recorder.open
+    begin
+      recorder.feed(xml, final: true)
+      recorder.dispatch(via_dispatch, {
+        start_document: true, end_document: true,
+        start_element: true, end_element: true, characters: true,
+        comment: true, cdata: true, pi: true,
+      })
+    ensure
+      recorder.free
+    end
+    expect(via_parser.calls).to eq(via_dispatch.calls)
+    expect(via_parser.calls.first(3)).to eq(
+      [:start_document, [:pi, "pi", "p"], [:comment, "c"]])
+  end
+
+  it "keeps the one-argument start_element arity through the bulk path" do
+    seen = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |name| seen << name }
+      define_method(:characters) { |t| seen << t }
+      define_method(:end_element) { |n| }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(%(<r a="1"><a/>t</r>))
+    expect(seen).to eq(%w[r a t])
+  end
+end
