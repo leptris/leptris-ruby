@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.27] - 2026-08-28
+
+### Fixed
+
+- **Arity-declared attrs interest in SAX** (round XIX's policy
+  completed): a handler whose `start_element` takes exactly one
+  argument declares name-only — the attribute walk (2N pointer
+  reads + N string pairs per start) never runs. Measured
+  elements-only on big.xml: 116 -> **40 ms per parse (2.9x; the
+  no-walk ceiling is 3.7x)**. This also fixes a crash: 1-argument
+  `start_element` handlers previously raised ArgumentError because
+  the callback always dispatched both arguments (Nokogiri raises
+  there too; we now honor the signature). Optional-argument and
+  splat handlers keep receiving pairs exactly as before.
+
+### Meta
+
+- Upstream check: no libleptris 1.9.8 exists (tarball probe 404s);
+  1.9.7 remains latest. Two perf hypotheses benchmarked and
+  retired this round: `Element#content` is already a memoized
+  one-C-call read, and `Node#traverse`'s C callback dispatch
+  (181 ms) beats Ruby children-recursion (551 ms) 3x — both stay.
+
 ## [1.9.26] - 2026-08-28
 
 ### Added
