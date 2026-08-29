@@ -629,3 +629,31 @@ RSpec.describe "round XXV: cached namespace binding sets" do
     threads.each(&:join)
   end
 end
+
+RSpec.describe "round XXIX: inner_html" do
+  it "serializes children with correct escaping and literal forms" do
+    root = Leptris::XML::Document.parse(
+      %q{<r><a href="#" t="&amp;">x &lt; y &amp; z</a>plain<!--c--><![CDATA[r<aw]]><?pi d?></r>}).root
+    expect(root.inner_html).to eq(
+      %q{<a href="#" t="&amp;">x &lt; y &amp; z</a>plain<!--c--><![CDATA[r<aw]]><?pi d?>})
+  end
+
+  it "escapes bare &, <, > and CR in text content" do
+    root = Leptris::XML::Document.parse(
+      "<r>a &amp; b &lt; c > d</r>").root
+    expect(root.inner_html).to eq("a &amp; b &lt; c &gt; d")
+  end
+
+  it "re-parses to the same children (well-formed output)" do
+    xml = %q{<r><a x="1">t &amp; u</a>v<!--c--><![CDATA[w]]><?pi d?></r>}
+    root = Leptris::XML::Document.parse(xml).root
+    reparsed = Leptris::XML::Document.parse("<r>#{root.inner_html}</r>").root
+    expect(reparsed.children.map(&:class)).to eq(root.children.map(&:class))
+    expect(reparsed.element_children.first["x"]).to eq("1")
+    expect(reparsed.element_children.first.content).to eq("t & u")
+  end
+
+  it "answers empty for childless elements" do
+    expect(Leptris::XML::Document.parse("<r/>").root.inner_html).to eq("")
+  end
+end

@@ -336,6 +336,28 @@ class Leptris::XML::Element < Leptris::XML::Node
     scopes
   end
 
+  # The serialized children (Nokogiri parity): elements serialize
+  # through the engine (correct escaping), text is XML-escaped,
+  # comments/CDATA/PIs render their literal forms. The complement
+  # of #inner_text, which returns the unescaped text content.
+  def inner_html
+    children.map do |child|
+      case child
+      when Leptris::XML::Element then child.to_xml
+      when Leptris::XML::CDATA # before Text: CDATA subclasses it
+        "<![CDATA[#{child.content}]]>"
+      when Leptris::XML::Text
+        Leptris::XML::Serialization.escape_text(child.content)
+      when Leptris::XML::Comment then "<!--#{child.content}-->"
+      when Leptris::XML::ProcessingInstruction
+        data = child.content
+        data.empty? ? "<?#{child.name}?>" : "<?#{child.name} #{data}?>"
+      else
+        Leptris::XML::Serialization.escape_text(child.content.to_s)
+      end
+    end.join
+  end
+
   def to_xml(indent: 0, no_decl: false, encoding: nil)
     Leptris::XML::Serialization.to_xml(
       Leptris::XML::FFI.method(:leptris_element_serialize_into), @c_ptr,

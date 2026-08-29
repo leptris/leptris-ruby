@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.37] - 2026-08-29
+
+### Added
+
+- **`Element#inner_html`** (Nokogiri parity): the serialized
+  children — elements through the engine serializer, text
+  XML-escaped at the seam (`& < >` and CR → `&#xD;`, libxml2's
+  rules), comments/CDATA/PIs in literal forms. Well-formed by
+  construction: a spec re-parses the output to the same children.
+  (Nokogiri's inner_html HTML-serializes XML documents — SGML-style
+  PI closes, bare CDATA content — and its output does not
+  re-parse.) Measured 21 µs/element vs Nokogiri 15 — a first cut
+  on a new API with correct forms as the contract.
+- **libleptris 1.9.12 lockstep** (with 1.9.11): pure XSLT
+  conformance upstream (libxslt suite 152 -> 180/205 — template
+  priority, xsl:number, attribute sets, namespace-declaration
+  ordering, strip/preserve-space, copy semantics); audit 250/250,
+  no new C surface.
+
+### Changed
+
+- **Serialize byte-scratch**: the size+fill serialization pair
+  allocated and freed a MemoryPointer per call — inner_html
+  serializes each child, and the allocation dominated per-child
+  cost. A grow-only thread-local byte scratch (the pointer-scratch
+  discipline) now serves every serialize call. Serialized output
+  is also forced UTF-8 at the seam (previously true only by
+  accident of ASCII-only content comparisons).
+
 ## [1.9.36] - 2026-08-29
 
 ### Fixed
