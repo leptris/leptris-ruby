@@ -29,7 +29,10 @@ module Leptris::XML::SAX::DomDispatch
   def dispatch(handler, dispatched, doc)
     handler.start_document if dispatched[:start_document]
     doc_node = doc.node
-    visit_children(doc_node.c_ptr, doc, handler, dispatched) if doc_node
+    if doc_node
+      visit_children(doc_node.c_ptr, doc, handler, dispatched,
+                     element_parent: false)
+    end
     handler.end_document if dispatched[:end_document]
     self
   end
@@ -41,10 +44,23 @@ module Leptris::XML::SAX::DomDispatch
   CDATA = Leptris::XML::FFI::NODE_CDATA
   PI = Leptris::XML::FFI::NODE_PI
 
-  def visit_children(c_ptr, doc, handler, dispatched)
+  def visit_children(c_ptr, doc, handler, dispatched, element_parent: true)
     wants_text_kinds = dispatched[:characters] ||
                        dispatched[:comment] ||
                        dispatched[:cdata] || dispatched[:pi]
+    if element_parent && !wants_text_kinds
+      # Element-only handlers under an element: the element batch
+      # hands out element pointers with no per-child get_type
+      # (round XXIII's path) — text/comments/PIs are never fetched.
+      # (The document node is not an element handle — the typed
+      # walk serves it.)
+      Leptris::XML::FFI.fetch_element_children(c_ptr).each do |child_ptr|
+        visit_element(
+          Leptris::XML::Node.wrap(child_ptr, doc, node_type: ELEMENT),
+          handler, dispatched)
+      end
+      return
+    end
     Leptris::XML::FFI.fetch_children(c_ptr).each do |child_ptr|
       case Leptris::XML::FFI.leptris_node_get_type(child_ptr)
       when ELEMENT

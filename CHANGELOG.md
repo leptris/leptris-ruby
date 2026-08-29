@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.38] - 2026-08-29
+
+### Changed
+
+- **libleptris 1.9.13 lockstep**: pin bumped; audit 250/250, no
+  new C surface. Engine: document-level whitespace now chains as
+  TEXT children of the document node with libxml2's exact rule
+  (leading prolog ws dropped, ws after a prolog PI dropped, ws
+  after a comment or the root kept, trailing tail trimmed) — a
+  spec pins the rule through `Document#children`; XSLT suite
+  180 -> 181/205.
+- **Element-only SAX handlers ride the element batch** in the
+  DOM-backed dispatcher (round XXIII's path): handlers overriding
+  only element events skip the per-child get_type walk entirely —
+  text/comments/PIs are never fetched. The document node keeps the
+  typed walk (it is not an element handle).
+
+### Meta
+
+- Nokogiri-compat audit against moxml's adapter surface: no gaps
+  (remove_attribute, add_namespace_definition, replace,
+  add_previous/next_sibling all present).
+
 ## [1.9.37] - 2026-08-29
 
 ### Added
