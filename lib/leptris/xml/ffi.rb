@@ -865,13 +865,24 @@ module Leptris
       def self.serialize_into_string(ffi_function, c_ptr, options)
         need = ffi_function.call(c_ptr, nil, 0, nil, options)
         return "" if need.zero?
-        buffer = ::FFI::MemoryPointer.new(:char, need)
-        begin
-          ffi_function.call(c_ptr, buffer, need, nil, options)
-          buffer.read_string
-        ensure
-          buffer.free
+        buffer = scratch_bytes(need)
+        ffi_function.call(c_ptr, buffer, need, nil, options)
+        buffer.read_string.force_encoding(Encoding::UTF_8)
+      end
+
+      # Byte scratch for serialize-into cycles: the size+fill pair
+      # allocated and freed a buffer per call — inner_html
+      # serializes each child, and the allocation was most of the
+      # per-child cost. Grows to the largest serialization seen;
+      # no Ruby reentrancy during a serialize call.
+      def self.scratch_bytes(need)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        ptr = scratch[:bytes]
+        if ptr.nil? || ptr.size < need
+          ptr&.free
+          ptr = scratch[:bytes] = ::FFI::MemoryPointer.new(:char, need)
         end
+        ptr
       end
 
       # All-kind child handle batch (libleptris 1.7.0). Opportunistic

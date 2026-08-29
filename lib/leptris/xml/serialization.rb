@@ -62,6 +62,19 @@ module Leptris::XML::Serialization
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
 
+  # XML-escapes text content for inner_html: & first, then < >
+  # and CR (libxml2 emits &#xD; for a bare carriage return).
+  ESCAPE_TEXT = {
+    "&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "\r" => "&#xD;",
+  }.freeze
+  private_constant :ESCAPE_TEXT
+  ESCAPE_TEXT_RE = /[&<>\r]/.freeze
+  private_constant :ESCAPE_TEXT_RE
+
+  def self.escape_text(string)
+    string.gsub(ESCAPE_TEXT_RE, ESCAPE_TEXT)
+  end
+
   # Builds a SerializeOptions struct. Returns [opts, encoding_anchor];
   # the anchor must stay referenced while opts is in an FFI call.
   def self.build_options(indent: 0, no_decl: false, encoding: nil)
