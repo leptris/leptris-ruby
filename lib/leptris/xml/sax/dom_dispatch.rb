@@ -101,7 +101,7 @@ module Leptris::XML::SAX::DomDispatch
       if dispatched[:start_element] == :one_arg
         handler.start_element(qname)
       else
-        handler.start_element(qname, attr_pairs(element.c_ptr))
+        handler.start_element(qname, declared_pairs(element))
       end
     end
     visit_children(element.c_ptr, element.document, handler, dispatched)
@@ -111,6 +111,23 @@ module Leptris::XML::SAX::DomDispatch
         handler.end_prefix_mapping(ns.prefix.to_s)
       end
     end
+  end
+
+  # start_element's pairs with xmlns declarations carried — the
+  # engine's streaming contract reports declarations among the
+  # attribute pairs (canon-style namespace-aware consumers split
+  # them). The DOM model stores declarations and attributes
+  # separately, so the exact byte-level interleave is unrecoverable
+  # here: declarations emit first in declaration order (default as
+  # "xmlns", prefixed as "xmlns:prefix"), then the attributes in
+  # source order (leptris-ruby#99).
+  def declared_pairs(element)
+    defs = element.namespace_definitions
+    return attr_pairs(element.c_ptr) if defs.empty?
+    pairs = defs.map do |ns|
+      [ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns", ns.href]
+    end
+    pairs.concat(attr_pairs(element.c_ptr))
   end
 
   # [name, value] pairs in source order, read straight from the
