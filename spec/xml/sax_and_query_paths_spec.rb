@@ -377,3 +377,43 @@ RSpec.describe "leptris-ruby#95: SAX attribute corruption" do
       [["mimetype", "image/png"], ["alt", "alttext"], ["title", "titletxt"]])
   end
 end
+
+RSpec.describe "leptris-ruby#99: namespace declarations in SAX events" do
+  let(:xml) do
+    %q(<root xmlns:a="urn:a" xmlns="urn:d"><a:child a:attr="1">t</a:child></root>)
+  end
+
+  it "carries xmlns declarations as attribute pairs (engine contract)" do
+    ev = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| ev << [n, a] }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(xml)
+    expect(ev).to eq(
+      [["root", [["xmlns:a", "urn:a"], ["xmlns", "urn:d"]]],
+       ["a:child", [["a:attr", "1"]]]])
+  end
+
+  it "keeps prefix-mapping events alongside the declaration pairs" do
+    mappings = []
+    handler = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_prefix_mapping) { |p, u| mappings << [p, u] }
+    end.new
+    Leptris::XML::SAX::Parser.new(handler).parse(xml)
+    expect(mappings).to eq([["a", "urn:a"], ["", "urn:d"]])
+  end
+
+  it "matches the engine transport's pair set (order may differ)" do
+    dom_ev = []
+    d1 = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| dom_ev << [n, a.sort] }
+    end.new
+    Leptris::XML::SAX::Parser.new(d1).parse(xml)
+    eng_ev = []
+    d2 = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| eng_ev << [n, a.sort] }
+    end.new
+    Leptris::XML::SAX::Parser.new(d2, streaming: true).parse(xml)
+    expect(dom_ev).to eq(eng_ev)
+  end
+end

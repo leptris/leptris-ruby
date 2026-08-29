@@ -5,6 +5,24 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.39] - 2026-08-29
+
+### Fixed
+
+- **Namespace declarations return to SAX events (leptris-ruby#99,
+  critical)**: the DOM-backed dispatcher (1.9.36's #95 workaround)
+  built start_element pairs from the DOM attribute chain, which
+  excludes xmlns declarations — namespace-aware consumers went
+  blind (canon's namespace-declaration diffs came back empty). The
+  engine's streaming contract carries declarations among the
+  attribute pairs; the dispatcher now emits them first in
+  declaration order (default as `xmlns`, prefixed as
+  `xmlns:prefix`), then the attributes in source order with their
+  prefixed names preserved. The exact byte-level interleave of the
+  streaming path is unrecoverable from the DOM model and is the
+  one documented difference — a spec pins set-equality against
+  the engine transport per element.
+
 ## [1.9.38] - 2026-08-29
 
 ### Changed
