@@ -657,3 +657,17 @@ RSpec.describe "round XXIX: inner_html" do
     expect(Leptris::XML::Document.parse("<r/>").root.inner_html).to eq("")
   end
 end
+
+RSpec.describe "round XXX: 1.9.13 document-chain whitespace" do
+  it "chains document-level whitespace as text children (libxml2 rule)" do
+    doc = Leptris::XML::Document.parse(
+      "<?pi p?>\n  <!--c-->\n  <r/>\n<!--e-->  ")
+    kinds = doc.children.map do |n|
+      n.text? ? :ws : (n.pi? ? :pi : (n.comment? ? :comment : :root))
+    end
+    # libxml2's exact rule (1.9.13 bug-195): leading prolog ws
+    # dropped, ws after a prolog PI dropped, ws after a comment or
+    # the root kept, trailing tail trimmed after the root splice.
+    expect(kinds).to eq(%i[pi comment ws root comment])
+  end
+end
