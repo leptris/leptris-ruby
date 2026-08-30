@@ -35,9 +35,11 @@ task :compile do
   # pointer types an error by default and the musl platform gems
   # fail to build; clang toolchains only warn. Downgrade to warning
   # until the upstream fix (leptris/leptris#640).
+  # No quoting: the flag carries no spaces, and single quotes are
+  # literal on Windows shells (they broke the MSVC build).
   cflags = "-Wno-error=incompatible-pointer-types"
   sh "cmake -B #{build}/build -S #{build} " \
-     "#{CMAKE_FLAGS.join(' ')} -DCMAKE_C_FLAGS='#{cflags}'"
+     "#{CMAKE_FLAGS.join(' ')} -DCMAKE_C_FLAGS=#{cflags}"
   sh "cmake --build #{build}/build --config Release -j 4"
   # Windows names the shared library leptris.dll (no "lib" prefix);
   # vendoring under the uniform libleptris.* name keeps the FFI
