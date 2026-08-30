@@ -81,3 +81,14 @@ RSpec.describe "upstream #630: relative namespaced descendant paths" do
     expect(doc.xpath("//x:b", ns).map { |e| e["id"] }).to eq(%w[1 2])
   end
 end
+
+RSpec.describe "leptris-ruby#103: prefixed attribute predicate without a binding set" do
+  it "resolves the prefix through the document's own declarations" do
+    doc = Leptris::XML::Document.parse(
+      %(<root xmlns:p="http://x.org"><item id="1" p:kind="a">alpha</item>) +
+      %(<item id="2">beta</item></root>))
+    expect(doc.xpath(%(//item[@id="2"])).size).to eq(1)
+    expect(doc.xpath(%(//item[@p:kind="a"])).size).to eq(1)
+    expect(doc.xpath(%(//item/@p:kind)).size).to eq(1)
+  end
+end
