@@ -766,6 +766,10 @@ module Leptris
       PULL_PI            = 5
       PULL_END_DOCUMENT  = 6
       PULL_ERROR         = 7
+      # Prefix events (types.h LeptrisPullEventType 8/9): the
+      # default namespace's prefix is legitimately "".
+      PULL_START_PREFIX  = 8
+      PULL_END_PREFIX    = 9
 
       LEPTRIS_PARSE_DEFAULT = 0
       LEPTRIS_PARSE_DROP_WS_TEXT = 1

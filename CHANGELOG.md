@@ -5,6 +5,32 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.43] - 2026-08-31
+
+### Fixed
+
+- **Pull prefix events surface (leptris-ruby#648's residual)**: the
+  engine's pull stream has always carried start/end prefix events
+  (codes 8/9; the default namespace's prefix is legitimately `""`)
+  — the binding's type map lacked the kinds, silently delivering
+  nil-typed Events that the 1.9.42 staging guard then misread as
+  corruption on healthy engines. `:start_prefix`/`:end_prefix` now
+  map correctly on both cursor and batch paths, and the guard's
+  name check only invalidates kinds that must carry names
+  (start/end element, PI target). Engine 1.9.21's staging fix
+  (upstream #648) verified clean through the batch path once the
+  kinds were mapped.
+
+### Meta
+
+- The 1.9.19–1.9.21 lockstep is HELD: engine 1.9.19+ carries a DOM
+  parse regression — a self-closing element followed by text inside
+  a depth-2 parent fails to parse (`<div><p><br/>hello</p></div>`)
+  — filed as leptris/leptris#653. `Node#visit` (the #645a
+  wrap-free walk), the sized ext-serialize entry (PR #107's
+  substance), and this pull fix's engine-1.9.21 verification are
+  parked on a branch awaiting the fix.
+
 ## [1.9.42] - 2026-08-30
 
 ### Fixed

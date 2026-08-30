@@ -28,6 +28,13 @@ module Leptris::XML::Pull
     Leptris::XML::FFI::PULL_PI => :pi,
     Leptris::XML::FFI::PULL_END_DOCUMENT => :end_document,
     Leptris::XML::FFI::PULL_ERROR => :error,
+    # Prefix events ride the stream ("" prefix = the default
+    # namespace): the engine has always delivered them; the map
+    # lacked the kinds, silently yielding nil-typed Events — which
+    # the staging guard then misread as corruption after the real
+    # engine fix landed (leptris/leptris#648's residual).
+    Leptris::XML::FFI::PULL_START_PREFIX => :start_prefix,
+    Leptris::XML::FFI::PULL_END_PREFIX => :end_prefix,
   }.freeze
 
   class Parser
@@ -87,7 +94,7 @@ module Leptris::XML::Pull
           type = TYPES[buffer.get_int(base + type_off)]
           name = name_ptr.null? ? nil :
             name_ptr.read_string.force_encoding(Encoding::UTF_8)
-          # Staging-corruption guard (leptris/leptris#646): the C
+          # Staging-corruption guard (leptris/leptris#648): the C
           # batch's staging arena misplaces record strings once the
           # staged content crosses its block boundary (~185 bytes of
           # attribute value under nested attr-carrying ancestors) —
@@ -97,10 +104,12 @@ module Leptris::XML::Pull
           # instead of delivering garbage, and point at the cursor
           # path, which reads the same documents correctly.
           if type.nil? ||
-             (name && (name.empty? || !name.valid_encoding? ||
-                       name.match?(/[\x00-\x08\x0e-\x1f]/)))
+             (name && (!name.valid_encoding? ||
+                       name.match?(/[\x00-\x08\x0e-\x1f]/))) ||
+             (%i[start_element end_element pi].include?(type) &&
+              (name.nil? || name.empty?))
             raise Leptris::XML::Error,
-              "pull batch staging corruption (leptris/leptris#646) — " \
+              "pull batch staging corruption (leptris/leptris#648) — " \
               "use Parser#each (cursor) for this document"
           end
           text = text_ptr.null? ? nil :
