@@ -225,8 +225,17 @@ module Leptris
       # count-only query returning the TOTAL across every child kind.
       attach_function :leptris_node_children,
         [:leptris_node_ref, :pointer, :size_t], :size_t
+      # Children with out_kinds (1.9.18, upstream #617): the kind
+      # rides the batch, so wrappers skip the per-child get_type.
+      attach_function :leptris_node_children_ex,
+        [:leptris_node_ref, :pointer, :pointer, :size_t], :size_t
       # Element-only batch; mirror-only — fetch_children rides the
       # all-kind node_children above.
+      # Raw qname-ordered attribute list INCLUDING xmlns
+      # declarations at their byte positions (1.9.18, upstream
+      # #635) — the streaming SAX contract's mixed view.
+      attach_function :leptris_element_attributes_raw,
+        [:leptris_element, :pointer, :pointer, :size_t], :size_t
       attach_function :leptris_element_children,
         [:leptris_element, :pointer, :size_t], :size_t
       attach_function :leptris_node_as_element,
@@ -538,6 +547,11 @@ module Leptris
       attach_function :leptris_xpath_compiled_eval_vars,
         [:leptris_xpath_compiled, :leptris_document, :leptris_element,
          :leptris_xpath_var_set], :leptris_xpath_result
+      # Combined namespaces + variables (1.9.18, upstream #608).
+      attach_function :leptris_xpath_compiled_eval_ns_vars,
+        [:leptris_xpath_compiled, :leptris_document, :leptris_element,
+         :leptris_xpath_ns_set, :leptris_xpath_var_set],
+        :leptris_xpath_result
       # Source text of a compiled expression (owned by the handle).
       attach_function :leptris_xpath_compiled_text,
         [:leptris_xpath_compiled], :string
@@ -893,6 +907,9 @@ module Leptris
       FETCH_INITIAL = 32
       private_constant :FETCH_INITIAL
 
+      # Returns [pointers, kinds] — the kinds ride the batch
+      # (leptris_node_children_ex, 1.9.18 #617) so wrappers skip
+      # the per-child get_type dispatch.
       def self.fetch_children(c_ptr)
         scratch = (Thread.current[:leptris_scratch] ||= {})
         buffer = scratch[:pointers]
@@ -900,18 +917,54 @@ module Leptris
           buffer = scratch[:pointers] =
             ::FFI::MemoryPointer.new(:pointer, FETCH_INITIAL)
         end
+        kinds = scratch_ints(FETCH_INITIAL)
         cap = buffer.size / PTR_BYTES
-        copied = leptris_node_children(c_ptr, buffer, cap)
+        copied = leptris_node_children_ex(c_ptr, buffer, kinds, cap)
         if copied == cap
-          total = leptris_node_children(c_ptr, nil, 0)
+          total = leptris_node_children_ex(c_ptr, nil, nil, 0)
           if total > cap
             buffer.free
             buffer = scratch[:pointers] =
               ::FFI::MemoryPointer.new(:pointer, total)
-            copied = leptris_node_children(c_ptr, buffer, total)
+            kinds = scratch_ints(total)
+            copied = leptris_node_children_ex(c_ptr, buffer, kinds, total)
           end
         end
-        buffer.get_array_of_pointer(0, copied)
+        [buffer.get_array_of_pointer(0, copied),
+         kinds.get_array_of_int(0, copied)]
+      end
+
+      # Raw qname-ordered attribute pairs INCLUDING xmlns at their
+      # byte positions (leptris_element_attributes_raw, 1.9.18
+      # #635) — the streaming SAX contract's mixed view.
+      def self.fetch_attributes_raw(el_ptr)
+        total = leptris_element_attributes_raw(el_ptr, nil, nil, 0)
+        return [] if total.zero?
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        names = scratch[:attr_names]
+        if names.nil? || names.size / PTR_BYTES < total
+          names&.free
+          names = scratch[:attr_names] =
+            ::FFI::MemoryPointer.new(:pointer, total)
+        end
+        values = scratch[:attr_values]
+        if values.nil? || values.size / PTR_BYTES < total
+          values&.free
+          values = scratch[:attr_values] =
+            ::FFI::MemoryPointer.new(:pointer, total)
+        end
+        copied = leptris_element_attributes_raw(
+          el_ptr, names, values, total)
+        Array.new(copied) do |i|
+          [utf8(names.get_pointer(i * PTR_BYTES).read_string),
+           utf8(values.get_pointer(i * PTR_BYTES).read_string)]
+        end
+      end
+
+      # Attribute strings cross the seam UTF-8 on both faces
+      # (ADR-0002).
+      def self.utf8(str)
+        str.nil? ? nil : str.force_encoding(Encoding::UTF_8)
       end
 
       # Element-only child batch (the mirror of fetch_children over

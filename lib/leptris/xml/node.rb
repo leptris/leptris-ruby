@@ -156,12 +156,15 @@ class Leptris::XML::Node
 
   def children
     # Immutable in readonly mode: the batch fetch plus wrapper
-    # construction is paid once.
+    # construction is paid once. The kinds ride the batch
+    # (leptris_node_children_ex), so no per-child get_type.
     return @children if memo_hit?(@children_version)
     ensure_alive!
     parent = as_element_or_self
-    nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
-      Leptris::XML::Node.wrap(ptr, @document, parent: parent)
+    pointers, kinds = Leptris::XML::FFI.fetch_children(@c_ptr)
+    nodes = Array.new(pointers.size) do |i|
+      Leptris::XML::Node.wrap(pointers[i], @document,
+                              parent: parent, node_type: kinds[i])
     end
     result = Leptris::XML::NodeSet.new(@document, nodes)
     if @document
