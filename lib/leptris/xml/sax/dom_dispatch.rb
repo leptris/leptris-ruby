@@ -61,8 +61,9 @@ module Leptris::XML::SAX::DomDispatch
       end
       return
     end
-    Leptris::XML::FFI.fetch_children(c_ptr).each do |child_ptr|
-      case Leptris::XML::FFI.leptris_node_get_type(child_ptr)
+    pointers, kinds = Leptris::XML::FFI.fetch_children(c_ptr)
+    pointers.each_with_index do |child_ptr, i|
+      case kinds[i]
       when ELEMENT
         visit_element(
           Leptris::XML::Node.wrap(child_ptr, doc, node_type: ELEMENT),
@@ -115,19 +116,12 @@ module Leptris::XML::SAX::DomDispatch
 
   # start_element's pairs with xmlns declarations carried — the
   # engine's streaming contract reports declarations among the
-  # attribute pairs (canon-style namespace-aware consumers split
-  # them). The DOM model stores declarations and attributes
-  # separately, so the exact byte-level interleave is unrecoverable
-  # here: declarations emit first in declaration order (default as
-  # "xmlns", prefixed as "xmlns:prefix"), then the attributes in
-  # source order (leptris-ruby#99).
+  # attribute pairs at their byte positions. Since libleptris
+  # 1.9.18 (upstream #635, closing leptris-ruby#99's documented
+  # difference), the raw qname-ordered list reproduces the exact
+  # interleave.
   def declared_pairs(element)
-    defs = element.namespace_definitions
-    return attr_pairs(element.c_ptr) if defs.empty?
-    pairs = defs.map do |ns|
-      [ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns", ns.href]
-    end
-    pairs.concat(attr_pairs(element.c_ptr))
+    Leptris::XML::FFI.fetch_attributes_raw(element.c_ptr)
   end
 
   # [name, value] pairs in source order, read straight from the

@@ -8,15 +8,15 @@ class Leptris::XML::SAX::Parser
 
   attr_reader :document, :encoding
 
-  # streaming: false (default) delivers from a DOM parse —
-  # leptris-ruby#95: the engine's streaming SAX transports corrupt
-  # attribute state on nested attribute-heavy shapes while the DOM
-  # parser reads the same bytes correctly. streaming: true opts
-  # back into the engine transports (bulk/callback by override
-  # weight) once the engine fix lands, or for consumers that
-  # accept the risk.
+  # streaming: true (default, since 1.9.40) delivers through the
+  # engine transports — bulk/callback picked by override weight
+  # (leptris-ruby#95's attribute corruption is fixed upstream in
+  # libleptris 1.9.18, verified on the issue fixture). streaming:
+  # false delivers from a DOM parse (SAX::DomDispatch) — the
+  # correctness-first fallback kept for engines older than 1.9.18
+  # and for consumers wanting the DOM view's shapes.
   def initialize(handler = Leptris::XML::SAX::Document.new,
-                 encoding = nil, streaming: false)
+                 encoding = nil, streaming: true)
     @document = handler
     @encoding = encoding
     @streaming = streaming

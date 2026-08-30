@@ -5,6 +5,38 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.40] - 2026-08-30
+
+### Changed
+
+- **SAX delivers through the engine transports again** — the #95
+  attribute corruption is fixed upstream (libleptris 1.9.18,
+  verified on the issue fixture through both engine transports:
+  all 7 image attributes intact). `SAX::Parser` defaults to
+  `streaming: true`; `streaming: false` keeps the DOM-backed
+  dispatcher as a fallback for older engines. The correctness tax
+  is gone: all-events 119 ms and text-only 21.6 ms per big.xml
+  parse vs Nokogiri's 131/130 ms — SAX wins every shape outright
+  again, with correct data.
+- **libleptris 1.9.14–1.9.18 lockstep** (audit 253/253, three new
+  symbols): fixes for everything we were tracking upstream —
+  #625 (SAX attrs), #626 (MSVC non-ASCII names; the Windows spec
+  gate is removed), #627/#628/#630 (XSLT unknown fns and last();
+  relative namespaced descendant paths — spec added), #613
+  (latin-1), #608 (combined ns+vars eval; attached), #617
+  (node_children out_kinds; wired), #633 (pretty-print parity),
+  #635 (xmlns interleave; wired).
+- **Children batches carry kinds** (`leptris_node_children_ex`):
+  `#children` and the fragment/dispatch walks wrap with the kind
+  hint — no per-child get_type dispatch. Measured: the cold
+  full-tree walk's remaining gap vs Nokogiri (1.5x) is the Ruby
+  wrapper allocation floor, not type dispatch; noted for the
+  record.
+- **Exact xmlns interleave** (`leptris_element_attributes_raw`):
+  the DOM-backed fallback now reproduces the streaming contract's
+  byte-positioned declarations; the #99 spec is upgraded from
+  set-equality to exact order equality.
+
 ## [1.9.39] - 2026-08-29
 
 ### Fixed

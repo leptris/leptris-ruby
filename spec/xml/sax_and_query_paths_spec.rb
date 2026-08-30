@@ -14,12 +14,6 @@ RSpec.describe "round III: SAX adapter and query paths" do
   end
 
   it "delivers every SAX string kind as UTF-8" do
-    # leptris/leptris#626: MSVC builds' DOM path rejects non-ASCII
-    # element NAMES (signed-char name validation — comments and PI
-    # data with the same bytes parse fine, and the streaming
-    # transports accept the names). Unskip when the engine fix
-    # lands; mac/linux cover the full fixture meanwhile.
-    skip "engine DOM parse rejects non-ASCII names on MSVC builds" if Gem.win_platform?
     handler = EncodingProbeHandler.new
     Leptris::XML::SAX::Parser.new(handler).parse(<<~XML)
       <!-- café -->
@@ -392,6 +386,15 @@ RSpec.describe "leptris-ruby#99: namespace declarations in SAX events" do
     expect(ev).to eq(
       [["root", [["xmlns:a", "urn:a"], ["xmlns", "urn:d"]]],
        ["a:child", [["a:attr", "1"]]]])
+    # interleaved at byte positions (upstream #635): a declaration
+    # written between attributes reports between them
+    mixed = Class.new(Leptris::XML::SAX::Document) do
+      define_method(:start_element) { |n, a = []| ev.clear; ev << a }
+    end.new
+    Leptris::XML::SAX::Parser.new(mixed).parse(
+      %q{<e xmlns:b="urn:b" id="1" xmlns="urn:d" x="2"/>})
+    expect(ev[0]).to eq(
+      [["xmlns:b", "urn:b"], ["id", "1"], ["xmlns", "urn:d"], ["x", "2"]])
   end
 
   it "keeps prefix-mapping events alongside the declaration pairs" do
@@ -403,17 +406,17 @@ RSpec.describe "leptris-ruby#99: namespace declarations in SAX events" do
     expect(mappings).to eq([["a", "urn:a"], ["", "urn:d"]])
   end
 
-  it "matches the engine transport's pair set (order may differ)" do
+  it "matches the engine transport's pairs exactly, order included" do
     dom_ev = []
     d1 = Class.new(Leptris::XML::SAX::Document) do
-      define_method(:start_element) { |n, a = []| dom_ev << [n, a.sort] }
+      define_method(:start_element) { |n, a = []| dom_ev << [n, a] }
     end.new
-    Leptris::XML::SAX::Parser.new(d1).parse(xml)
+    Leptris::XML::SAX::Parser.new(d1, streaming: false).parse(xml)
     eng_ev = []
     d2 = Class.new(Leptris::XML::SAX::Document) do
-      define_method(:start_element) { |n, a = []| eng_ev << [n, a.sort] }
+      define_method(:start_element) { |n, a = []| eng_ev << [n, a] }
     end.new
-    Leptris::XML::SAX::Parser.new(d2, streaming: true).parse(xml)
+    Leptris::XML::SAX::Parser.new(d2).parse(xml)
     expect(dom_ev).to eq(eng_ev)
   end
 end

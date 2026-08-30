@@ -69,3 +69,15 @@ RSpec.describe "Leptris::XML Searchable via XPath" do
     expect(all_titles.map(&:content)).to eq(%w[Ruby XML XPath])
   end
 end
+
+RSpec.describe "upstream #630: relative namespaced descendant paths" do
+  it "evaluates .//ns:x and descendant::ns:x from element context" do
+    doc = Leptris::XML::Document.parse(
+      %q{<r xmlns:x="urn:x"><a><x:b id="1"/></a><x:b id="2"/></r>})
+    a = doc.root.element_children.first
+    ns = { "x" => "urn:x" }
+    expect(a.xpath(".//x:b", ns).map { |e| e["id"] }).to eq(%w[1])
+    expect(a.xpath("descendant::x:b", ns).map { |e| e["id"] }).to eq(%w[1])
+    expect(doc.xpath("//x:b", ns).map { |e| e["id"] }).to eq(%w[1 2])
+  end
+end

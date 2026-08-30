@@ -25,8 +25,9 @@ class Leptris::XML::DocumentFragment
   end
 
   def children
-    nodes = Leptris::XML::FFI.fetch_children(@c_ptr).map do |ptr|
-      Leptris::XML::Node.wrap(ptr, @document)
+    pointers, kinds = Leptris::XML::FFI.fetch_children(@c_ptr)
+    nodes = Array.new(pointers.size) do |i|
+      Leptris::XML::Node.wrap(pointers[i], @document, node_type: kinds[i])
     end
     Leptris::XML::NodeSet.new(@document, nodes)
   end
