@@ -422,16 +422,15 @@ RSpec.describe "leptris-ruby#99: namespace declarations in SAX events" do
 end
 
 RSpec.describe "pull batch staging corruption guard (leptris/leptris#646)" do
-  it "fails loudly instead of delivering garbage past the staging boundary" do
+  it "delivers prefix events with the default namespace's empty prefix" do
     v = "v" * 200
     xml = %(<r xmlns="urn:i"><a id="1"><b id="2"><image src="#{v}" a="1"/></b></a></r>)
-    expect {
-      Leptris::XML::Pull::Parser.parse(xml).each_batch(64) { |e| }
-    }.to raise_error(Leptris::XML::Error, /staging corruption.*#each/m)
-    # the cursor path reads the same document correctly
-    names = []
-    Leptris::XML::Pull.parse(xml) { |e| names << e.name if e.type == :start_element }
-    expect(names).to eq(%w[r a b image])
+    events = []
+    Leptris::XML::Pull::Parser.parse(xml).each_batch(64) do |e|
+      events << [e.type, e.name] if %i[start_prefix end_prefix start_element].include?(e.type)
+    end
+    expect(events.first).to eq(%i[start_prefix].zip([""]).first)
+    expect(events).to include(%i[start_element].zip(%w[image]).first)
   end
 
   it "leaves healthy batches untouched" do
