@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.42] - 2026-08-30
+
+### Fixed
+
+- **Pull batch staging corruption: fail loudly, never deliver
+  garbage (leptris/leptris#646)**: `leptris_pull_next_batch`'s
+  staging arena misplaces record strings once staged content
+  crosses its block boundary (~185 bytes of attribute value under
+  nested attr-carrying ancestors — the #625 fix family did not
+  reach the batch staging). `Parser#each_batch` now validates each
+  staged record — unknown type codes, empty/control-byte/invalid-
+  encoding names cannot be legal XML events — and raises a
+  descriptive error pointing at `#each` (the cursor path reads the
+  same documents correctly; SAX default, recorder drain, and DOM
+  are unaffected). Bisection attached upstream: ok at 180 staged
+  bytes, corrupt at 190, in the minimized shape.
+
 ## [1.9.41] - 2026-08-30
 
 ### Changed
