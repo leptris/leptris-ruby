@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.41] - 2026-08-30
+
+### Changed
+
+- **One thread-local access per children batch**: fetch_children
+  re-looked up the scratch hash inside the ints helper on every
+  call; both buffers now resolve through a single access (and the
+  kinds buffer sizes from the pointers capacity directly). Cold
+  full-tree walk: 254 -> 247 ms per big.xml walk (the gap vs
+  Nokogiri narrows 1.66x -> 1.56x — the remainder is the binding's
+  per-node allocation floor, re-measured and filed upstream as
+  leptris/leptris#645 together with the unchanged 1.64x scalar
+  XPath gap from #617's other half).
+
 ## [1.9.40] - 2026-08-30
 
 ### Changed

@@ -911,17 +911,22 @@ module Leptris
       # (leptris_node_children_ex, 1.9.18 #617) so wrappers skip
       # the per-child get_type dispatch.
       def self.fetch_children(c_ptr)
+        # One thread-local access serves both buffers (the helper
+        # re-looked it up); the kinds buffer sizes from the POINTERS
+        # buffer's capacity — it may have grown past FETCH_INITIAL on
+        # earlier use, and C writes one kind per copied child.
         scratch = (Thread.current[:leptris_scratch] ||= {})
         buffer = scratch[:pointers]
         if buffer.nil?
           buffer = scratch[:pointers] =
             ::FFI::MemoryPointer.new(:pointer, FETCH_INITIAL)
         end
-        # size the kinds buffer from the POINTERS buffer's capacity —
-        # it may have grown past FETCH_INITIAL on earlier use, and C
-        # writes one kind per copied child
         cap = buffer.size / PTR_BYTES
-        kinds = scratch_ints(cap)
+        kinds = scratch[:ints]
+        if kinds.nil? || kinds.size / INT_BYTES < cap
+          kinds&.free
+          kinds = scratch[:ints] = ::FFI::MemoryPointer.new(:int, cap)
+        end
         copied = leptris_node_children_ex(c_ptr, buffer, kinds, cap)
         if copied == cap
           total = leptris_node_children_ex(c_ptr, nil, nil, 0)
@@ -929,7 +934,9 @@ module Leptris
             buffer.free
             buffer = scratch[:pointers] =
               ::FFI::MemoryPointer.new(:pointer, total)
-            kinds = scratch_ints(total)
+            kinds.free
+            kinds = scratch[:ints] =
+              ::FFI::MemoryPointer.new(:int, total)
             copied = leptris_node_children_ex(c_ptr, buffer, kinds, total)
           end
         end
