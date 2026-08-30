@@ -917,8 +917,11 @@ module Leptris
           buffer = scratch[:pointers] =
             ::FFI::MemoryPointer.new(:pointer, FETCH_INITIAL)
         end
-        kinds = scratch_ints(FETCH_INITIAL)
+        # size the kinds buffer from the POINTERS buffer's capacity —
+        # it may have grown past FETCH_INITIAL on earlier use, and C
+        # writes one kind per copied child
         cap = buffer.size / PTR_BYTES
+        kinds = scratch_ints(cap)
         copied = leptris_node_children_ex(c_ptr, buffer, kinds, cap)
         if copied == cap
           total = leptris_node_children_ex(c_ptr, nil, nil, 0)
