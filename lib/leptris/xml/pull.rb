@@ -85,14 +85,28 @@ module Leptris::XML::Pull
           name_ptr = buffer.get_pointer(base + name_off)
           text_ptr = buffer.get_pointer(base + text_off)
           type = TYPES[buffer.get_int(base + type_off)]
+          name = name_ptr.null? ? nil :
+            name_ptr.read_string.force_encoding(Encoding::UTF_8)
+          # Staging-corruption guard (leptris/leptris#646): the C
+          # batch's staging arena misplaces record strings once the
+          # staged content crosses its block boundary (~185 bytes of
+          # attribute value under nested attr-carrying ancestors) —
+          # names come back empty, control-byte-laced, or
+          # invalid-encoding, and unknown type codes surface as nil.
+          # Element names can never look like that: fail loudly
+          # instead of delivering garbage, and point at the cursor
+          # path, which reads the same documents correctly.
+          if type.nil? ||
+             (name && (name.empty? || !name.valid_encoding? ||
+                       name.match?(/[\x00-\x08\x0e-\x1f]/)))
+            raise Leptris::XML::Error,
+              "pull batch staging corruption (leptris/leptris#646) — " \
+              "use Parser#each (cursor) for this document"
+          end
           text = text_ptr.null? ? nil :
             text_ptr.read_string.force_encoding(Encoding::UTF_8)
           text = Leptris::XML::FFI.read_pi_data(text) if type == :pi
-          Event.new(type,
-            name_ptr.null? ? nil :
-              name_ptr.read_string.force_encoding(Encoding::UTF_8),
-            text, nil
-          )
+          Event.new(type, name, text, nil)
         end
         # The attr mirror holds the batch's most recent start.
         last_start = nil

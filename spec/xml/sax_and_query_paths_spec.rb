@@ -420,3 +420,24 @@ RSpec.describe "leptris-ruby#99: namespace declarations in SAX events" do
     expect(dom_ev).to eq(eng_ev)
   end
 end
+
+RSpec.describe "pull batch staging corruption guard (leptris/leptris#646)" do
+  it "fails loudly instead of delivering garbage past the staging boundary" do
+    v = "v" * 200
+    xml = %(<r xmlns="urn:i"><a id="1"><b id="2"><image src="#{v}" a="1"/></b></a></r>)
+    expect {
+      Leptris::XML::Pull::Parser.parse(xml).each_batch(64) { |e| }
+    }.to raise_error(Leptris::XML::Error, /staging corruption.*#each/m)
+    # the cursor path reads the same document correctly
+    names = []
+    Leptris::XML::Pull.parse(xml) { |e| names << e.name if e.type == :start_element }
+    expect(names).to eq(%w[r a b image])
+  end
+
+  it "leaves healthy batches untouched" do
+    seen = []
+    Leptris::XML::Pull::Parser.parse("<r><a x=\"1\">t</a></r>")
+      .each_batch(2) { |e| seen << [e.type, e.name] }
+    expect(seen).to include([:start_element, "a"])
+  end
+end
