@@ -30,7 +30,14 @@ task :compile do
   mkdir_p(build)
   url = "https://api.github.com/repos/leptris/leptris/tarball/v#{version}"
   sh "curl -sL #{url} | tar xz -C #{build} --strip-components=1"
-  sh "cmake -B #{build}/build -S #{build} #{CMAKE_FLAGS.join(' ')}"
+  # libleptris 1.9.18's xslt_functions.c:270 assigns LeptrisElement
+  # to LeptrisNodeRef — GCC 14 (Alpine/musl) makes incompatible
+  # pointer types an error by default and the musl platform gems
+  # fail to build; clang toolchains only warn. Downgrade to warning
+  # until the upstream fix (leptris/leptris#640).
+  cflags = "-Wno-error=incompatible-pointer-types"
+  sh "cmake -B #{build}/build -S #{build} " \
+     "#{CMAKE_FLAGS.join(' ')} -DCMAKE_C_FLAGS='#{cflags}'"
   sh "cmake --build #{build}/build --config Release -j 4"
   # Windows names the shared library leptris.dll (no "lib" prefix);
   # vendoring under the uniform libleptris.* name keeps the FFI
