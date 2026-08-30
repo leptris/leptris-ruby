@@ -644,8 +644,11 @@ module Leptris
       # Display-form variant (1.9.9, #129): the ext struct carries
       # indent_text; returns an OWNED string — read via
       # read_owned_string (the seam frees it).
-      attach_function :leptris_document_serialize_ext,
-        [:leptris_document, :pointer, :pointer], :pointer
+      # Sized entry (libleptris 1.9.19, leptris/leptris#644): the ext
+      # struct may grow; passing our layout size keeps the engine from
+      # reading past this binding's allocation (the MSVC segfault).
+      attach_function :leptris_document_serialize_ext_sized,
+        [:leptris_document, :pointer, :pointer, :size_t], :pointer
       attach_function :leptris_document_serialize_into,
         [:leptris_document, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_get_dtd,

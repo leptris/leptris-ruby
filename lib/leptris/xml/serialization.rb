@@ -47,8 +47,11 @@ module Leptris::XML::Serialization
   def self.to_xml_display(c_ptr, indent: 0, no_decl: false, encoding: nil)
     opts, encoding_anchor = build_options(
       indent: indent, no_decl: no_decl, encoding: encoding)
-    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext(
-      c_ptr, opts.pointer, INDENT_TEXT_EXT.pointer)
+    # Sized entry (leptris/leptris#644): our ext layout is one int —
+    # passing its size stops the engine reading indent_unit out of
+    # bounds (the MSVC segfault).
+    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext_sized(
+      c_ptr, opts.pointer, INDENT_TEXT_EXT.pointer, INDENT_TEXT_EXT.size)
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
 
