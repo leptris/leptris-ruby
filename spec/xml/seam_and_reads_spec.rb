@@ -569,6 +569,10 @@ RSpec.describe "leptris-ruby#92: document-level PI writes name the contract" do
   end
 
   it "serializes the display form with indent_text" do
+    # leptris/leptris#644: leptris_document_serialize_ext segfaults
+    # in MSVC builds (works on clang/gcc). Unskip when the engine
+    # fix lands.
+    skip "serialize_ext segfaults on MSVC builds" if Gem.win_platform?
     doc = Leptris::XML::Document.parse("<r><a/>text<b/></r>")
     compact = doc.to_s(indent: 2)
     display = doc.to_s(indent: 2, indent_text: true)
