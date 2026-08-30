@@ -675,3 +675,42 @@ RSpec.describe "round XXX: 1.9.13 document-chain whitespace" do
     expect(kinds).to eq(%i[pi comment ws root comment])
   end
 end
+
+RSpec.describe "leptris-ruby#109: indent unit (Nokogiri indent_text semantics)" do
+  it "repeats the unit indent times per depth level" do
+    doc = Leptris::XML::Document.parse("<r><a><b/></a></r>")
+    expect(doc.to_xml(indent: 2, indent_text: "\t"))
+      .to eq("<?xml version=\"1.0\"?>\n<r>\n\t\t<a>\n\t\t\t\t<b/>\n\t\t</a>\n</r>")
+    expect(doc.to_xml(indent: 1, indent_text: "\t"))
+      .to eq("<?xml version=\"1.0\"?>\n<r>\n\t<a>\n\t\t<b/>\n\t</a>\n</r>")
+    expect(doc.to_xml(indent: 3, indent_text: ".."))
+      .to include("\n......<a>")
+  end
+
+  it "keeps true as the display form and the default unchanged" do
+    doc = Leptris::XML::Document.parse("<r><a/>t</r>")
+    display = doc.to_xml(indent: 2, indent_text: true)
+    expect(display).not_to eq(doc.to_xml(indent: 2))
+    expect(doc.to_xml(indent: 2, indent_text: false))
+      .to eq(doc.to_xml(indent: 2))
+  end
+end
+
+RSpec.describe "Node#visit (libleptris 1.9.20, upstream #645a)" do
+  it "yields enter/leave pairs with depth" do
+    seen = []
+    Leptris::XML::Document.parse("<r><a><b/></a><c/></r>").root
+      .visit { |n, entering, depth| seen << [n.name, entering, depth] }
+    expect(seen).to eq(
+      [["r", true, 0], ["a", true, 1], ["b", true, 2], ["b", false, 2],
+       ["a", false, 1], ["c", true, 1], ["c", false, 1], ["r", false, 0]])
+  end
+
+  it "walks the document chain from the document node" do
+    seen = []
+    Leptris::XML::Document.parse("<?pi p?><r/><?e q?>").node
+      .visit { |n, entering, depth| seen << [n.name, entering] }
+    expect(seen).to eq(
+      [["pi", true], ["r", true], ["r", false], ["e", true]])
+  end
+end

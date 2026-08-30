@@ -47,8 +47,28 @@ module Leptris::XML::Serialization
   def self.to_xml_display(c_ptr, indent: 0, no_decl: false, encoding: nil)
     opts, encoding_anchor = build_options(
       indent: indent, no_decl: no_decl, encoding: encoding)
-    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext(
-      c_ptr, opts.pointer, INDENT_TEXT_EXT.pointer)
+    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext_sized(
+      c_ptr, opts.pointer, INDENT_TEXT_EXT.pointer, INDENT_TEXT_EXT.size)
+    Leptris::XML::FFI.read_owned_string(str_ptr)
+  end
+
+  # Indent-unit serialization (libleptris 1.9.22, #633 —
+  # leptris-ruby#109): Nokogiri's indent_text semantics — the unit
+  # string replaces the default spaces, repeated `indent` times per
+  # depth level, standard layout otherwise. The engine emits ONE
+  # copy of the unit string per level (options->indent is ignored
+  # when a unit is set), so the binding multiplies unit x indent to
+  # reach Nokogiri's repeat count.
+  def self.to_xml_indent_unit(c_ptr, unit, indent: 0, no_decl: false,
+                              encoding: nil)
+    opts, encoding_anchor = build_options(
+      indent: indent, no_decl: no_decl, encoding: encoding)
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    unit_anchor = ::FFI::MemoryPointer.from_string(
+      indent.positive? ? unit.to_s * indent : unit.to_s)
+    ext[:indent_unit] = unit_anchor
+    str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext_sized(
+      c_ptr, opts.pointer, ext.pointer, ext.size)
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
 
