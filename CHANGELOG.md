@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.44] - 2026-08-31
+
+### Added
+
+- **libleptris 1.9.19–1.9.22 lockstep** (audit 255/255, three new
+  symbols): the #653 hold is lifted — the reported parse
+  "regression" was an ill-formed fixture (stray `</y>`) plus a
+  stale-build bisect artifact; forced-clean rebuilds show 1.9.18
+  and 1.9.21+ identical on every well-formed shape (verified and
+  withdrawn on the issue).
+- **`Node#visit`** (upstream #645a, `leptris_node_visit`): one C
+  call over the subtree — elements yield `(node, true/false,
+  depth)` enter/leave pairs, other kinds once, depth from the
+  receiver; the document node walks the document chain. No
+  NodeSet, pointer array, or children memo per level — the leanest
+  full-subtree iteration the binding offers (#645a's walk lever;
+  consumers can now beat the children-recursion allocation floor).
+- **Indent unit with Nokogiri semantics (leptris-ruby#109,
+  upstream #633)**: `to_xml(indent: 2, indent_text: "\t")` — the
+  unit string replaces the default spaces, repeated `indent`
+  times per depth level, standard layout otherwise
+  (byte-identical to Nokogiri's output modulo their trailing
+  newline, which moxml normalizes). `indent_text: true` keeps the
+  display form; `false` the default. Wired through the sized
+  ext-serialize entry (PR #107's substance — the audit requires it
+  attached with the lockstep, so it rides here; the engine emits
+  one unit copy per level and the binding multiplies unit x indent
+  to reach Nokogiri's repeat count).
+
 ## [1.9.43] - 2026-08-31
 
 ### Fixed

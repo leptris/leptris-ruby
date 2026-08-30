@@ -72,10 +72,13 @@ module Leptris
           :encoding, :pointer
       end
 
-      # LeptrisSerializeExtOptions (1.9.9, #129): display-form
-      # serialization knobs beyond the ABI-frozen options struct.
+      # LeptrisSerializeExtOptions (1.9.9 #129 display form; 1.9.22
+      # #633/#109 indent unit): knobs beyond the ABI-frozen options
+      # struct. MAY grow — always pass its size through the sized
+      # entry.
       class SerializeExtStruct < ::FFI::Struct
-        layout :indent_text, :int
+        layout :indent_text, :int,
+               :indent_unit, :pointer
       end
 
       # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
@@ -154,6 +157,12 @@ module Leptris
       # 1.9.7, upstream #580; the libxml2 model).
       attach_function :leptris_document_node,
         [:leptris_document], :leptris_node_ref
+      # Wrap-free subtree visitation (1.9.20, upstream #645a):
+      # enter/leave pairs for elements, depth from the walk's root,
+      # one C call — no NodeSet/Array churn per level. The document
+      # node walks the document child chain.
+      attach_function :leptris_node_visit,
+        [:leptris_node_ref, :pointer, :pointer], :void
       # Document-level PIs (v1.6.0): not tree nodes — enumerate via
       # these accessors only.
       attach_function :leptris_document_pi_count,
@@ -646,6 +655,11 @@ module Leptris
       # read_owned_string (the seam frees it).
       attach_function :leptris_document_serialize_ext,
         [:leptris_document, :pointer, :pointer], :pointer
+      # Sized variant (1.9.19, upstream #644 — leptris-ruby PR #107):
+      # passing our ext-struct size keeps the engine from reading
+      # past this binding's allocation (the MSVC segfault).
+      attach_function :leptris_document_serialize_ext_sized,
+        [:leptris_document, :pointer, :pointer, :size_t], :pointer
       attach_function :leptris_document_serialize_into,
         [:leptris_document, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_get_dtd,

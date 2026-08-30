@@ -273,6 +273,31 @@ class Leptris::XML::Node
   end
   alias_method :remove, :unlink
 
+  # Visits the subtree with ONE C call (leptris_node_visit,
+  # libleptris 1.9.20 — upstream #645a): elements yield twice —
+  # (node, true, depth) before their children, (node, false, depth)
+  # after the subtree completes — every other kind once with
+  # entering=true; depth counts element levels from the receiver.
+  # No NodeSet, pointer array, or children memo per level: the
+  # leanest full-subtree iteration the binding offers (a document
+  # receiver walks the document child chain). The walk is read-only
+  # — mutate only between visits.
+  #
+  #     root.visit { |node, entering, depth| ... }
+  def visit(&block)
+    return enum_for(:visit) unless block
+    ensure_alive!
+    document = @document
+    visitor = ::FFI::Function.new(
+      :void, [:pointer, :pointer, :int, :int], blocking: true) do |_, node_ptr, entering, depth|
+      block.call(
+        Leptris::XML::Node.wrap(node_ptr, document),
+        entering == 1, depth)
+    end
+    Leptris::XML::FFI.leptris_node_visit(@c_ptr, visitor, nil)
+    self
+  end
+
   # Walks the subtree in post-order DFS (matches Nokogiri's
   # semantics): the receiver, its descendants, nothing else.
   #

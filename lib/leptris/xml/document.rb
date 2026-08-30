@@ -266,13 +266,21 @@ class Leptris::XML::Document
   end
   alias_method :internal_subset, :doctype
 
-  # indent_text: true selects the display form (libleptris 1.9.9,
-  # #129): text and mixed content indent too — the output is
-  # display-oriented and not round-trip-guaranteed.
+  # indent_text selects the ext-serializer knob (libleptris 1.9.22):
+  # a STRING is the indent unit with Nokogiri's semantics — the unit
+  # replaces the default spaces, one copy per depth level, standard
+  # layout (requires indent > 0); true selects the display form
+  # (1.9.9 #129 — text and mixed content indent too; output is
+  # display-oriented and not round-trip-guaranteed).
   def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return "" if @c_ptr.nil?
-    if indent_text
+    case indent_text
+    when String
+      return Leptris::XML::Serialization.to_xml_indent_unit(
+        @c_ptr, indent_text, indent: indent, no_decl: no_decl,
+        encoding: encoding)
+    when true
       return Leptris::XML::Serialization.to_xml_display(
         @c_ptr, indent: indent, no_decl: no_decl, encoding: encoding)
     end
