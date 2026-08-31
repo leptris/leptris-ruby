@@ -95,6 +95,28 @@ module Leptris::XML::Serialization
     string.gsub(ESCAPE_TEXT_RE, ESCAPE_TEXT)
   end
 
+  # Element-face indent unit (leptris-ruby#109 residual 2): no
+  # element-level ext-serialize entry exists yet, so the unit path
+  # copies the element into a fresh document (C-side copy, one
+  # pool allocation), serializes that document without a
+  # declaration, and returns the subtree — identical output to the
+  # element serializer for the standard layout, with the unit.
+  def self.to_xml_element_unit(element, unit, indent: 0)
+    document = Leptris::XML::Document.create
+    begin
+      copy_ptr = Leptris::XML::FFI.leptris_element_copy(
+        element.c_ptr, document.c_ptr)
+      if copy_ptr.null?
+        raise Leptris::XML::Error, "leptris_element_copy failed"
+      end
+      document.root = Leptris::XML::Node.wrap(copy_ptr, document)
+      to_xml_indent_unit(document.c_ptr, unit,
+                         indent: indent, no_decl: true)
+    ensure
+      document.free
+    end
+  end
+
   # Builds a SerializeOptions struct. Returns [opts, encoding_anchor];
   # the anchor must stay referenced while opts is in an FFI call.
   def self.build_options(indent: 0, no_decl: false, encoding: nil)
