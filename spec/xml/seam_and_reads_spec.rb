@@ -687,6 +687,12 @@ RSpec.describe "leptris-ruby#109: indent unit (Nokogiri indent_text semantics)" 
       .to include("\n......<a>")
   end
 
+  it "applies the unit to text-bearing leaves too (leptris/leptris#658)" do
+    doc = Leptris::XML::Document.parse("<r><a><b/></a><c>x</c></r>")
+    expect(doc.to_xml(indent: 2, indent_text: "\t"))
+      .to eq("<?xml version=\"1.0\"?>\n<r>\n\t\t<a>\n\t\t\t\t<b/>\n\t\t</a>\n\t\t<c>x</c>\n</r>")
+  end
+
   it "keeps true as the display form and the default unchanged" do
     doc = Leptris::XML::Document.parse("<r><a/>t</r>")
     display = doc.to_xml(indent: 2, indent_text: true)
