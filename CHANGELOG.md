@@ -5,6 +5,47 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.47] - 2026-09-01
+
+### Changed
+
+- **libleptris 1.9.26–1.9.30 lockstep**: five upstream releases —
+  the XSLT 3.0 program through `xsl:accumulator` (ordered rules,
+  lazy per-tree folds, `accumulator-before/after`), the XPath 3.1
+  composition core (`let`, `!` map, `=>` arrow), and conformance
+  fixes (misplaced `xsl:catch` now a compile error matching
+  Saxon's XTSE0010, #669). Audit 255/255, no new C surface; the
+  suite is unchanged.
+
+## [1.9.46] - 2026-08-31
+
+### Fixed
+
+- **Indent unit on text-bearing leaves (leptris-ruby#109 residual
+  1, upstream #658)**: the serializer's fused-leaf fast path
+  computed `indent * indent_spaces` directly, bypassing the unit
+  branch — mixed-content leaves fell back to spaces. Fixed
+  engine-side in libleptris 1.9.25; the full #109 fixture
+  (`<r><a><b/></a><c>x</c></r>`) is now byte-identical to
+  Nokogiri's output (modulo their trailing newline). The moxml
+  indent_text wiring gate is complete.
+
+### Changed
+
+- **libleptris 1.9.24–1.9.25 lockstep**: XSLT 3.0 increments
+  upstream (sequences and the 3.0 instruction set; grouping
+  including `group-adjacent`/`group-ending-with`, and
+  `xsl:analyze-string` with regex groups); teardown leak fixes.
+  Audit 255/255, no new C surface.
+
+### Meta
+
+- Head-to-head re-measure on 1.9.25: **scalar XPath now 4.61×
+  faster than Nokogiri** (`string(//item[1])`: 359 → 60 ms per 50
+  evals — #645's scalar row collapses); the cold-walk row remains
+  the documented allocation floor with `Node#visit` as the
+  adopted-by-choice lever.
+
 ## [1.9.45] - 2026-08-31
 
 ### Added
