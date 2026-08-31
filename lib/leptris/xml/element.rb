@@ -358,7 +358,18 @@ class Leptris::XML::Element < Leptris::XML::Node
     end.join
   end
 
-  def to_xml(indent: 0, no_decl: false, encoding: nil)
+  # indent_text: a STRING is the indent unit with Nokogiri's
+  # semantics (leptris-ruby#109; via a C-side copy into a fresh
+  # document — no element-level ext entry exists yet). true is NOT
+  # supported here: the display form is document-level.
+  def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false)
+    if indent_text == true
+      raise ArgumentError,
+        "indent_text: true (display form) is document-level — " \
+        "pass the unit string for elements"
+    end
+    return Leptris::XML::Serialization.to_xml_element_unit(
+      self, indent_text, indent: indent) if indent_text.is_a?(String)
     Leptris::XML::Serialization.to_xml(
       Leptris::XML::FFI.method(:leptris_element_serialize_into), @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)

@@ -714,3 +714,25 @@ RSpec.describe "Node#visit (libleptris 1.9.20, upstream #645a)" do
       [["pi", true], ["r", true], ["r", false], ["e", true]])
   end
 end
+
+RSpec.describe "leptris-ruby#109 residual: element-face indent unit" do
+  it "serializes elements with the unit, matching Nokogiri" do
+    doc = Leptris::XML::Document.parse("<r><a><b/></a><c>x</c></r>")
+    el = doc.root.element_children.first
+    expect(el.to_xml(indent: 2, indent_text: "\t"))
+      .to eq("<a>\n\t\t<b/>\n</a>")
+  end
+
+  it "refuses the document-level display form on elements" do
+    el = Leptris::XML::Document.parse("<r><a/></r>").root
+    expect { el.to_xml(indent_text: true) }
+      .to raise_error(ArgumentError, /document-level/)
+  end
+
+  it "keeps the element default unchanged" do
+    el = Leptris::XML::Document.parse("<r><a><b/></a></r>")
+      .root.element_children.first
+    expect(el.to_xml(indent: 2, indent_text: false))
+      .to eq(el.to_xml(indent: 2))
+  end
+end

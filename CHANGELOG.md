@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.45] - 2026-08-31
+
+### Added
+
+- **Element-face indent unit (leptris-ruby#109 residual 2)**:
+  `Element#to_xml(indent: 2, indent_text: "\t")` — the unit with
+  Nokogiri's element semantics, byte-identical to Nokogiri's
+  `Element#to_xml` on the same input. No element-level
+  ext-serialize entry exists yet, so the path copies the element
+  C-side into a fresh document (one pool allocation) and
+  serializes through the document ext entry without a declaration.
+  `indent_text: true` raises ArgumentError on elements — the
+  display form stays document-level. The element default is
+  unchanged.
+- **libleptris 1.9.23 lockstep**: XPath 2.0+ expression core
+  upstream (if/then/else, for-return, `to` ranges); audit 255/255,
+  no new C surface.
+
+### Known issue
+
+- **#109 residual 1 (text-bearing leaves lose the unit) is
+  engine-side and filed as leptris/leptris#658**: the fused-leaf
+  fast path (serialize.c ~1193) computes `indent * indent_spaces`
+  directly, bypassing `buffer_append_indent`'s unit branch — every
+  mixed-content leaf's line indent falls back to spaces while
+  element-only subtrees get the unit. Two-line C fix (route the
+  fused lead through the unit); the binding adopts it in the next
+  lockstep.
+
 ## [1.9.44] - 2026-08-31
 
 ### Added
