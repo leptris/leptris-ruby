@@ -92,3 +92,31 @@ RSpec.describe "leptris-ruby#103: prefixed attribute predicate without a binding
     expect(doc.xpath(%(//item/@p:kind)).size).to eq(1)
   end
 end
+
+RSpec.describe "standalone XPath 2/3.1 expression subset (libleptris 1.9.35+)" do
+  let(:doc) { Leptris::XML::Document.parse("<r><a>1</a><a>2</a></r>") }
+
+  {
+    "let … return (3.0)"        => ["let $x := 2 return $x + 1", 3.0],
+    # for-return's items come back as opaque result nodes (not Text/
+    # Element) — read them through an aggregate until the engine
+    # materializes readable sequence items.
+    "for … return (2.0)"        => ["count(for $i in //a return $i)", 2.0],
+    "if/then/else (2.0)"        => ['if (count(//a) = 2) then "two" else "no"', "two"],
+    "sequence literal (2.0)"    => ["count((1, 2, 3))", 3.0],
+    "range expression (2.0)"    => ["count(1 to 4)", 4.0],
+    "arrow operator (3.1)"      => ["//a => count()", 2.0],
+    "simple map ! (3.1)"        => ["count(//a ! string(.))", 2.0],
+    "string concat || (3.1)"    => ['"x" || "y"', "xy"],
+  }.each do |label, (expr, expected)|
+    it "evaluates #{label}" do
+      result = doc.xpath(expr)
+      expect(result.is_a?(Leptris::XML::NodeSet) ? result.to_a : result).to eq(expected)
+    end
+  end
+
+  it "rejects XQuery-only FLWOR clauses outside a stylesheet (leptris/leptris#692)" do
+    expect { doc.xpath("for $a in //a order by $a return $a") }
+      .to raise_error(Leptris::XML::XPathError)
+  end
+end
