@@ -9,7 +9,9 @@ A Nokogiri-compatible Ruby binding for
 https://github.com/leptris/leptris[libleptris], a pure-C99 XML 1.0 parser
 with full https://www.w3.org/TR/1999/REC-xpath-19991116/[XPath 1.0],
 XML Namespaces 1.0, SAX, and C14N (1.0 / 1.1 / Exclusive), plus
-XSLT 1.0–3.0 transforms (the XPath 3.1 core rides inside them).
+XSLT 1.0–3.0 transforms (the XPath 3.1 core rides inside them) and a
+growing XPath 2/3.1 expression subset available standalone from
+`#xpath` itself.
 
 The C DOM is the single source of truth — Ruby objects are thin FFI
 handles over the C pointers, so every Ruby method maps to one FFI call.
@@ -225,6 +227,30 @@ XPath result type follows XPath 1.0 semantics:
 `count(...)` → `Float`, `boolean(...)` → `true`/`false`,
 `string(...)` → `String`, otherwise a `Leptris::XML::NodeSet`.
 
+Beyond XPath 1.0, the engine accepts a growing XPath 2/3.1
+expression subset standalone — no stylesheet required:
+
+[source,ruby]
+----
+doc.xpath("let $n := count(//book) return $n + 1")   # => 3.0
+doc.xpath("for $b in //book return count($b/*)")     # sequence
+doc.xpath("if (count(//book) = 2) then 'two' else '?'")
+doc.xpath("count(1 to 4)")                           # => 4.0
+doc.xpath("//book => count()")                       # 3.1 arrow
+doc.xpath("//title ! string(.)")                     # 3.1 simple map
+doc.xpath("'v' || count(//book)")                    # 3.1 concat
+----
+
+Two caveats: `for … return` sequences come back as opaque result
+nodes — consume them through an aggregate (`count(...)`,
+`string-join(...)`) until the engine materializes readable sequence
+items; and XQuery-only syntax (`order by`, `try/catch`, map
+constructors) raises `XPathError` rather than evaluating silently
+wrong. The remaining grammar gaps — value comparators (`eq`),
+quantifiers, sequence types (`instance of`), `intersect`/`except`,
+string templates — and XQuery itself are
+https://github.com/leptris/leptris/issues/683[tracked upstream].
+
 === Supported CSS selectors
 
 Minimal subset (translated to XPath via `Leptris::XML::CssToXPath`):
@@ -339,11 +365,20 @@ result = style.apply_to(doc)                       # => Document
 style.serialize(doc)                               # => String
 ----
 
-The engine dispatches on the stylesheet's declared version; the 3.0
-instruction set (grouping, `xsl:accumulator`, `xsl:analyze-string`,
-the XPath 3.1 core) is available inside transforms. Standalone
-XPath 2.0/3.1 evaluation entries and XQuery are
-https://github.com/leptris/leptris/issues/683[tracked upstream].
+The engine dispatches on the stylesheet's declared version. XSLT
+1.0 is complete; the 3.0 instruction set has grown through
+libleptris 1.9.36 — grouping, `xsl:accumulator`,
+`xsl:analyze-string`, `xsl:mode/@on-no-match` dispositions,
+`xsl:sequence`, `xsl:perform-sort`, and `fn:format-integer` — with
+the XPath 3.1 core expressions available inside transforms (see
+the subset list under <<Searching: XPath and CSS>>; value
+comparators and sequence types are still out,
+https://github.com/leptris/leptris/issues/683[tracked upstream]).
+Known engine bug: the `shallow-skip` and `text-only-copy`
+dispositions drop unmatched subtrees in the built-in initial
+descent (https://github.com/leptris/leptris/issues/705[#705]) —
+the other four dispositions are spec-correct. XQuery has no
+entry point yet.
 `Document#save(path, **opts)` :: serialize to a file.
 `Document#canonicalize(version, inclusive_ns, with_comments:, exclusive:, mode:)` (alias `#c14n`) :: canonical XML.
 `Element#canonicalize(...)` :: subtree canonicalization.
@@ -510,7 +545,8 @@ Notable differences:
   past Document disposal will see the error; silence-replace-UAF patterns
   from Nokogiri do not apply.
 * No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Leptris is XML-only.
-* No XSLT, no RelaxNG / DTD validation, no schema caching.
+* No XQuery, no RelaxNG / DTD validation, no schema caching
+  (XSLT 1.0–3.0 is supported — see above).
 * No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
 
 == Performance
