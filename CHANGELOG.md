@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.50] - 2026-09-01
+
+### Fixed
+
+- **Copies keep comment and PI children (leptris-ruby#115)**:
+  `leptris_element_copy` silently drops COMMENT and PI children —
+  the C child-copy loop reads `/* Skip COMMENT and PI nodes for
+  now */` (engine-side, filed as leptris/leptris#696 with the
+  line). Blast radius in the binding: `Element#dup/#clone` and the
+  element indent-unit path both composed through the C copy. Both
+  now round through serialization instead — the serializer
+  preserves every child kind, prefixed names, and namespace
+  declarations, and re-parsing rebuilds them all; `dup` returns a
+  tree in a NEW document (unchanged contract), detached from the
+  original (spec-pinned).
+
 ## [1.9.49] - 2026-09-01
 
 ### Added

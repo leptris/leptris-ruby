@@ -251,10 +251,14 @@ class Leptris::XML::Element < Leptris::XML::Node
     self
   end
 
+  # Deep copy in a NEW document, via serialization round-trip:
+  # leptris_element_copy silently drops COMMENT and PI children
+  # (leptris/leptris#696, leptris-ruby#115) — the serializer
+  # preserves every child kind, prefixed names, and namespace
+  # declarations, and re-parsing rebuilds them all.
   def dup
-    copy_ptr = Leptris::XML::FFI.leptris_element_copy(@c_ptr, @document.c_ptr)
-    raise Leptris::XML::Error, "leptris_element_copy failed" if copy_ptr.null?
-    Leptris::XML::Node.wrap(copy_ptr, @document)
+    ensure_alive!
+    Leptris::XML::Document.parse(to_xml).root
   end
   alias_method :clone, :dup
 
