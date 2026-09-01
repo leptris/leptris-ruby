@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.48] - 2026-09-01
+
+### Changed
+
+- **libleptris 1.9.31–1.9.32 lockstep**: two profiled XSLT pattern-
+  compiler releases — template matching is O(depth) instead of
+  O(siblings) (child-axis alternatives compile to per-step
+  name/kind tests up the parent chain), the per-call document
+  resolution collapses to an O(1) root read, and key() indexes
+  embed compiled patterns (one lookup dropped from 200 ms on the
+  2000-book fixture). Audit 255/255, no new C surface; the suite
+  is unchanged.
+
 ## [1.9.47] - 2026-09-01
 
 ### Changed
