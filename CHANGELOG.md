@@ -5,6 +5,45 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.51] - 2026-09-01
+
+### Changed
+
+- **Lockstep with libleptris 1.9.36** (1.9.33 → 1.9.36; no new C
+  surface — the audit holds at 255/255 attached == exported):
+  - 1.9.33: `xsl:mode/@on-no-match`, all six dispositions.
+  - 1.9.34: XQuery-only syntax in XPath expression attributes
+    (`order by`, `try/catch`, map constructors) now raises instead
+    of compiling silently wrong (leptris/leptris#692).
+  - 1.9.35: `xsl:sequence`, `xsl:perform-sort`; fn:-catalog
+    slices (sequences, `math:`, regex trio, top-level comma
+    sequences).
+  - 1.9.36: fn: catalog grows — `fn:format-integer` (decimal,
+    0-padding, bijective base-26, roman numerals, English words),
+    strings/QNames/URIs slice (leptris/leptris#691).
+- **Standalone XPath grew a 2/3.1 expression subset**: `let …
+  return`, `for … return`, `if/then/else`, sequence literals,
+  ranges, the `=>` arrow, `!` simple-map, and `||` concat now
+  evaluate through `Document#xpath`/`Element#xpath` directly —
+  specced. Still out (engine grammar, tracked in
+  leptris/leptris#683): value comparators (`eq`/`ne`/…),
+  quantifiers, sequence types (`instance of`/`castable`),
+  `intersect`/`except`, string templates; XQuery-only syntax
+  raises (#692). Known edge: `for`-return's scalar items come
+  back as opaque result nodes — read them through an aggregate
+  (`count(...)`, `string-join(...)`) until the engine
+  materializes readable sequence items.
+
+### Fixed
+
+- **`shallow-skip`/`text-only-copy` drop unmatched subtrees**
+  (libleptris engine, filed as leptris/leptris#705): the built-in
+  initial descent fires matched child templates but discards
+  unmatched siblings wholesale, so both modes emit nothing without
+  a user root template. `shallow-copy`, `deep-copy`, `deep-skip`,
+  and `fail` behave per spec and are specced; the broken pair is
+  specced as pending against #705.
+
 ## [1.9.50] - 2026-09-01
 
 ### Fixed

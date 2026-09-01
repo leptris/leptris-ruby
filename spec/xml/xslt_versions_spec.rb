@@ -51,3 +51,81 @@ RSpec.describe "XSLT 1.0–3.0 through the generic parse/apply face" do
     expect(result.root.to_xml).to eq("<out><c>a</c><d>1</d><c>b</c><d>2</d></out>")
   end
 end
+
+RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.36)" do
+  def transform(sheet, source = "<r><a>3</a><a>1</a><a>2</a></r>")
+    Leptris::XML::XSLT.parse(sheet)
+      .apply_to(Leptris::XML::Document.parse(source)).to_s
+  end
+
+  it "evaluates xsl:sequence (1.9.35)" do
+    expect(transform(<<~XSL)).to include("<out>1 2 3</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:sequence select="(1 to 3)"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "evaluates xsl:perform-sort (1.9.35)" do
+    expect(transform(<<~XSL)).to include("<out><a>1</a><a>2</a><a>3</a></out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out>
+          <xsl:perform-sort select="//a"><xsl:sort select="."/></xsl:perform-sort>
+        </out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  {
+    "shallow-copy" => %q[<?xml version="1.0"?><r><a>3</a><hit/><a>2</a></r>],
+    "deep-copy"    => %q[<?xml version="1.0"?><r><a>3</a><a>1</a><a>2</a></r>],
+    "deep-skip"    => "",
+  }.each do |disposition, expected|
+    it "applies xsl:mode on-no-match=\"#{disposition}\" (1.9.33)" do
+      expect(transform(<<~XSL)).to eq(expected)
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+          <xsl:mode on-no-match="#{disposition}"/>
+          <xsl:template match="/r/a[2]"><hit/></xsl:template>
+        </xsl:stylesheet>
+      XSL
+    end
+  end
+
+  it "raises for xsl:mode on-no-match=\"fail\" when a node goes unmatched (1.9.33)" do
+    expect { transform(<<~XSL) }.to raise_error(Leptris::XML::XPathError)
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:mode on-no-match="fail"/>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  %w[shallow-skip text-only-copy].each do |disposition|
+    it "descends through on-no-match=\"#{disposition}\"" do
+      skip "upstream leptris/leptris#705 drops unmatched subtrees in the built-in descent"
+      expect(transform(<<~XSL)).to eq(%q[<?xml version="1.0"?>3<hit/>2])
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+          <xsl:mode on-no-match="#{disposition}"/>
+          <xsl:template match="/r/a[2]"><hit/></xsl:template>
+        </xsl:stylesheet>
+      XSL
+    end
+  end
+
+  it "evaluates fn:format-integer (1.9.36: bijective base-26, roman numerals)" do
+    expect(transform(<<~XSL)).to include("<out>Z|MMXXIV</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out>
+          <xsl:value-of select="format-integer(26,'A')"/>|<xsl:value-of select="format-integer(2024,'I')"/>
+        </out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "rejects XQuery-only syntax in XPath expressions (1.9.34, leptris/leptris#692)" do
+    expect { transform(<<~XSL) }.to raise_error(Leptris::XML::XPathError)
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:value-of select="for $a in //a order by $a return $a"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+end
