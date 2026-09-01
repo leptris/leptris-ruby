@@ -5,6 +5,32 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.49] - 2026-09-01
+
+### Added
+
+- **XSLT 1.0–3.0 pinned through the generic face**: specs
+  transform stylesheets of both generations — a 1.0
+  count/template sheet and a 3.0 sheet exercising
+  `xsl:analyze-string`, `let`, and the `=>` arrow (the XPath 3.1
+  core). The engine dispatches on the declared version; the
+  binding needed no new surface.
+- **README rewritten to the full current feature set**: the
+  document chain (add/remove/mutate document-level PIs),
+  `Node#visit`, `Element#inner_html`, the indent unit and display
+  form, XSLT with the upstream status of standalone XPath 2/3 and
+  XQuery, SAX transports (interest-proportional delivery,
+  recorder, reset), pull (prefix events, batch guard), iterparse
+  v2, and the refreshed head-to-head table (parse 10–12x, CSS 4x,
+  scalar XPath 4.6x, SAX 6x on selective handlers, memory 1.8x).
+
+### Meta
+
+- Standalone XPath 2.0/3.1 evaluation entries and XQuery are not
+  yet engine surface — filed as leptris/leptris#683 with the
+  inventory; the binding adopts them lockstep-fashion when they
+  land.
+
 ## [1.9.48] - 2026-09-01
 
 ### Changed
