@@ -742,3 +742,36 @@ RSpec.describe "leptris-ruby#109 residual: element-face indent unit" do
       .to eq(el.to_xml(indent: 2))
   end
 end
+
+RSpec.describe "leptris-ruby#115: copies and the unit keep comment/PI children" do
+  let(:xml) do
+    %(<r xmlns:p="urn:p" id="1">a<!-- c -->b<![CDATA[cd]]><?pi p?><b attr="v"/><p:c p:x="1"/></r>)
+  end
+
+  it "dups with every child kind, prefixed names, and namespaces" do
+    dup = Leptris::XML::Document.parse(xml).root.dup
+    expect(dup.children.map(&:class)).to eq(
+      [Leptris::XML::Text, Leptris::XML::Comment, Leptris::XML::Text,
+       Leptris::XML::CDATA, Leptris::XML::ProcessingInstruction,
+       Leptris::XML::Element, Leptris::XML::Element])
+    expect(dup.to_xml).to eq(
+      %(<r xmlns:p="urn:p" id="1">a<!-- c -->b<![CDATA[cd]]><?pi p?>) +
+      %(<b attr="v"/><p:c p:x="1"/></r>))
+  end
+
+  it "keeps comments through the element indent-unit path" do
+    root = Leptris::XML::Document.parse(
+      %(<r>text <b>bold</b> tail<!-- c --></r>)).root
+    expect(root.to_xml(indent: 1, indent_text: "\t"))
+      .to include("<!-- c -->")
+    expect(Leptris::XML::Document.parse(%(<r><a/><!-- c --></r>)).root
+      .to_xml(indent: 1, indent_text: "\t")).to include("<!-- c -->")
+  end
+
+  it "keeps the dup detached from the original" do
+    original = Leptris::XML::Document.parse(xml).root
+    dup = original.dup
+    dup["id"] = "changed"
+    expect(original["id"]).to eq("1")
+  end
+end
