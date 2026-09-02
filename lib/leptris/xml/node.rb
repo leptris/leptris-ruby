@@ -369,17 +369,18 @@ class Leptris::XML::Node
     result
   end
 
-  # Deep copy in a NEW document. Rounds through serialization
-  # rather than leptris_element_copy: the C copy drops namespace
-  # prefixes and declarations outright (leptris/leptris#721; the
-  # comment/PI child drop was #696, fixed upstream in 1.9.39) —
-  # the serializer preserves every child kind, prefixed names, and
-  # namespace declarations, and re-parsing rebuilds them all.
+  # Deep copy in a NEW document via the C copy (both engine gaps
+  # closed: comment/PI children in 1.9.39, namespaces in 1.9.47 —
+  # leptris/leptris#696, #721). The copy is attached as the fresh
+  # document's root so the tree is fully navigable.
   def dup
     ensure_alive!
     elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)
     raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
-    Leptris::XML::Document.parse(to_xml).root
+    new_doc = Leptris::XML::Document.create
+    copy = Leptris::XML::FFI.leptris_element_copy(elem_ptr, new_doc.c_ptr)
+    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
+    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
   end
   alias_method :clone, :dup
 

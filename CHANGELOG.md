@@ -5,6 +5,41 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.54] - 2026-09-02
+
+### Changed
+
+- **Lockstep with libleptris 1.9.49** (1.9.47 → 1.9.49; no new C
+  surface — the audit holds at 255/255 attached == exported):
+  - 1.9.47: `leptris_element_copy` keeps namespaces (#721) —
+    prefixes, declarations, and resolution on the copied subtree;
+    sequence-use `xsl:key` (#720, use-after-free + each item
+    indexes).
+  - 1.9.48: `xsl:on-completion` sees the final iterate params
+    (#729); merge-level `xsl:merge-key` fallback (#731); #730/#732
+    triaged against Saxon (quoted `xpath="'$p'"` is the dynamic
+    with-param form; multi-top-level results serialize fully —
+    libxslt parity).
+  - 1.9.49: `xs:` atomic constructors (`xs:integer`/`xs:double`/
+    `xs:decimal`/`xs:boolean`/`xs:string`/`xs:anyURI`) resolve in
+    any expression — standalone `#xpath` included, specced against
+    the Saxon ground truth (`xs:integer('42') + 1` = 43).
+  - All three pending specs un-pending (#729/#730/#731); #730
+    rewritten as the Saxon-correct pair (quoted form evaluates,
+    unquoted raises); sequence-use keys and the constructors
+    specced.
+
+### Changed
+
+- **`dup` reverted to the C copy** (the payoff of #721's fix):
+  `Node#dup`/`Element#dup` and the element indent-unit path drop
+  the serialize → re-parse round-trip adopted in 1.9.50 — the C
+  copy now preserves every child kind, prefixed names, and
+  namespace declarations byte-for-byte, and is attached as the
+  fresh document's root so the tree is fully navigable (~436 µs
+  vs ~1.2 ms per dup of a 300-element subtree on this bench).
+  A new C-level spec pins the namespace fidelity.
+
 ## [1.9.53] - 2026-09-02
 
 ### Changed

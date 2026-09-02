@@ -334,8 +334,7 @@ RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
     expect(out).to include("<o>lambda</o>")
   end
 
-  it "groups and joins xsl:merge sources (1.9.45, §14.3)" do
-    skip "upstream leptris/leptris#731 collapses all sources into one empty-key group"
+  it "groups and joins xsl:merge sources (1.9.45, §14.3; #731 fixed in 1.9.48)" do
     expect(transform(<<~XSL)).to include("<m>a1|1+0</m><m>a2|0+1</m><m>a3|1+1</m>")
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
         <xsl:variable name="L" select="('a1', 'a3')"/>
@@ -349,17 +348,25 @@ RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
     XSL
   end
 
+  # §14.3.2 as triaged upstream (#730): the with-param channel
+  # binds the DYNAMIC phase — @xpath must be a quoted expression
+  # (Saxon rejects the unquoted outer-scope reference statically,
+  # and so does the engine).
   it "binds xsl:evaluate with-params to the dynamic evaluation (1.9.45, §14.3.2)" do
-    skip "upstream leptris/leptris#730 — Variable 'p' not found"
     expect(transform(<<~XSL, "<r><a>7</a></r>")).to include("<out>7</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:evaluate xpath="'$p'"><xsl:with-param name="p" select="string(//a)"/></xsl:evaluate></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+    expect { transform(<<~XSL, "<r><a>7</a></r>") }
+      .to raise_error(Leptris::XML::XPathError)
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
         <xsl:template match="/"><out><xsl:evaluate xpath="$p"><xsl:with-param name="p" select="string(//a)"/></xsl:evaluate></out></xsl:template>
       </xsl:stylesheet>
     XSL
   end
 
-  it "sees the final iterate params in xsl:on-completion (1.9.44, §12.5)" do
-    skip "upstream leptris/leptris#729 — Variable 'sum' not found"
+  it "sees the final iterate params in xsl:on-completion (1.9.44, §12.5; #729 fixed in 1.9.48)" do
     expect(transform(<<~XSL)).to include("<out>10</out>")
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
         <xsl:template match="/"><out><xsl:iterate select="1 to 4">
@@ -369,5 +376,28 @@ RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
         </xsl:iterate></out></xsl:template>
       </xsl:stylesheet>
     XSL
+  end
+end
+
+RSpec.describe "xs: atomic constructors and sequence-use keys (libleptris 1.9.47-1.9.49)" do
+  it "constructs atomics from any expression (Saxon ground truth, 1.9.49)" do
+    doc = Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")
+    expect(doc.xpath("xs:integer('42') + 1")).to eq(43.0)
+    expect(doc.xpath("xs:double('1.5') * 2")).to eq(3.0)
+    expect(doc.xpath("xs:decimal('2.5') + 1")).to eq(3.5)
+    expect(doc.xpath("xs:boolean('true')")).to be(true)
+    expect(doc.xpath("xs:string(7)")).to eq("7")
+    expect(doc.xpath("xs:anyURI('urn:x')")).to eq("urn:x")
+  end
+
+  it "indexes every item of a sequence xsl:key use (#720 fixed in 1.9.47)" do
+    expect(Leptris::XML::XSLT.parse(<<~XSL)
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:key name="k" match="a" use="@v, ."/>
+        <xsl:template match="/"><out><xsl:value-of select="count(key('k','1'))"/>|<xsl:value-of select="count(key('k','alpha'))"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+      .apply_to(Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")).to_s)
+      .to include("<out>1|1</out>")
   end
 end
