@@ -97,14 +97,17 @@ module Leptris::XML::Serialization
 
   # Element-face indent unit (leptris-ruby#109 residual 2): no
   # element-level ext-serialize entry exists yet, so the unit path
-  # rounds the subtree through serialization into a fresh document
-  # (leptris_element_copy drops namespaces — leptris/leptris#721)
-  # and serializes that document without a declaration — identical
-  # output to the element serializer for the standard layout, with
-  # the unit and every child kind intact.
+  # C-copies the subtree into a fresh document (the copy keeps
+  # every child kind and namespace since leptris 1.9.47 — #696,
+  # #721) and serializes that document without a declaration —
+  # identical output to the element serializer for the standard
+  # layout, with the unit and every child kind intact.
   def self.to_xml_element_unit(element, unit, indent: 0)
-    document = Leptris::XML::Document.parse(element.to_xml)
+    document = Leptris::XML::Document.create
     begin
+      copy = Leptris::XML::FFI.leptris_element_copy(element.c_ptr, document.c_ptr)
+      raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
+      document.root = Leptris::XML::Node.wrap(copy, document)
       to_xml_indent_unit(document.c_ptr, unit,
                          indent: indent, no_decl: true)
     ensure

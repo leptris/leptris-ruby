@@ -776,7 +776,7 @@ RSpec.describe "leptris-ruby#115: copies and the unit keep comment/PI children" 
   end
 end
 
-RSpec.describe "upstream #696 fixed: the C copy keeps comment/PI children" do
+RSpec.describe "upstream #696/#721 fixed: the C copy is complete" do
   it "leptris_element_copy round-trips every child kind" do
     doc = Leptris::XML::Document.parse(
       "<r>text<!-- note --><?pi data?><b/></r>")
@@ -787,8 +787,16 @@ RSpec.describe "upstream #696 fixed: the C copy keeps comment/PI children" do
     expect(wrapped.children.map(&:class)).to eq(
       [Leptris::XML::Text, Leptris::XML::Comment,
        Leptris::XML::ProcessingInstruction, Leptris::XML::Element])
-    # Namespaces are still dropped by the C copy (#721) — dup keeps
-    # its serialization round-trip until that lands.
     expect(wrapped.to_xml).to eq("<r>text<!-- note --><?pi data?><b/></r>")
+  end
+
+  it "leptris_element_copy keeps prefixes, declarations, and resolution (1.9.47)" do
+    doc = Leptris::XML::Document.parse(
+      %(<p:r xmlns:p="urn:p"><p:c p:x="1"/></p:r>))
+    target = Leptris::XML::Document.create
+    copy = Leptris::XML::FFI.leptris_element_copy(doc.root.c_ptr, target.c_ptr)
+    wrapped = Leptris::XML::Node.wrap(copy, target)
+    expect(wrapped.to_xml).to eq(%(<p:r xmlns:p="urn:p"><p:c p:x="1"/></p:r>))
+    expect(wrapped.namespace.href).to eq("urn:p")
   end
 end
