@@ -349,7 +349,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   def inner_html
     children.map do |child|
       case child
-      when Leptris::XML::Element then child.to_xml
+      when Leptris::XML::Element
+        Leptris::XML::Serialization.element_xml_default(child.c_ptr)
       when Leptris::XML::CDATA # before Text: CDATA subclasses it
         "<![CDATA[#{child.content}]]>"
       when Leptris::XML::Text
@@ -377,7 +378,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     return Leptris::XML::Serialization.to_xml_element_unit(
       self, indent_text, indent: indent) if indent_text.is_a?(String)
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::FFI.method(:leptris_element_serialize_into), @c_ptr,
+      Leptris::XML::Serialization::ELEMENT_SERIALIZE_INTO, @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
 

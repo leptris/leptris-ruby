@@ -427,3 +427,18 @@ RSpec.describe "readonly mode" do
     expect(doc).to be_readonly
   end
 end
+
+RSpec.describe "text ampersands escape on serialize (leptris-ruby#120)" do
+  it "round-trips escaped ampersands in text content byte-for-byte" do
+    xml = "<r>日本語テキスト &amp; more</r>"
+    doc = Leptris::XML::Document.parse(xml)
+    expect(doc.root.to_xml).to eq(xml)
+    expect(doc.to_s).to include("&amp; more")
+  end
+
+  it "escapes ampersands written through content=" do
+    doc = Leptris::XML::Document.parse("<r/>")
+    doc.root.content = "a & b"
+    expect(doc.root.to_xml).to eq("<r>a &amp; b</r>")
+  end
+end

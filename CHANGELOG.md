@@ -5,6 +5,53 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.55] - 2026-09-02
+
+### Changed
+
+- **Lockstep with libleptris 1.9.50**: XPath 2.0 type operators —
+  `instance of`, `castable as`, `cast as`, `treat as` with
+  SequenceType v1 (`node()`, `item()`, occurrence `*`/`+`) —
+  resolving standalone from `#xpath`, specced against the Saxon
+  ground truth including the falsifiable negative
+  (`'x' castable as xs:integer` = false, `1.9 cast as xs:integer`
+  = 1). No new C surface (audit 255/255).
+- **README**: the standalone-subset example block grows the type
+  operators; the #683 gap list drops sequence types (still out:
+  value comparators, quantifiers, `intersect`/`except`, string
+  templates, XQuery).
+
+### Improved
+
+- **Serialize + inner_html, one dispatch instead of two**: the
+  `_serialize_into` contract is snprintf-like (the return is
+  always the bytes needed incl. NUL; the copy happens only when
+  the buffer fits), so `serialize_into_string` now fills the
+  grow-only byte scratch opportunistically and probes the size
+  only when a child outgrows it — previously every call paid a
+  size-probe dispatch before the fill. The bound serializer
+  methods are hoisted to constants (`Element#to_xml` and
+  `Document#to_xml` allocated a Method object per call), and
+  `inner_html` serializes element children through a dedicated
+  default-options fast path (no kwargs, no options rebuild).
+  Measured on a 1.0 MB / 42k-element document: document serialize
+  1.1x → **3.2x faster** than Nokogiri 1.19.4; `inner_html` 0.8x →
+  **4.4x faster** (4.2 ms → 1.1 ms per 200 elements). Parse (11x),
+  attr reads (9x), text aggregation (11x), and element_children
+  walks (parity) all hold.
+
+### Fixed
+
+- **#120 closed with a guard**: text ampersands escape on
+  serialize — byte-parity specs (parse-and-serialize round-trip
+  plus a `content=` write path) now run on every CI leg including
+  both Linuxes, so a platform-build serializer divergence fails CI
+  instead of shipping. The 1.9.50 Linux build was superseded per
+  the verification on the issue.
+- **#124 filed upstream** (leptris/leptris#745): the C-side
+  non-standard-entity pre-scan entry — the moxml +61% parse → ~+2%
+  case. The binding attaches and wraps it the day it lands.
+
 ## [1.9.54] - 2026-09-02
 
 ### Changed

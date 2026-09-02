@@ -285,7 +285,7 @@ class Leptris::XML::Document
         @c_ptr, indent: indent, no_decl: no_decl, encoding: encoding)
     end
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::FFI.method(:leptris_document_serialize_into), @c_ptr,
+      Leptris::XML::Serialization::DOCUMENT_SERIALIZE_INTO, @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
   alias_method :to_s, :to_xml
