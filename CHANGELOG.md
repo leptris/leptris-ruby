@@ -5,6 +5,48 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.52] - 2026-09-02
+
+### Changed
+
+- **Lockstep with libleptris 1.9.43** (1.9.37 → 1.9.43; no new C
+  surface — the audit holds at 255/255 attached == exported):
+  - 1.9.37: tunnel parameters (§11.7) — `xsl:with-param
+    tunnel="yes"` persists for the whole subtree, including the
+    built-in unmatched-node path. This work also fixed the
+    `shallow-skip`/`text-only-copy` subtree drop (leptris/leptris#705).
+  - 1.9.38: regex trio atomizes node arguments (#691); single-item
+    atomic `xsl:sequence` serializes (#685 remainder); #705 verified
+    against a live Saxon-HE 12.7 oracle — all four reported shapes
+    pinned, with the correction that the no-template case emits
+    EMPTY for both dispositions (the report's `312` expectation
+    contradicted Saxon).
+  - 1.9.39: `leptris_element_copy` keeps COMMENT and PI children
+    (leptris/leptris#696) — pinned with a C-level spec.
+  - 1.9.40: fn: date slice (#691-E) — `xs:date`/`xs:dateTime`/
+    `xs:time`/`xs:duration` constructors and component extractors.
+  - 1.9.41: `switch` rejected like Saxon (XPST0003 pattern-only);
+    the #692 brace guard now runs the compiler first — map
+    constructors and `try/catch` raise cleanly in XPath expression
+    context instead of returning empty silently.
+  - 1.9.42: `xsl:where-populated`, `xsl:on-non-empty`,
+    `xsl:next-match` (#690/#685).
+  - 1.9.43: `xsl:fork`, `xsl:number @start-at`, composite keys
+    (#690/#685).
+  - Nine new specs cover the above through the generic
+    `XSLT.parse/apply_to` face; the two pending #705 disposition
+    specs are un-pending with the Saxon-verified expectations.
+
+### Fixed
+
+- **`dup` keeps the serialization round-trip** (leptris/leptris#721,
+  filed this round): with #696 fixed upstream, the C copy now
+  keeps comment/PI children — but it drops namespace prefixes and
+  declarations outright (`leptris_element_namespace` resolves NULL
+  after a copy), while the round-trip preserves them byte-for-byte.
+  The dup sites' comments now carry the #721 rationale; the revert
+  to the C fast path waits on #721.
+
 ## [1.9.51] - 2026-09-01
 
 ### Changed

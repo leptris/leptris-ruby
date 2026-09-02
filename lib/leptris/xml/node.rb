@@ -370,10 +370,11 @@ class Leptris::XML::Node
   end
 
   # Deep copy in a NEW document. Rounds through serialization
-  # rather than leptris_element_copy: the C copy silently drops
-  # COMMENT and PI children (leptris/leptris#696, leptris-ruby#115)
-  # — the serializer preserves every child kind, prefixed names,
-  # and namespace declarations, and re-parsing rebuilds them all.
+  # rather than leptris_element_copy: the C copy drops namespace
+  # prefixes and declarations outright (leptris/leptris#721; the
+  # comment/PI child drop was #696, fixed upstream in 1.9.39) —
+  # the serializer preserves every child kind, prefixed names, and
+  # namespace declarations, and re-parsing rebuilds them all.
   def dup
     ensure_alive!
     elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)

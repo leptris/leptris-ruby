@@ -52,7 +52,9 @@ RSpec.describe "XSLT 1.0–3.0 through the generic parse/apply face" do
   end
 end
 
-RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.36)" do
+RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.43)" do
+  HITS_ONLY = %q[<?xml version="1.0"?><hit/>].freeze
+  EMPTY = "".freeze
   def transform(sheet, source = "<r><a>3</a><a>1</a><a>2</a></r>")
     Leptris::XML::XSLT.parse(sheet)
       .apply_to(Leptris::XML::Document.parse(source)).to_s
@@ -99,13 +101,32 @@ RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.36)" do
     XSL
   end
 
-  %w[shallow-skip text-only-copy].each do |disposition|
-    it "descends through on-no-match=\"#{disposition}\"" do
-      skip "upstream leptris/leptris#705 drops unmatched subtrees in the built-in descent"
-      expect(transform(<<~XSL)).to eq(%q[<?xml version="1.0"?>3<hit/>2])
+  # Saxon-HE 12.7 parity, verified upstream (leptris/leptris#705
+  # fixed in 1.9.37): the no-template case emits EMPTY for BOTH
+  # dispositions (the report's "312" expectation for shallow-skip
+  # contradicted Saxon), and with a child template the unmatched
+  # siblings contribute nothing — their text nodes take the mode's
+  # disposition too.
+  {
+    "shallow-skip"   => { child: HITS_ONLY, none: EMPTY, root: %q[<?xml version="1.0"?><out/>] },
+    "text-only-copy" => { child: HITS_ONLY, none: EMPTY, root: %(<?xml version="1.0"?><out>312</out>) },
+  }.each do |disposition, expected|
+    it "applies xsl:mode on-no-match=\"#{disposition}\" (leptris/leptris#705)" do
+      expect(transform(<<~XSL)).to eq(expected[:child])
         <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
           <xsl:mode on-no-match="#{disposition}"/>
           <xsl:template match="/r/a[2]"><hit/></xsl:template>
+        </xsl:stylesheet>
+      XSL
+      expect(transform(<<~XSL)).to eq(expected[:none])
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+          <xsl:mode on-no-match="#{disposition}"/>
+        </xsl:stylesheet>
+      XSL
+      expect(transform(<<~XSL)).to eq(expected[:root])
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+          <xsl:mode on-no-match="#{disposition}"/>
+          <xsl:template match="/"><out><xsl:apply-templates/></out></xsl:template>
         </xsl:stylesheet>
       XSL
     end
@@ -125,6 +146,97 @@ RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.36)" do
     expect { transform(<<~XSL) }.to raise_error(Leptris::XML::XPathError)
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
         <xsl:template match="/"><out><xsl:value-of select="for $a in //a order by $a return $a"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+end
+
+RSpec.describe "XSLT 3.0 additions (libleptris 1.9.37-1.9.43)" do
+  def transform(sheet, source = "<r><a>3</a><a>1</a><a>2</a></r>")
+    Leptris::XML::XSLT.parse(sheet)
+      .apply_to(Leptris::XML::Document.parse(source)).to_s
+  end
+
+  it "passes tunnel parameters through the subtree (1.9.37, §11.7)" do
+    expect(transform(<<~XSL)).to include("<out><v>T</v><v>T</v><v>T</v></out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out>
+          <xsl:apply-templates select="//a"><xsl:with-param name="t" tunnel="yes" select="'T'"/></xsl:apply-templates>
+        </out></xsl:template>
+        <xsl:template match="a"><xsl:param name="t" tunnel="yes"/><v><xsl:value-of select="$t"/></v></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "serializes a single-item atomic xsl:sequence (1.9.38)" do
+    expect(transform(<<~XSL)).to include("<out>42</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:sequence select="42"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "atomizes node arguments in the regex trio (1.9.38)" do
+    skip "regex engine unavailable on MSVC builds" if Gem.win_platform?
+    expect(transform(<<~XSL)).to include("<out>true</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:value-of select="matches(//a[1], '3')"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "evaluates the fn: date slice (1.9.40, #691-E)" do
+    expect(transform(<<~XSL)).to include("<out>2026-10</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out>
+          <xsl:value-of select="year-from-dateTime(xs:dateTime('2026-09-01T10:30:00'))"/>-<xsl:value-of select="hours-from-time(xs:time('10:30:00'))"/>
+        </out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "drops a wholly-empty where-populated build but keeps a populated one (1.9.42, §26.2)" do
+    expect(transform(<<~XSL)).to include("<out>|<full>3</full></out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out>
+          <xsl:where-populated><xsl:value-of select="//nothing"/></xsl:where-populated>|<xsl:where-populated><full><xsl:value-of select="count(//a)"/></full></xsl:where-populated>
+        </out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "falls back through xsl:next-match to the lower-priority rule (1.9.42, §6.6)" do
+    expect(transform(<<~XSL)).to include("{3}A2[{1}]{2}")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/r/a[2]">A2[<xsl:next-match/>]</xsl:template>
+        <xsl:template match="a">{<xsl:value-of select="."/>}</xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "runs xsl:fork arms sequentially (1.9.43, §14)" do
+    expect(transform(<<~XSL)).to include("<out>3 x</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:fork><xsl:sequence select="count(//a)"/><xsl:sequence select="'x'"/></xsl:fork></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "offsets xsl:number with @start-at (1.9.43, §12.2)" do
+    expect(transform(<<~XSL)).to include("<out>10 11 12 </out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:for-each select="//a"><xsl:number start-at="10"/><xsl:text> </xsl:text></xsl:for-each></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "indexes nodes under each whitespace-separated composite key token (1.9.43, §12.2)" do
+    expect(transform(<<~XSL)).to include("<out>3|3|0</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:key name="k" match="a" use="'x y'"/>
+        <xsl:template match="/"><out>
+          <xsl:value-of select="count(key('k','x'))"/>|<xsl:value-of select="count(key('k','y'))"/>|<xsl:value-of select="count(key('k','z'))"/>
+        </out></xsl:template>
       </xsl:stylesheet>
     XSL
   end
