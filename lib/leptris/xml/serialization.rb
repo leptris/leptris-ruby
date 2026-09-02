@@ -18,6 +18,16 @@ module Leptris::XML::Serialization
   end
   private_constant :DEFAULT_OPTIONS
 
+  # Bound serializer entries, hoisted: Element#to_xml and the
+  # inner_html per-child loop passed FFI.method(:...) — one Method
+  # allocation per serialized child.
+  ELEMENT_SERIALIZE_INTO =
+    Leptris::XML::FFI.method(:leptris_element_serialize_into)
+  DOCUMENT_SERIALIZE_INTO =
+    Leptris::XML::FFI.method(:leptris_document_serialize_into)
+  # Public within the library: Element#to_xml and Document#to_xml
+  # pass the hoisted bound methods straight through.
+
   # +ffi_function+ is a bound _serialize_into function. The buffer
   # cycle lives at the FFI seam (FFI.serialize_into_string); this
   # module owns only options selection and construction.
@@ -31,6 +41,14 @@ module Leptris::XML::Serialization
         opts
       end
     Leptris::XML::FFI.serialize_into_string(ffi_function, c_ptr, opts.pointer)
+  end
+
+  # Default-options element serialization for inner_html's per-child
+  # loop: no kwargs, no options rebuild, no method allocation —
+  # one FFI fast-path dispatch per child.
+  def self.element_xml_default(c_ptr)
+    Leptris::XML::FFI.serialize_into_string(
+      ELEMENT_SERIALIZE_INTO, c_ptr, DEFAULT_OPTIONS.pointer)
   end
 
   # Display-form document serialization (libleptris 1.9.9, #129):

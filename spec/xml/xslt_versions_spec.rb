@@ -401,3 +401,30 @@ RSpec.describe "xs: atomic constructors and sequence-use keys (libleptris 1.9.47
       .to include("<out>1|1</out>")
   end
 end
+
+RSpec.describe "XPath 2.0 type operators standalone (libleptris 1.9.50)" do
+  let(:doc) { Leptris::XML::Document.parse("<r><a>1</a></r>") }
+
+  {
+    "'42' castable as xs:integer" => true,
+    "'x' castable as xs:integer"  => false,
+    "1.9 cast as xs:integer"      => 1.0,
+    "1 treat as xs:integer"       => 1.0,
+    "//a instance of node()+"     => true,
+    "'s' instance of xs:string"   => true,
+    "1 instance of xs:double"     => true,
+  }.each do |expr, expected|
+    it "evaluates #{expr}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+
+  it "casts through the constructor semantics (xs:integer truncates toward zero)" do
+    expect(doc.xpath("-1.9 cast as xs:integer")).to eq(-1.0)
+  end
+
+  # Known edges, not specced as expectations: sequence literals come
+  # back as opaque result nodes so `(1,2) instance of xs:integer+`
+  # answers over nodes, and an invalid `cast as` returns instead of
+  # raising FORG0001 — both tracked with the #683 grammar work.
+end

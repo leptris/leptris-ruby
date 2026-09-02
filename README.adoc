@@ -239,6 +239,9 @@ doc.xpath("count(1 to 4)")                           # => 4.0
 doc.xpath("//book => count()")                       # 3.1 arrow
 doc.xpath("//title ! string(.)")                     # 3.1 simple map
 doc.xpath("'v' || count(//book)")                    # 3.1 concat
+doc.xpath("'42' castable as xs:integer")             # 2.0 type ops
+doc.xpath("1.9 cast as xs:integer")                  # => 1.0 (truncates)
+doc.xpath("//title instance of node()+")             # 2.0 sequence types
 ----
 
 Two caveats: `for … return` sequences come back as opaque result
@@ -247,8 +250,8 @@ nodes — consume them through an aggregate (`count(...)`,
 items; and XQuery-only syntax (`order by`, `try/catch`, map
 constructors) raises `XPathError` rather than evaluating silently
 wrong. The remaining grammar gaps — value comparators (`eq`),
-quantifiers, sequence types (`instance of`), `intersect`/`except`,
-string templates — and XQuery itself are
+quantifiers, `intersect`/`except`, string templates — and XQuery
+itself are
 https://github.com/leptris/leptris/issues/683[tracked upstream].
 
 === Supported CSS selectors

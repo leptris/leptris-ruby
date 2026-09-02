@@ -894,12 +894,29 @@ module Leptris
       # leptris_element_serialize_into. The buffer holds the
       # serialization + NUL and XML output is NUL-free, so the
       # bounded read is exact.
+      # snprintf contract (leptris.h #535): the return is ALWAYS the
+      # bytes needed incl. the NUL; the copy happens only when the
+      # buffer fits. So the size probe is paid only when the child
+      # outgrows the grow-only scratch — one dispatch per call on
+      # the fast path instead of two (inner_html serializes each
+      # child; the probe was most of the per-child FFI cost).
+      SERIALIZE_INITIAL = 256
+      private_constant :SERIALIZE_INITIAL
+
       def self.serialize_into_string(ffi_function, c_ptr, options)
-        need = ffi_function.call(c_ptr, nil, 0, nil, options)
-        return "" if need.zero?
-        buffer = scratch_bytes(need)
-        ffi_function.call(c_ptr, buffer, need, nil, options)
-        buffer.read_string.force_encoding(Encoding::UTF_8)
+        scratch = (Thread.current[:leptris_scratch] ||= {})
+        buffer = scratch[:bytes]
+        if buffer.nil?
+          buffer = scratch[:bytes] =
+            ::FFI::MemoryPointer.new(:char, SERIALIZE_INITIAL)
+        end
+        needed = ffi_function.call(c_ptr, buffer, buffer.size, nil, options)
+        if needed > buffer.size
+          buffer = scratch_bytes(needed)
+          needed = ffi_function.call(c_ptr, buffer, buffer.size, nil, options)
+        end
+        return "" if needed <= 1
+        buffer.read_string(needed - 1).force_encoding(Encoding::UTF_8)
       end
 
       # Byte scratch for serialize-into cycles: the size+fill pair
