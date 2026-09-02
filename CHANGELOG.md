@@ -5,6 +5,40 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.53] - 2026-09-02
+
+### Changed
+
+- **Lockstep with libleptris 1.9.46** (1.9.44 → 1.9.46; no new C
+  surface — the audit holds at 255/255 attached == exported):
+  - 1.9.44: `xsl:copy @select`, `xsl:namespace`, `xsl:document`,
+    `xsl:on-completion`, `xsl:param @default` (the 4.0 form).
+  - 1.9.45: `xsl:evaluate` (dynamic XPath evaluation), `xsl:merge`,
+    `xsl:next-iteration` param rebinding.
+  - 1.9.46: `xsl:result-document` (side files via `@href`, principal
+    result unchanged), `xsl:character-map` via `xsl:output
+    @use-character-maps`.
+  - Eleven new specs cover the working constructs through the
+    generic `XSLT.parse/apply_to` face (character maps through
+    `XSLT#serialize` — `xsl:output` lives in the engine's
+    output-aware serializer, not the plain document face).
+
+### Fixed
+
+- **Four upstream bugs found while validating, filed from this
+  round** (each specced as pending against its issue):
+  - leptris/leptris#729: `xsl:on-completion` does not see the
+    enclosing `xsl:iterate` params (`Variable 'sum' not found`).
+  - leptris/leptris#730: `xsl:evaluate` child `xsl:with-param`
+    bindings are not visible to the dynamic evaluation (works
+    without with-params).
+  - leptris/leptris#731: `xsl:merge` collapses all sources into a
+    single merge-action with empty `current-merge-key()` — the key
+    never feeds the group partition.
+  - leptris/leptris#732: a principal result with multiple top-level
+    nodes silently keeps only the first element (Saxon raises);
+    long-standing — observed identically on 1.9.32.
+
 ## [1.9.52] - 2026-09-02
 
 ### Changed
