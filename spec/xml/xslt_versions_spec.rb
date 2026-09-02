@@ -241,3 +241,133 @@ RSpec.describe "XSLT 3.0 additions (libleptris 1.9.37-1.9.43)" do
     XSL
   end
 end
+
+RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
+  def transform(sheet, source = "<r/>")
+    Leptris::XML::XSLT.parse(sheet)
+      .apply_to(Leptris::XML::Document.parse(source)).to_s
+  end
+
+  it "copies selected items with xsl:copy @select (1.9.44, §9.9.2)" do
+    expect(transform(<<~XSL, "<r><a x='1'><c/></a><b/></r>")).to include('<copy x="1"/>')
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/r/a"><copy><xsl:copy select="@*"/></copy></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "binds namespaces with xsl:namespace (1.9.44, §11.7)" do
+    expect(transform(<<~XSL)).to include('<e xmlns:n="urn:n">body</e>')
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0">
+        <xsl:template match="/"><out><xsl:element name="e"><xsl:namespace name="n">urn:n</xsl:namespace><xsl:value-of select="'body'"/></xsl:element></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "flows xsl:document content to the pending parent (1.9.44, §11.8)" do
+    expect(transform(<<~XSL)).to include("<out><d>inner</d></out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0">
+        <xsl:template match="/"><out><xsl:document><d>inner</d></xsl:document></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "evaluates xsl:param @default when no with-param binds (1.9.44)" do
+    expect(transform(<<~XSL)).to include("<t1>passed</t1><t2>fallback</t2>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><wrap>
+          <t1><xsl:call-template name="f"><xsl:with-param name="v" select="'passed'"/></xsl:call-template></t1>
+          <t2><xsl:call-template name="f"/></t2>
+        </wrap></xsl:template>
+        <xsl:template name="f"><xsl:param name="v" default="'fallback'"/><xsl:value-of select="$v"/></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "threads params through xsl:iterate + xsl:next-iteration (1.9.45)" do
+    expect(transform(<<~XSL)).to include('<final sum="10"/>')
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:iterate select="1 to 4">
+          <xsl:param name="sum" select="0"/>
+          <xsl:if test=". = 4"><final sum="{$sum + .}"/></xsl:if>
+          <xsl:next-iteration><xsl:with-param name="sum" select="$sum + ."/></xsl:next-iteration>
+        </xsl:iterate></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "evaluates dynamic XPath with xsl:evaluate (1.9.45, §14.3)" do
+    expect(transform(<<~XSL, "<r><a>7</a></r>")).to include("<out>14</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:evaluate xpath="number(//a) * 2"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "writes xsl:result-document to the href file, principal result unchanged (1.9.46, §11.8)" do
+    require "tmpdir"
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "side.xml")
+      out = transform(<<~XSL, "<r><a/><a/></r>")
+        <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0">
+          <xsl:template match="/"><main/><xsl:result-document href="#{path}"><side><xsl:value-of select="count(//a)"/></side></xsl:result-document></xsl:template>
+        </xsl:stylesheet>
+      XSL
+      expect(out).to include("<main/>")
+      expect(File.read(path)).to include("<side>2</side>")
+    end
+  end
+
+  # Character maps ride the stylesheet's xsl:output, so they apply
+  # through XSLT#serialize (the engine's output-aware serializer) —
+  # NOT through apply_to(doc).to_s, which re-serializes via the
+  # plain document face and knows nothing of xsl:output.
+  it "substitutes characters via xsl:character-map (1.9.46, §16.1)" do
+    style = Leptris::XML::XSLT.parse(<<~XSL)
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="2.0">
+        <xsl:character-map name="m"><xsl:output-character character="&#955;" string="lambda"/></xsl:character-map>
+        <xsl:output use-character-maps="m"/>
+        <xsl:template match="/"><xsl:copy-of select="//o"/></xsl:template>
+      </xsl:stylesheet>
+    XSL
+    out = style.serialize(Leptris::XML::Document.parse("<r><o>λ</o></r>"))
+    expect(out).to include("<o>lambda</o>")
+  end
+
+  it "groups and joins xsl:merge sources (1.9.45, §14.3)" do
+    skip "upstream leptris/leptris#731 collapses all sources into one empty-key group"
+    expect(transform(<<~XSL)).to include("<m>a1|1+0</m><m>a2|0+1</m><m>a3|1+1</m>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:variable name="L" select="('a1', 'a3')"/>
+        <xsl:variable name="R" select="('a2', 'a3')"/>
+        <xsl:template match="/"><out><xsl:merge>
+          <xsl:merge-source name="l" select="$L"/><xsl:merge-source name="r" select="$R"/>
+          <xsl:merge-key select="string(.)"/>
+          <xsl:merge-action><m><xsl:value-of select="current-merge-key()"/>|<xsl:value-of select="count(current-merge-group('l'))"/>+<xsl:value-of select="count(current-merge-group('r'))"/></m></xsl:merge-action>
+        </xsl:merge></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "binds xsl:evaluate with-params to the dynamic evaluation (1.9.45, §14.3.2)" do
+    skip "upstream leptris/leptris#730 — Variable 'p' not found"
+    expect(transform(<<~XSL, "<r><a>7</a></r>")).to include("<out>7</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:evaluate xpath="$p"><xsl:with-param name="p" select="string(//a)"/></xsl:evaluate></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+
+  it "sees the final iterate params in xsl:on-completion (1.9.44, §12.5)" do
+    skip "upstream leptris/leptris#729 — Variable 'sum' not found"
+    expect(transform(<<~XSL)).to include("<out>10</out>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/"><out><xsl:iterate select="1 to 4">
+          <xsl:param name="sum" select="0"/>
+          <xsl:next-iteration><xsl:with-param name="sum" select="$sum + ."/></xsl:next-iteration>
+          <xsl:on-completion><xsl:value-of select="$sum"/></xsl:on-completion>
+        </xsl:iterate></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
+end
