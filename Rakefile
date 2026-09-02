@@ -8,7 +8,7 @@ RSpec::Core::RakeTask.new(:spec)
 # Pin for `rake compile` and the platform-gem builds. Keep in lockstep
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
-LIBLEPTRIS_VERSION = "1.9.36"
+LIBLEPTRIS_VERSION = "1.9.43"
 
 CMAKE_FLAGS = %w[
   -DCMAKE_BUILD_TYPE=Release

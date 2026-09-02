@@ -775,3 +775,20 @@ RSpec.describe "leptris-ruby#115: copies and the unit keep comment/PI children" 
     expect(original["id"]).to eq("1")
   end
 end
+
+RSpec.describe "upstream #696 fixed: the C copy keeps comment/PI children" do
+  it "leptris_element_copy round-trips every child kind" do
+    doc = Leptris::XML::Document.parse(
+      "<r>text<!-- note --><?pi data?><b/></r>")
+    target = Leptris::XML::Document.create
+    copy = Leptris::XML::FFI.leptris_element_copy(doc.root.c_ptr, target.c_ptr)
+    expect(copy).not_to be_null
+    wrapped = Leptris::XML::Node.wrap(copy, target)
+    expect(wrapped.children.map(&:class)).to eq(
+      [Leptris::XML::Text, Leptris::XML::Comment,
+       Leptris::XML::ProcessingInstruction, Leptris::XML::Element])
+    # Namespaces are still dropped by the C copy (#721) — dup keeps
+    # its serialization round-trip until that lands.
+    expect(wrapped.to_xml).to eq("<r>text<!-- note --><?pi data?><b/></r>")
+  end
+end
