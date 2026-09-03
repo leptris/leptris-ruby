@@ -22,6 +22,7 @@ module Leptris
     autoload :Serialization, "leptris/xml/serialization"
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
+    autoload :ResultText, "leptris/xml/result_text"
     autoload :XSLT, "leptris/xml/xslt"
     autoload :XQuery, "leptris/xml/xquery"
     autoload :Pull, "leptris/xml/pull"
@@ -42,6 +43,24 @@ module Leptris
       string = string.to_s
       Leptris::XML::FFI.leptris_str_has_nonstandard_entity(
         string, string.bytesize) != 0
+    end
+
+    # Tolerant HTML4/5 parse into a standard Document (libleptris
+    # 1.9.75): implied end tags, void elements, raw-text script and
+    # style, lowercased names, minimized/unquoted attributes, and
+    # the HTML named entities. Document shape — html/head/body are
+    # synthesized (Nokogiri::HTML parity), but NO implied tbody.
+    # Malformed input degrades to text rather than raising; only an
+    # entirely empty result is an error.
+    def self.parse_html(html)
+      html = html.to_s
+      raw = Leptris::XML::FFI.leptris_parse_html_string(
+        html, html.bytesize, nil)
+      if raw.null?
+        raise Leptris::XML::ParseError,
+          "HTML parse failed: #{Leptris::XML::FFI.leptris_last_error}"
+      end
+      Leptris::XML::Document.wrap(raw)
     end
 
     def self.parse_file(path)

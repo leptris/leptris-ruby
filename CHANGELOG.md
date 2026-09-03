@@ -5,6 +5,63 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.58] - 2026-09-03
+
+### Added
+
+- **Lockstep with libleptris 1.9.75** (1.9.68 → 1.9.75, eight
+  releases). One new C symbol attached (audit 260/260):
+  - **`Leptris::XML.parse_html`** (1.9.75, leptris/leptris#659 —
+    the last Nokogiri capability gap): tolerant HTML4/5 into the
+    STANDARD DOM — implied end tags, void elements, raw-text
+    script/style, lowercased names, minimized/unquoted attributes,
+    HTML named entities; html/head/body synthesized (Nokogiri::HTML
+    parity), tbody never implied; malformed markup degrades to
+    text. Eight specs; README HTML section; the migration list
+    drops "No Nokogiri::HTML".
+  - **XPath 2.0 ledger** (1.9.69/1.9.73, closes most of the #683
+    grammar list): value comparators (`eq`/`gt`/…), quantifiers
+    (`some`/`every`), set algebra (`intersect`/`except`), node
+    identity (`is`) — all standalone from `#xpath`, specced.
+  - **XQuery windows and typeswitch** (1.9.69/1.9.70): tumbling
+    and sliding `window` clauses, `typeswitch` dispatch, the error
+    code model (`try/catch` reaches its catch arm — the #790
+    cast-error piece landed). Specced.
+  - **Sequence items are readable**: `for … return`, sequence
+    literals, and XQuery constructor results arrive as
+    `Leptris::XML::ResultText` (new) — `#content` serves the value
+    directly, captured at result materialization through
+    `leptris_xpath_result_node_value` (the only accessor that can
+    read the engine's synthetic sequence carriers). The
+    "consume through an aggregate" caveat is retired.
+- Upstream perf work adopted: AVT compile cache, keyed mutation
+  tail caches, fragment-output tail caches (1.9.71/1.9.72).
+
+### Fixed
+
+- **#130 closed** (dup degradation): the monotonic per-cycle rise
+    lived in the C-copy path — `dup` reverts to the serialization
+    round-trip (see #812 below) and the repro runs flat (~95 µs
+    per copy across 20 rounds × 15 copies).
+- **#790 mostly fixed upstream** (1.9.68): constructor-as-return
+  parses (items arrive as readable serialized strings),
+  where/at-in-function-argument parses, cast errors reach
+  try/catch. Follow-up found and reported: the `where` clause is
+  silently IGNORED in the function-argument position (bare FLWOR
+  filters, wrapped does not) — one pending spec holds the correct
+  expectation.
+- **leptris/leptris#812 filed** (1.9.74 copy rewrite regresses
+  #721): `leptris_element_copy` drops declarations used only by
+  descendants and resolution returns NULL on the copied subtree —
+  `dup` and the indent-unit path revert to the serialization
+  round-trip (byte-exact) until it lands.
+- **leptris/leptris#815 filed** (from #131): the indenting
+  DOCUMENT serializer intermittently emits unescaped `<` in text
+  (invalid XML out) for ~5-7% of parses under allocation churn —
+  localized to the engine (all three C serialization paths corrupt;
+  `indent: 0` and the element face are clean). #131 stays open as
+  the tracker.
+
 ## [1.9.57] - 2026-09-03
 
 ### Changed

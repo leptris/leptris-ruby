@@ -133,7 +133,16 @@ module Leptris
       attach_function :leptris_version, [], :string
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void
 
-      attach_function :leptris_parse_string,
+            # Tolerant HTML4/5 parse into the STANDARD DOM (libleptris
+      # 1.9.75, #659): implied end tags, void elements, raw-text
+      # script/style, case-insensitive (lowercased) names, the HTML
+      # named-entity table. Document shape — html/head/body
+      # synthesized; no implied tbody. Malformed input never fails
+      # the parse; only an entirely empty result is an error.
+      attach_function :leptris_parse_html_string,
+        [:string, :size_t, :pointer], :leptris_document
+
+attach_function :leptris_parse_string,
         [:string, :size_t, :pointer], :leptris_document
       attach_function :leptris_parse_string_flags,
         [:string, :size_t, :uint, :pointer], :leptris_document
@@ -780,6 +789,11 @@ module Leptris
       NODE_COMMENT = 2
       NODE_CDATA = 3
       NODE_PI = 4
+      # Internal XPath-synthetic text node (leptris/types.h): the
+      # carrier for sequence/map/array items in result nodesets —
+      # readable only through the result handle, so the binding
+      # captures the value at materialization (ResultText).
+      NODE_SYNTHETIC_TEXT = 8
       NODE_DOCTYPE = 5
       NODE_ATTRIBUTE = 6
 
@@ -1070,15 +1084,19 @@ module Leptris
       # get_type in the wrapper. Returns [pointers, element_hints].
       XPATH_KIND_HINT = { XPATH_NODE_ELEMENT => NODE_ELEMENT }.freeze
 
+      # Returns [pointers, element_hints, raw_kinds] — the raw
+      # XPATH_NODE-space kinds ride along so the materializer can
+      # spot TEXT items (synthetic sequence carriers) and capture
+      # their values while the result handle is alive.
       def self.fetch_result_nodes(result_ptr, count)
-        return [[], nil] if count.zero?
+        return [[], nil, nil] if count.zero?
         buffer = scratch_pointers(count)
         kinds = scratch_ints(count)
         copied = leptris_xpath_result_get_nodes_ex(
           result_ptr, buffer, kinds, count)
-        hints = kinds.get_array_of_int(0, copied)
-          .map { |k| XPATH_KIND_HINT[k] }
-        [buffer.get_array_of_pointer(0, copied), hints]
+        raw = kinds.get_array_of_int(0, copied)
+        hints = raw.map { |k| XPATH_KIND_HINT[k] }
+        [buffer.get_array_of_pointer(0, copied), hints, raw]
       end
 
       # Fragment parse with the status out-param read: returns

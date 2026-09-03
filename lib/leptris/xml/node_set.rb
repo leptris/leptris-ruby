@@ -62,9 +62,20 @@ class Leptris::XML::NodeSet
     if @result_ptr
       ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, idx)
       return nil if ptr.null?
-      Leptris::XML::Node.wrap(ptr, @document)
+      Leptris::XML::Node.wrap(
+        ptr, @document,
+        result_value: text_item_value(
+          Leptris::XML::FFI.leptris_xpath_result_node_kind(@result_ptr, idx), idx))
     end
   end
+
+  # Sequence/map/array items ride synthetic text nodes whose value
+  # only the live result handle can serve — capture it now.
+  def text_item_value(kind, index)
+    return nil unless kind == Leptris::XML::FFI::XPATH_NODE_TEXT
+    Leptris::XML::FFI.leptris_xpath_result_node_value(@result_ptr, index)
+  end
+  private :text_item_value
 
   # Iteration materializes: the first pass batch-fetches into @array
   # (yielding as it wraps), and every subsequent reader — each, [],
@@ -81,16 +92,21 @@ class Leptris::XML::NodeSet
         # not just elements); the batch accessor under-copies
         # mixed-kind results (upstream leptris#477), so per-index
         # fetch covers the remainder.
-        pointers, kinds = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
+        pointers, kinds, raw = Leptris::XML::FFI.fetch_result_nodes(@result_ptr, n)
         nodes = []
         pointers.each_with_index do |ptr, i|
           next if ptr.null?
-          nodes << Leptris::XML::Node.wrap(ptr, @document, node_type: kinds[i])
+          nodes << Leptris::XML::Node.wrap(
+            ptr, @document, node_type: kinds[i],
+            result_value: text_item_value(raw[i], i))
         end
         (pointers.length...n).each do |i|
           ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
           next if ptr.null?
-          nodes << Leptris::XML::Node.wrap(ptr, @document)
+          nodes << Leptris::XML::Node.wrap(
+            ptr, @document,
+            result_value: text_item_value(
+              Leptris::XML::FFI.leptris_xpath_result_node_kind(@result_ptr, i), i))
         end
         @array = nodes
       else

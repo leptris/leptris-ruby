@@ -106,6 +106,26 @@ doc.root                                # => nil
 Leptris::XML::FFI.leptris_last_error    # => "..."
 ----
 
+== HTML parsing
+
+`Leptris::XML.parse_html(html)` parses tolerant HTML4/5 into a
+standard Document — the same nodes, pool, serializer, and
+XPath/XSLT/XQuery machinery as XML (libleptris 1.9.75, the last
+Nokogiri capability gap):
+
+[source,ruby]
+----
+doc = Leptris::XML.parse_html(%(<ul><li>a<li>b</ul>))
+doc.at_css("body").inner_html   # => "<ul><li>a</li><li>b</li></ul>"
+----
+
+Implied end tags (`p`/`li`/`td`/`tr`/...), void elements, raw-text
+`<script>`/`<style>`, case-insensitive lowercased names,
+minimized/unquoted attributes, and the HTML named entities all
+parse; `html`/`head`/`body` are synthesized (Nokogiri::HTML parity)
+but `tbody` is never implied. Malformed markup degrades to text
+rather than raising.
+
 == Reading nodes
 
 [horizontal]
@@ -247,17 +267,21 @@ doc.xpath("[10, 20, 30]?2")                          # 3.1 arrays
 doc.xpath(%q{serialize(parse-json('{"b":"beta"}'), map { 'method': 'json' })})
 doc.xpath("function($x) { $x + 1 }(41)")             # 3.1 function items
 doc.xpath("fold-left(1 to 4, 0, function($a, $b) { $a + $b })")
+doc.xpath("count(//a) eq 2")                        # 2.0 value comparators
+doc.xpath("some $a in //a satisfies $a/@v > 1")     # 2.0 quantifiers
+doc.xpath("count(//a except //a[@v = 1])")          # 2.0 set algebra
 ----
 
-Two caveats: `for … return` sequences come back as opaque result
-nodes — consume them through an aggregate (`count(...)`,
-`string-join(...)`) until the engine materializes readable sequence
-items; and XQuery-only syntax (`order by`, `try/catch`, map
-constructors) raises `XPathError` rather than evaluating silently
-wrong. The remaining grammar gaps — value comparators (`eq`),
-quantifiers, `intersect`/`except`, string templates — and XQuery
-itself are
-https://github.com/leptris/leptris/issues/683[tracked upstream].
+Sequence and constructor items arrive as `Leptris::XML::ResultText`
+objects — `#content` serves the value directly:
+
+[source,ruby]
+----
+doc.xpath("for $w in //a return string($w/@v)").map(&:content)  # => ["1", "2"]
+----
+
+Remaining grammar gaps (https://github.com/leptris/leptris/issues/683[tracked
+upstream]): 3.1 string templates, XQuery beyond the 1.0 core.
 
 === Supported CSS selectors
 
@@ -585,7 +609,9 @@ Notable differences:
   Nokogiri is silent on this — migrating code that holds Node references
   past Document disposal will see the error; silence-replace-UAF patterns
   from Nokogiri do not apply.
-* No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Leptris is XML-only.
+* No `Nokogiri::CSS` parser. HTML parsing is supported
+  (`Leptris::XML.parse_html`, libleptris 1.9.75); Nokogiri's
+  HTML-specific node subclasses have no equivalent.
 * No RelaxNG / DTD validation, no schema caching (XSLT 1.0–3.0
   and an XQuery 1.0 core are supported — see above).
 * No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
