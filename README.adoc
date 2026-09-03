@@ -409,9 +409,9 @@ query.eval(doc)   # plain expressions keep their XPath result type;
 
 Supported: the prolog (`declare variable` / `declare namespace` /
 `declare function local:*`), nested `for` with `at` positions,
-`let`, `where`, stable multi-key `order by`, direct and computed
-constructors with attribute value templates, and plain XPath
-expression bodies. Known grammar gaps are
+`let`, `where`, stable multi-key `order by`, `group by`, direct and
+computed constructors with attribute value templates, and plain
+XPath expression bodies. Known grammar gaps are
 https://github.com/leptris/leptris/issues/790[tracked upstream].
 
 `Leptris::XML.buffer_has_nonstandard_entity?(string)` is a
