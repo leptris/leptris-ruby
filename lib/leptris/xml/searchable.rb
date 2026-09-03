@@ -151,6 +151,12 @@ module Leptris::XML::Searchable
       v = Leptris::XML::FFI.read_owned_string(str_ptr)
       Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       v
+    when Leptris::XML::FFI::XPATH_FUNCTION
+      Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
+      raise Leptris::XML::XPathError,
+            'XPath function items cannot cross the FFI boundary yet ' \
+            '(libleptris TODO 07; call them inside the expression, ' \
+            'e.g. for-each((1,2), function($n){$n+1}))'
     else
       Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       raise Leptris::XML::XPathError, "unknown xpath result type #{type}"

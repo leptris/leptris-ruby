@@ -199,6 +199,7 @@ RSpec.describe Leptris::XML::FFI do
       expect(described_class::XPATH_BOOLEAN).to eq(1)
       expect(described_class::XPATH_NUMBER).to eq(2)
       expect(described_class::XPATH_STRING).to eq(3)
+      expect(described_class::XPATH_FUNCTION).to eq(4)
     end
 
     it "exposes libleptris raw node type constants" do
