@@ -43,6 +43,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
       typedef :pointer, :leptris_xslt
+      typedef :pointer, :leptris_xquery
       typedef :pointer, :leptris_sax_recorder
       typedef :pointer, :leptris_pull_parser
       typedef :pointer, :leptris_iterparse
@@ -671,6 +672,25 @@ module Leptris
       attach_function :leptris_document_save_file,
         [:leptris_document, :string, :pointer], :leptris_status
       # XSLT 1.0 engine (libleptris 1.9.1): compile once, apply many.
+      # XQuery 1.0 core (libleptris 1.9.64-1.9.66): orchestration
+      # over the XPath engine — prolog (declare variable/namespace/
+      # function local:*), FLWOR, computed and direct constructors.
+      # Results reuse the XPath result handle (free with
+      # leptris_xpath_result_free); context_node NULL = document.
+      attach_function :leptris_xquery_parse,
+        [:string, :size_t], :leptris_xquery
+      attach_function :leptris_xquery_eval,
+        [:leptris_xquery, :leptris_document, :leptris_element],
+        :leptris_xpath_result
+      attach_function :leptris_xquery_free, [:leptris_xquery], :void
+
+      # One-pass entity pre-scan (libleptris 1.9.62, leptris#745):
+      # 1 when the buffer holds a named entity that is not one of
+      # the five predefined XML entities (nor numeric) — the moxml
+      # pre-scan at C speed instead of a Ruby regex.
+      attach_function :leptris_str_has_nonstandard_entity,
+        [:string, :size_t], :int
+
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
       attach_function :leptris_xslt_parse_file,
