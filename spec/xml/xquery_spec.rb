@@ -46,6 +46,16 @@ RSpec.describe "Leptris::XML::XQuery (libleptris 1.9.64-1.9.66)" do
     expect(xquery(%q{element big { string(//item[3]/name) }})).to eq("<big>Gamma</big>")
   end
 
+  it "partitions the tuple stream with group by (1.9.67)" do
+    grouped = Leptris::XML::Document.parse(
+      "<r><i cat=\"a\"/><i cat=\"b\"/><i cat=\"a\"/><i cat=\"b\"/><i cat=\"a\"/></r>")
+    result = Leptris::XML::XQuery.parse(
+      "for $i in //i group by $c := $i/@cat return $i")
+    # two groups (a: 3 members, b: 2); the items ride the sequence
+    # channel — one item per group, sizes readable
+    expect(result.eval(grouped).size).to eq(2)
+  end
+
   it "binds the positional variable in for-at" do
     expect(xquery("for $i at $p in //item return $i").size).to eq(3)
   end

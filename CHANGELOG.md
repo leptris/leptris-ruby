@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.57] - 2026-09-03
+
+### Changed
+
+- **Lockstep with libleptris 1.9.67**: XQuery `group by $k := Expr`
+  — partitions the tuple stream in first-appearance order, group
+  variables rebound to the member list, `group by` + `order by
+  count(...)` composing per the Saxon oracle. Specced through the
+  `Leptris::XML::XQuery` face (the in-clause `:=` binding form);
+  README's XQuery list grows `group by`. No new C surface (audit
+  259/259). Also upstream: a per-query nodeset leak in the key-loop
+  rebind (caught by their Linux ASAN leg).
+
 ## [1.9.56] - 2026-09-03
 
 ### Added
