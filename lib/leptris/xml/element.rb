@@ -251,16 +251,12 @@ class Leptris::XML::Element < Leptris::XML::Node
     self
   end
 
-  # Deep copy in a NEW document via the C copy (both engine gaps
-  # closed: comment/PI children in 1.9.39, namespaces in 1.9.47 —
-  # leptris/leptris#696, #721), attached as the fresh document's
-  # root so the tree is fully navigable.
+  # Deep copy in a NEW document via serialization round-trip
+  # (leptris/leptris#812: the 1.9.74 copy rewrite drops
+  # descendant-used declarations; the serializer is byte-exact).
   def dup
     ensure_alive!
-    new_doc = Leptris::XML::Document.create
-    copy = Leptris::XML::FFI.leptris_element_copy(@c_ptr, new_doc.c_ptr)
-    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
-    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
+    Leptris::XML::Document.parse(to_xml).root
   end
   alias_method :clone, :dup
 

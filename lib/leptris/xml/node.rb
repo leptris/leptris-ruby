@@ -15,7 +15,7 @@ class Leptris::XML::Node
   # node_type: callers holding a batch-fetched kind (the XPath
   # result-set batch fills out_kinds) pass it so the wrap skips the
   # get_type dispatch; nil (the default) dispatches as before.
-  def self.wrap(c_ptr, document, parent: nil, node_type: nil)
+  def self.wrap(c_ptr, document, parent: nil, node_type: nil, result_value: nil)
     # Per-document weak-ref cache. Returns the existing wrapper when the
     # same c_ptr is wrapped twice (common in children/sibling walks,
     # repeated xpath queries, traverse-then-access patterns). The cache
@@ -37,6 +37,11 @@ class Leptris::XML::Node
         Leptris::XML::Element.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_TEXT
         Leptris::XML::Text.new(c_ptr, document, parent: parent, node_type: node_type)
+      when Leptris::XML::FFI::NODE_SYNTHETIC_TEXT
+        # Sequence/map/array items: value captured by the NodeSet at
+        # materialization (only the result handle can read them).
+        Leptris::XML::ResultText.new(
+          c_ptr, document, result_value, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_COMMENT
         Leptris::XML::Comment.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_CDATA
@@ -369,18 +374,17 @@ class Leptris::XML::Node
     result
   end
 
-  # Deep copy in a NEW document via the C copy (both engine gaps
-  # closed: comment/PI children in 1.9.39, namespaces in 1.9.47 —
-  # leptris/leptris#696, #721). The copy is attached as the fresh
-  # document's root so the tree is fully navigable.
+  # Deep copy in a NEW document. Rounds through serialization: the
+  # 1.9.74 copy rewrite (#653 perf lane) drops declarations used
+  # only by descendants — resolution on the copied subtree resolves
+  # NULL (leptris/leptris#812, an #721 regression) — while the
+  # serializer preserves every child kind, prefixed name, and
+  # declaration byte-for-byte.
   def dup
     ensure_alive!
     elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)
     raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
-    new_doc = Leptris::XML::Document.create
-    copy = Leptris::XML::FFI.leptris_element_copy(elem_ptr, new_doc.c_ptr)
-    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
-    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
+    Leptris::XML::Document.parse(to_xml).root
   end
   alias_method :clone, :dup
 
