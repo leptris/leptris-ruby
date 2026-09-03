@@ -23,6 +23,7 @@ module Leptris
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
     autoload :XSLT, "leptris/xml/xslt"
+    autoload :XQuery, "leptris/xml/xquery"
     autoload :Pull, "leptris/xml/pull"
     autoload :Iterparse, "leptris/xml/iterparse"
 
@@ -31,6 +32,16 @@ module Leptris
     def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
       Document.parse(xml_or_io, options: options, readonly: readonly,
                      recover: recover)
+    end
+
+    # Does +string+ contain a named entity reference that is not
+    # one of the five predefined XML entities (nor numeric)? One C
+    # pass (libleptris 1.9.62) — downstream adapters use it to skip
+    # whole-buffer rewrites when a document is already clean.
+    def self.buffer_has_nonstandard_entity?(string)
+      string = string.to_s
+      Leptris::XML::FFI.leptris_str_has_nonstandard_entity(
+        string, string.bytesize) != 0
     end
 
     def self.parse_file(path)

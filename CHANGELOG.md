@@ -5,6 +5,46 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.56] - 2026-09-03
+
+### Added
+
+- **Lockstep with libleptris 1.9.66** (1.9.51 → 1.9.66 — sixteen
+  releases, the XPath 3.1 value-level + XQuery wave). Four new C
+  symbols attached (audit 259/259):
+  - **`Leptris::XML::XQuery`** (1.9.64-1.9.66): compile-once /
+    evaluate-many XQuery 1.0 core — prolog (`declare variable` /
+    `namespace` / `function local:*`), nested `for` with `at`
+    positions, `let`, `where`, stable multi-key `order by`, direct
+    and computed constructors with attribute value templates, and
+    plain XPath expression bodies. Results reuse the XPath result
+    handle; constructor results arrive as readable strings, FLWOR
+    sequences through the sequence channel. Twelve specs.
+  - **`Leptris::XML.buffer_has_nonstandard_entity?`** (1.9.62,
+    closes leptris-ruby#124 / upstream #745): the one-pass C
+    entity pre-scan — measured 7.5 µs vs 24 µs for the Ruby regex
+    it replaces on a 13 KB document (+18% vs +59% over parse).
+  - **XPath 3.1 value-level surface** (1.9.51-1.9.63), all
+    resolving standalone from `#xpath` and specced: map/array
+    constructors and accessors (`?key`, `map:get`, `array:get`,
+    sizes), `parse-json`, `json-to-xml` / `xml-to-json`,
+    `serialize(…, map { 'method': 'json' })`, postfix `?lookup`,
+    inline function items and dynamic calls, `function-lookup`,
+    `fold-left`, `for-each`, named function references.
+  - 1.9.61 (upstream #739/#744): `xs:boolean('0')` casts to
+    false, `xs:` string lexicals validated.
+- **README**: XQuery section, value-level examples in the
+  standalone-subset block, the migration list drops "No XQuery".
+
+### Fixed
+
+- **XQuery v1 grammar gaps found on first contact, filed as
+  leptris/leptris#790** (pending specs against it): constructor as
+  the FLWOR return clause fails to parse; `where`/`at` clauses
+  inside a function-argument FLWOR fail to parse (bare for-return
+  works); `'nope' cast as xs:integer` NaNs instead of erroring, so
+  `try/catch` never reaches its catch arm.
+
 ## [1.9.55] - 2026-09-02
 
 ### Changed

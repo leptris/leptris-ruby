@@ -9,9 +9,9 @@ A Nokogiri-compatible Ruby binding for
 https://github.com/leptris/leptris[libleptris], a pure-C99 XML 1.0 parser
 with full https://www.w3.org/TR/1999/REC-xpath-19991116/[XPath 1.0],
 XML Namespaces 1.0, SAX, and C14N (1.0 / 1.1 / Exclusive), plus
-XSLT 1.0–3.0 transforms (the XPath 3.1 core rides inside them) and a
-growing XPath 2/3.1 expression subset available standalone from
-`#xpath` itself.
+XSLT 1.0–3.0 transforms, an XQuery 1.0 core face, and a growing
+XPath 2/3.1 expression subset available standalone from `#xpath`
+itself.
 
 The C DOM is the single source of truth — Ruby objects are thin FFI
 handles over the C pointers, so every Ruby method maps to one FFI call.
@@ -242,6 +242,11 @@ doc.xpath("'v' || count(//book)")                    # 3.1 concat
 doc.xpath("'42' castable as xs:integer")             # 2.0 type ops
 doc.xpath("1.9 cast as xs:integer")                  # => 1.0 (truncates)
 doc.xpath("//title instance of node()+")             # 2.0 sequence types
+doc.xpath("map { 'b': 'beta' }?b")                   # 3.1 maps
+doc.xpath("[10, 20, 30]?2")                          # 3.1 arrays
+doc.xpath(%q{serialize(parse-json('{"b":"beta"}'), map { 'method': 'json' })})
+doc.xpath("function($x) { $x + 1 }(41)")             # 3.1 function items
+doc.xpath("fold-left(1 to 4, 0, function($a, $b) { $a + $b })")
 ----
 
 Two caveats: `for … return` sequences come back as opaque result
@@ -382,6 +387,39 @@ dispositions drop unmatched subtrees in the built-in initial
 descent (https://github.com/leptris/leptris/issues/705[#705]) —
 the other four dispositions are spec-correct. XQuery has no
 entry point yet.
+== XQuery
+
+XQuery 1.0 core through `Leptris::XML::XQuery` (compile once,
+evaluate many):
+
+[source,ruby]
+----
+query = Leptris::XML::XQuery.parse(<<~XQ)
+  declare variable $min := 3;
+  for $i in //item
+  where number($i/@qty) > $min
+  order by $i/@qty descending
+  return <big>{$i/name/text()}</big>
+XQ
+query.eval(doc)   # plain expressions keep their XPath result type;
+                  # FLWOR results arrive as the sequence channel —
+                  # read them through an aggregate until the engine
+                  # materializes readable sequence items
+----
+
+Supported: the prolog (`declare variable` / `declare namespace` /
+`declare function local:*`), nested `for` with `at` positions,
+`let`, `where`, stable multi-key `order by`, direct and computed
+constructors with attribute value templates, and plain XPath
+expression bodies. Known grammar gaps are
+https://github.com/leptris/leptris/issues/790[tracked upstream].
+
+`Leptris::XML.buffer_has_nonstandard_entity?(string)` is a
+one-pass C pre-scan (for adapter layers): true when the buffer
+contains a named entity outside the five predefined ones (or
+numeric) — ~3x faster than the equivalent Ruby regex and no
+false positives on bare `&`.
+
 `Document#save(path, **opts)` :: serialize to a file.
 `Document#canonicalize(version, inclusive_ns, with_comments:, exclusive:, mode:)` (alias `#c14n`) :: canonical XML.
 `Element#canonicalize(...)` :: subtree canonicalization.
@@ -548,8 +586,8 @@ Notable differences:
   past Document disposal will see the error; silence-replace-UAF patterns
   from Nokogiri do not apply.
 * No `Nokogiri::HTML` or `Nokogiri::CSS` parser. Leptris is XML-only.
-* No XQuery, no RelaxNG / DTD validation, no schema caching
-  (XSLT 1.0–3.0 is supported — see above).
+* No RelaxNG / DTD validation, no schema caching (XSLT 1.0–3.0
+  and an XQuery 1.0 core are supported — see above).
 * No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
 
 == Performance
