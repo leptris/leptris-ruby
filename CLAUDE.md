@@ -13,8 +13,11 @@ with the shared library vendored inside: x86_64/aarch64-linux (glibc
 and musl), x86_64/arm64-darwin, x64-mingw32/ucrt, aarch64-mingw-ucrt,
 plus the pure-Ruby fallback gem.
 
-Version lockstep: the gem's major.minor tracks the C library
-(`libleptris 1.6.x` <-> `leptris 1.6.x`). A C release means one PR
+Version lockstep: the gem's version is `{c-full-semver}.{patch}` —
+the pinned libleptris release plus a binding-local patch counter
+(`libleptris 1.9.76` <-> `leptris 1.9.76.0`; a binding-only fix
+against the same pin -> `1.9.76.1`, patch resets when the pin
+moves). Same scheme as the Python binding. A C release means one PR
 carrying version.rb + the Rakefile `LIBLEPTRIS_VERSION` pin + the
 CHANGELOG entry, then the release workflow.
 
