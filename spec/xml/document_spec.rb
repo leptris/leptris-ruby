@@ -452,3 +452,31 @@ RSpec.describe "HTML PI-ish constructs (libleptris 1.9.83, leptris/leptris#659)"
     expect(pi.content).to eq("echo 1 ?")
   end
 end
+
+RSpec.describe "HTML head-content placement lift (libleptris 1.9.84, leptris/leptris#659)" do
+  def element_children_names(doc, sel)
+    doc.at_css(sel).children.select(&:element?).map(&:name)
+  end
+
+  it "lifts a contiguous leading title/meta/link/base run into a synthesized head" do
+    doc = Leptris::XML.parse_html("<title>T</title><meta charset='utf8'><p>x</p>")
+    expect(element_children_names(doc, "html")).to eq(%w[head body])
+    expect(element_children_names(doc, "head")).to eq(%w[title meta])
+  end
+
+  it "lifts link and base before body content" do
+    doc = Leptris::XML.parse_html("<link rel='s'><base href='h'><div>d</div>")
+    expect(element_children_names(doc, "head")).to eq(%w[link base])
+  end
+
+  it "does not lift once body content has started" do
+    doc = Leptris::XML.parse_html("<p>x</p><title>T</title>")
+    expect(doc.at_css("head")).to be_nil
+    expect(element_children_names(doc, "body")).to eq(%w[p title])
+  end
+
+  it "never synthesizes an empty head" do
+    doc = Leptris::XML.parse_html("<p>just body</p>")
+    expect(doc.at_css("head")).to be_nil
+  end
+end

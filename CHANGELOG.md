@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.84.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.84** (no new C surface — the audit
+  holds at 261/261): HTML head-content placement lift — a
+  contiguous leading run of `title`/`meta`/`link`/`base` elements
+  moves into a synthesized `<head>` placed before `<body>` (the
+  libxml2/Nokogiri shape); once body content starts nothing lifts,
+  and no empty `<head>` is ever synthesized. Four specs pin the
+  placement matrix.
+
 ## [1.9.83.0] - 2026-09-04
 
 ### Changed
