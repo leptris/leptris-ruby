@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.79.0] - 2026-09-04
+
+### Changed
+
+- **Lockstep with libleptris 1.9.79** (1.9.77 → 1.9.79; no new C
+  surface — the audit holds at 261/261):
+  - 1.9.77: XQuery 3.0 grammar tail — braceless `switch`,
+    `array { E }` constructors, `fn:parse-xml` /
+    `fn:parse-xml-fragment` as document nodes, nested map/array
+    lookup carrier composition.
+  - 1.9.78: the #691 catalog tail — `fn:innermost`/`outermost`,
+    `fn:has-children`, `fn:path` (positional form),
+    `fn:nilled`, `fn:base-uri`/`document-uri`/`static-base-uri`,
+    `fn:doc-available`, `fn:json-doc`, `fn:compare`,
+    `fn:codepoint-equal`, `fn:round($x, $precision)`, and
+    `fn:normalize-unicode` (utf8proc).
+  - 1.9.79: `fn:random-number-generator` (seeded, `?number`
+    lookup); one-pass template selection (`xslt_select_template`
+    / `_next_match` no longer evaluate every pattern alternative
+    twice per dispatch candidate).
+  - Sixteen new specs cover the verified surface through `#xpath`
+    and the XQuery face.
+- **Known build gap, documented in a pending spec**:
+  `fn:normalize-unicode` requires utf8proc, which the vendored
+  platform builds compile out (`LEPTRIS_ENABLE_UTF8PROC=OFF`) —
+  the function raises on every shipped platform gem.
+
 ## [1.9.76.0] - 2026-09-04
 
 ### Changed
