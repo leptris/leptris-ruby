@@ -174,3 +174,22 @@ RSpec.describe "fn:format-number standalone (libleptris 1.9.80)" do
     end
   end
 end
+
+RSpec.describe "fn:snapshot and fn:analyze-string (libleptris 1.9.81-1.9.82)" do
+  let(:doc) { Leptris::XML::Document.parse(%q{<r><b id="1">x</b><b id="2">y</b></r>}) }
+
+  it "deep-copies each input onto an anchored document (fn:snapshot)" do
+    expect(doc.xpath("count(snapshot(//b))")).to eq(2.0)
+    expect(doc.xpath("string(snapshot(//b)[2]/@id)")).to eq("2")
+  end
+
+  it "splits input into the fn:match / fn:non-match model (fn:analyze-string)" do
+    skip "regex engine unavailable on MSVC builds" if Gem.win_platform?
+    result = doc.xpath("analyze-string('a1b2c3', '[0-9]')")
+    expect(result.size).to eq(1)
+    expect(result.first.to_xml)
+      .to include("<fn:match>1</fn:match>", "<fn:non-match>a</fn:non-match>")
+    expect(doc.xpath("count(analyze-string('a1b2c3', '[0-9]')/*[local-name() = 'match'])")).to eq(3.0)
+    expect(doc.xpath("string(analyze-string('a1b', '[0-9]'))")).to eq("a1b")
+  end
+end

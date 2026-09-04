@@ -442,3 +442,13 @@ RSpec.describe "text ampersands escape on serialize (leptris-ruby#120)" do
     expect(doc.root.to_xml).to eq("<r>a &amp; b</r>")
   end
 end
+
+RSpec.describe "HTML PI-ish constructs (libleptris 1.9.83, leptris/leptris#659)" do
+  it "keeps <?target data?> as a PI with the libxml2/Nokogiri shape" do
+    body = Leptris::XML.parse_html("<?php echo 1 ?><p>t</p>").at_css("body")
+    pi = body.children.first
+    expect(pi).to be_a(Leptris::XML::ProcessingInstruction)
+    expect(pi.name).to eq("php")
+    expect(pi.content).to eq("echo 1 ?")
+  end
+end
