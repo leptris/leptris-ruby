@@ -122,9 +122,9 @@ doc.at_css("body").inner_html   # => "<ul><li>a</li><li>b</li></ul>"
 Implied end tags (`p`/`li`/`td`/`tr`/...), void elements, raw-text
 `<script>`/`<style>`, case-insensitive lowercased names,
 minimized/unquoted attributes, and the HTML named entities all
-parse; `html`/`head`/`body` are synthesized (Nokogiri::HTML parity)
-but `tbody` is never implied. Malformed markup degrades to text
-rather than raising.
+parse; `html`/`body` are synthesized (an empty `head` is not) and
+`tbody` is never implied. Malformed markup degrades to text rather
+than raising.
 
 == Reading nodes
 
@@ -349,6 +349,7 @@ doc.root.name = "catalog"
 `Element#namespace_definitions` :: only namespaces declared directly on this element.
 `Element#add_namespace_definition(prefix, href)` (alias `#add_namespace`) :: declare `xmlns:prefix="href"` on this element.
 `Element#default_namespace=(href)` :: declare/replace `xmlns="href"`.
+`Element#namespace=(uri)` :: Nokogiri `node.namespace=` semantics (libleptris 1.9.76): `nil` detaches — prefix clears, `xmlns=""` blocks in-scope defaults; a URI rebinds to an in-scope declaration carrying it (adopting its prefix; raises when none is in scope — declare first).
 `Element#remove_namespace_definition(prefix)` :: drop a declaration.
 `Element#attribute_ns(uri, local)` :: attribute value by expanded name (URI + local); nil URI matches no-namespace attributes only.
 `Element#has_attribute_ns?(uri, local)` :: presence by expanded name.

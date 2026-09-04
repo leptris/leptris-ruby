@@ -166,3 +166,27 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     end
   end
 end
+
+RSpec.describe "Element#namespace= (libleptris 1.9.76, leptris/leptris#817)" do
+  it "detaches with nil — prefix clears, xmlns=\"\" blocks in-scope defaults" do
+    doc = Leptris::XML::Document.parse(%(<r xmlns:p="urn:p" xmlns="urn:def"><p:child/></r>))
+    el = doc.root.children.first
+    el.namespace = nil
+    expect(el.namespace).to be_nil
+    expect(doc.to_xml).to include(%(<child xmlns=""/>))
+  end
+
+  it "rebinds to an in-scope declaration, adopting its prefix" do
+    doc = Leptris::XML::Document.parse(%(<r xmlns:p="urn:p"><plain/></r>))
+    el = doc.root.children.first
+    el.namespace = "urn:p"
+    expect(el.namespace.href).to eq("urn:p")
+    expect(doc.to_xml).to include("<p:plain/>")
+  end
+
+  it "raises for a URI with no in-scope declaration" do
+    doc = Leptris::XML::Document.parse(%(<r xmlns:p="urn:p"><p:c/></r>))
+    expect { doc.root.children.first.namespace = "urn:missing" }
+      .to raise_error(Leptris::XML::Error)
+  end
+end

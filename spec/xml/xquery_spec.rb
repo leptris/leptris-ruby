@@ -60,8 +60,7 @@ RSpec.describe "Leptris::XML::XQuery (libleptris 1.9.64-1.9.66)" do
     expect(xquery("for $i at $p in //item return $i").size).to eq(3)
   end
 
-  it "aggregates a where/at FLWOR through a function argument" do
-    skip "upstream leptris/leptris#790 follow-up: the where clause parses but is silently ignored in function-argument FLWOR"
+  it "aggregates a where/at FLWOR through a function argument (leptris/leptris#790 follow-up fixed in 1.9.76)" do
     expect(xquery("count(for $i in //item where number($i/@qty) > 3 return $i)")).to eq(2.0)
   end
 

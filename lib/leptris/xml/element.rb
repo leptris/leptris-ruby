@@ -251,12 +251,15 @@ class Leptris::XML::Element < Leptris::XML::Node
     self
   end
 
-  # Deep copy in a NEW document via serialization round-trip
-  # (leptris/leptris#812: the 1.9.74 copy rewrite drops
-  # descendant-used declarations; the serializer is byte-exact).
+  # Deep copy in a NEW document via the C copy, attached as the
+  # fresh document's root (#696 1.9.39, #721 1.9.47, #812 1.9.76 —
+  # every child kind and namespace survives, pool-threaded).
   def dup
     ensure_alive!
-    Leptris::XML::Document.parse(to_xml).root
+    new_doc = Leptris::XML::Document.create
+    copy = Leptris::XML::FFI.leptris_element_copy(@c_ptr, new_doc.c_ptr)
+    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
+    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
   end
   alias_method :clone, :dup
 
@@ -302,6 +305,20 @@ class Leptris::XML::Element < Leptris::XML::Node
       @namespace_version = @document.version
     end
     result
+  end
+
+  # Nokogiri node.namespace= semantics (libleptris 1.9.76, #817):
+  # nil (or "") detaches the namespace — the resolved link and the
+  # name's prefix clear, and an xmlns="" undeclaration blocks
+  # in-scope defaults from capturing the unqualified name. A URI
+  # rebinds to an in-scope declaration carrying it (adopting its
+  # prefix); a URI with no in-scope declaration raises — declare
+  # it first with #add_namespace_definition.
+  def namespace=(uri)
+    ensure_writable!
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_set_namespace(@c_ptr, uri&.to_s))
+    uri
   end
 
   def namespace_definitions
