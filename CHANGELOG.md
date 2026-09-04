@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.83.0] - 2026-09-04
+
+### Changed
+
+- **Lockstep with libleptris 1.9.83** (1.9.81 → 1.9.83; no new C
+  surface — the audit holds at 261/261):
+  - 1.9.81: `fn:snapshot` — deep-copies each input element onto a
+    fresh anchored document (the new document-lifetime anchor
+    chain). Specced: count, navigable copies (`@id` on the
+    snapshot).
+  - 1.9.82: `fn:analyze-string` — **the last function in the #691
+    catalog**. The result is a navigable `<fn:analyze-string>`
+    element with the `fn:match`/`fn:non-match` model; the overall
+    string value equals the input. Specced (MSVC-gated like the
+    regex trio).
+  - 1.9.83: HTML PI-ish constructs — `<?target data?>` in HTML
+    input keeps the libxml2/Nokogiri PI shape (data includes the
+    trailing `?`, leading whitespace trimmed). Specced.
+
 ## [1.9.80.0] - 2026-09-04
 
 ### Changed
