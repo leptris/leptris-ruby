@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.80.0] - 2026-09-04
+
+### Changed
+
+- **Lockstep with libleptris 1.9.80** (no new C surface — the
+  audit holds at 261/261):
+  - `fn:format-number` as a plain XPath function (the JDK1.1
+    pattern grammar moved to a shared core): specced standalone
+    through `#xpath` — grouping+decimals, percent, and zero
+    padding (`12,345.68`, `42%`, `00042`).
+  - Function registry is last-registration-wins (an internal
+    `xpath_function_registry_register_ud` seam): fixes the
+    XSLT bridge's decimal-format-aware `format-number` being
+    silently shadowed inside transforms.
+
+No perf drift: the standing battery re-run on this build holds
+the baseline (serialize 2.9x, inner_html 4.3x, attr reads 6.5x,
+element_children walks at parity with Nokogiri 1.19.4).
+
 ## [1.9.79.0] - 2026-09-04
 
 ### Changed
