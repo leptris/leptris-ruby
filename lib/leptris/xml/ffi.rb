@@ -451,6 +451,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_parse_fragment,
         [:string, :size_t, :leptris_document, :pointer], :leptris_element
 
+      # Nokogiri node.namespace= parity (libleptris 1.9.76, #817):
+      # NULL (or "") detaches — link + prefix clear, xmlns=""
+      # undeclaration added; a URI rebinds to an IN-SCOPE
+      # declaration carrying it (NOT_FOUND if there is none — this
+      # entry does not invent declarations).
+      attach_function :leptris_element_set_namespace,
+        [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_namespace,
         [:leptris_element], :string
       attach_function :leptris_element_namespace_for_prefix,

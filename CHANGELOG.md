@@ -5,6 +5,44 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.59] - 2026-09-04
+
+### Added
+
+- **Lockstep with libleptris 1.9.76** (one release, four engine
+  fixes — the tracker-clearing round). One new C symbol attached
+  (audit 261/261):
+  - **`Element#namespace=`** (leptris/leptris#817, closes
+    leptris-ruby#132): Nokogiri `node.namespace=` semantics — `nil`
+    detaches (prefix clears, `xmlns=""` blocks in-scope defaults),
+    a URI rebinds to an in-scope declaration carrying it (adopting
+    its prefix; raises when none is in scope — declare first).
+    Three specs; README Namespaces entry. The setter rides
+    `ensure_writable!`'s version advance so memoization
+    invalidates correctly.
+  - Upstream also fixed the serializer half: unqualified renames no
+    longer resurrect the old prefix.
+
+### Fixed
+
+- **#131 closed** (leptris/leptris#815, engine): the intermittent
+  unescaped-`<` under parse pressure — a dirty recycled pool page
+  left `base.raw` set on ~5-7% of parses and the indenting
+  serializer emitted that node's text verbatim. Our exact repro:
+  0/100 on 1.9.76.
+- **`dup` reverts to the C copy again** (leptris/leptris#812, the
+  1.9.74 descendant-declaration regression fixed): byte-for-byte
+  namespaced mixed-content copies restored, and the copier is fast
+  — ~68 µs flat per 250-record subtree (the round-trip ran ~95 µs),
+  and 2.5x Nokogiri on a 100-book subtree (52 vs 131 µs). The
+  #130 degradation shape stays flat.
+- **The #790 follow-up fixed** (leptris/leptris#814): the `where`
+  clause in function-argument FLWOR now filters correctly (2.0 on
+  the shape that returned 3.0) — the last pending spec is un-pending.
+- **HTML parity** (leptris/leptris#813): minimized attributes
+  serialize `checked=""`, and the synthesized wrapper omits an
+  empty `<head>`. README updated.
+
 ## [1.9.58] - 2026-09-03
 
 ### Added
