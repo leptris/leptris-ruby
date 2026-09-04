@@ -120,3 +120,43 @@ RSpec.describe "standalone XPath 2/3.1 expression subset (libleptris 1.9.35+)" d
       .to raise_error(Leptris::XML::XPathError)
   end
 end
+
+RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79)" do
+  let(:doc) do
+    Leptris::XML::Document.parse(%q{<a><b id="1"/><c/><b id="2"/><c><d/></c></a>})
+  end
+
+  {
+    "braceless switch"          => ["switch (2) case 1 return 'one' case 2 return 'two' default return 'other'", "two"],
+    "array { } constructor"     => ["array { 1 to 3 }?2", "2"],
+    "parse-xml document node"   => ["count(parse-xml('<r><x/><y/></r>')/*/*)", 2.0],
+    "fn:innermost"              => ["count(innermost(//b | //c/d))", 3.0],
+    "fn:outermost"              => ["count(outermost(//c/d))", 1.0],
+    "fn:has-children (true)"    => ["has-children(//c[d])", true],
+    "fn:has-children (false)"   => ["has-children(//b[1])", false],
+    "fn:path positional form"   => ["path(//b[@id = '2'])", "/a/b[2]"],
+    "fn:nilled"                 => ["nilled(//b[1])", false],
+    "fn:base-uri (in-memory)"   => ["string(base-uri(/a))", ""],
+    "fn:compare"                => ["compare('a', 'b')", -1.0],
+    "fn:codepoint-equal"        => ["codepoint-equal('a', 'a')", true],
+    "fn:round with precision"   => ["round(15, -1)", 20.0],
+    "rng ?number seeded"        => ["random-number-generator(42)?number < 1", true],
+  }.each do |label, (expr, expected)|
+    it "evaluates #{label}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+
+  it "evaluates braceless switch in the XQuery face" do
+    expect(Leptris::XML::XQuery.parse(
+      "switch (1) case 1 return 'uno' default return 'other'").eval(doc))
+      .to eq("uno")
+  end
+
+  # fn:normalize-unicode needs utf8proc — compiled out of the
+  # vendored platform builds (LEPTRIS_ENABLE_UTF8PROC=OFF).
+  it "normalizes unicode where utf8proc is built in" do
+    skip "utf8proc disabled in vendored builds — raises for the same reason"
+    expect(doc.xpath("string-length(normalize-unicode('é'))")).to eq(1.0)
+  end
+end
