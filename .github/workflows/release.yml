@@ -34,22 +34,25 @@ jobs:
           NEXT_VERSION: ${{ inputs.next_version }}
         run: |
           set -euo pipefail
-          # Accept x.y.z, or a relative bump (major/minor/patch)
-          # computed from the CURRENT version. The guard exists
-          # because a non-semver input once produced VERSION =
-          # "patch" on main and a junk tag literally named "v".
+          # Accept x.y.z and x.y.z.w (the lockstep scheme
+          # {libleptris-semver}.{binding-patch}), or a relative bump
+          # (major/minor/patch) computed from the CURRENT version —
+          # patch bumps the BINDING segment (the fourth). The guard
+          # exists because a non-semver input once produced VERSION
+          # = "patch" on main and a junk tag literally named "v".
           INPUT="${NEXT_VERSION}"
-          if [[ "$INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ "$INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
             :
           elif [[ "$INPUT" == "major" || "$INPUT" == "minor" || "$INPUT" == "patch" ]]; then
             CURRENT=$(ruby -Ilib -rleptris/version -e 'puts Leptris::VERSION')
-            IFS=. read -r MA MI PA <<< "$CURRENT"
+            IFS=. read -r MA MI PA QU <<< "$CURRENT"
+            QU="${QU:-0}"
             case "$INPUT" in
-              major) MA=$((MA + 1)); MI=0; PA=0 ;;
-              minor) MI=$((MI + 1)); PA=0 ;;
-              patch) PA=$((PA + 1)) ;;
+              major) MA=$((MA + 1)); MI=0; PA=0; QU=0 ;;
+              minor) MI=$((MI + 1)); PA=0; QU=0 ;;
+              patch) QU=$((QU + 1)) ;;
             esac
-            INPUT="${MA}.${MI}.${PA}"
+            INPUT="${MA}.${MI}.${PA}.${QU}"
           else
             echo "::error::next_version must be x.y.z or major/minor/patch, got '${INPUT}'"
             exit 1
