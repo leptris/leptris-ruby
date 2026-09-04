@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.76.0] - 2026-09-04
+
+### Changed
+
+- **Version scheme: `{libleptris full semver}.{binding patch}`.**
+  The gem's version now carries the C library's complete semver
+  plus a binding-only patch segment: `1.9.76.0` pairs with
+  libleptris `1.9.76`. Binding-only changes bump the fourth
+  segment (`1.9.76.1`); adopting a new libleptris release moves to
+  `{C}.0`. No functional change — `1.9.59` was the last
+  three-segment release and shipped this exact libleptris 1.9.76
+  content (equivalent to `1.9.76.0`).
+  - The release workflow's guard now accepts `x.y.z.w` and its
+    relative `patch` bump targets the BINDING (fourth) segment.
+  - CLAUDE.md's lockstep paragraph documents the scheme.
+
+No libleptris change (pin stays 1.9.76); this is the scheme-switch
+release.
+
 ## [1.9.59] - 2026-09-04
 
 ### Added
