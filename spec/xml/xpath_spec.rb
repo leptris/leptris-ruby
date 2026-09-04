@@ -160,3 +160,17 @@ RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79
     expect(doc.xpath("string-length(normalize-unicode('é'))")).to eq(1.0)
   end
 end
+
+RSpec.describe "fn:format-number standalone (libleptris 1.9.80)" do
+  let(:doc) { Leptris::XML::Document.parse("<r/>") }
+
+  {
+    "grouping + decimals" => ["format-number(12345.678, '#,##0.00')", "12,345.68"],
+    "percent"             => ["format-number(0.42, '0%')", "42%"],
+    "zero padding"        => ["format-number(42, '00000')", "00042"],
+  }.each do |label, (expr, expected)|
+    it "formats #{label}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+end
