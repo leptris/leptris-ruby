@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.90.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.90** — #659: the html5lib
+  tree-construction corpus harness (vendored snapshot, falsifiable
+  pass-count floor, red-list) and the empty-shape-inputs fix
+  (stray-end-only / doctype-only / empty input parse to the empty
+  document instead of failing).
+
+## [1.9.89.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.89** — #857: fn:analyze-string
+  group spans (subject-relative pmatch offsets + exact nmatch —
+  single-group regexes leaked the following non-match, and results
+  were call-order dependent).
+
+## [1.9.88.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.88** — #682 template dispatch
+  indexes: named-template hash, per-mode candidate buckets, and a
+  bare-Name pattern fast path. Template-heavy dispatch 10.21 →
+  5.56 ms per transform (1.83x); gap to in-process lxml/libxslt
+  narrows 3.27x → 1.78x.
+
 ## [1.9.87.0] - 2026-09-05
 
 ### Changed
