@@ -192,4 +192,18 @@ RSpec.describe "fn:snapshot and fn:analyze-string (libleptris 1.9.81-1.9.82)" do
     expect(doc.xpath("count(analyze-string('a1b2c3', '[0-9]')/*[local-name() = 'match'])")).to eq(3.0)
     expect(doc.xpath("string(analyze-string('a1b', '[0-9]'))")).to eq("a1b")
   end
+
+  # 1.9.87 (#846): constructed elements are namespace-aware — the
+  # analyze-string root DECLARES xmlns:fn, so prefixed tests select
+  # under a bound fn prefix and namespace-uri() answers.
+  it "selects analyze-string output with a bound fn prefix (libleptris 1.9.87, #846)" do
+    skip "regex engine unavailable on MSVC builds" if Gem.win_platform?
+    fn = { "fn" => "http://www.w3.org/2005/xpath-functions" }
+    expect(doc.xpath("count(analyze-string('a1b2', '[0-9]')/fn:match)", fn)).to eq(2.0)
+    expect(doc.xpath(
+      "namespace-uri(analyze-string('a1', '[0-9]')/*[1])"))
+      .to eq("http://www.w3.org/2005/xpath-functions")
+    expect(doc.xpath("analyze-string('a1', '[0-9]')").first.to_xml)
+      .to include('xmlns:fn="http://www.w3.org/2005/xpath-functions"')
+  end
 end
