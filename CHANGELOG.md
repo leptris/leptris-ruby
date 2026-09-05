@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.87.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.87** — #846: constructed elements
+  (analyze-string results, xsl:element, copies) now carry split
+  QNames with the parser shape, so prefixed XPath tests select
+  them and namespace-uri() resolves through the result's xmlns:fn
+  declaration; HTML-method serialization keeps close tags and
+  site rules off namespaced elements (s:img is not the HTML void
+  img).
+
 ## [1.9.86.0] - 2026-09-05
 
 ### Changed
