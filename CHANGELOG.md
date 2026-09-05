@@ -5,63 +5,53 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.93.0] - 2026-09-06
+## [1.9.93.1] - 2026-09-06
 
 ### Changed
 
-- **Lockstep with libleptris 1.9.93** (1.9.91 → 1.9.93; no new C
-  surface — the audit holds at 261/261):
-  - 1.9.93 — **predicate-pattern dispatch indexes** (leptris/
-    leptris#866, filed from this binding last round): name keys
-    (a `foo` element never evaluates `item[...]` candidates) and a
-    literal `(name, attr, value)` bucket. Our exact fixture —
-    120 `item[@k='N']` templates over 2400 elements — went
-    **102.4 ms / 0.6x Nokogiri → 2.65 ms / 20.3x faster**.
-    - **CORRECTNESS CAVEAT (leptris/leptris#875, affects
-      1.9.93.0)**: the literal-value index silently drops
-      templates past 96 distinct literal patterns — with 97+
-      distinct `name[@attr='value']` patterns, every template
-      past the 96th never fires (silent missing output; 96 works,
-      97 misses the tail). Pinned by a pending spec and a
-      boundary guard; binding-side advisory release 1.9.93.1.
-  - 1.9.92 — **append-tail cache fix** (leptris#848 follow-up):
-    the 8-slot direct-mapped cache thrashed on the HTML shape
-    (persistent <body> alternating with fresh parents — O(n²)
-    over 40k nodes); 64 slots. Entity-laden HTML at scale
-    (1.4 MB, 120k entity refs): **12.2 ms vs Nokogiri's 44.5 ms —
-    3.6x faster** (was 6x BEHIND libxml2 before the fix).
-  - 1.9.91 — the #659 Nokogiri-parity reference corpus (372/1555
-    exact tree matches, both conformance and parity floors
-    pinned) — test infra upstream; direction recorded: WHATWG
-    conformance with HTML4/HTML5 as distinct modes.
+- **Lockstep with libleptris 1.9.93** — #866: predicate-pattern
+  dispatch indexes (name keys + literal @attr='value' index). The
+  reported fixture drops 82 → 2ms per transform (40x; ~28x ahead
+  of libxslt); the 2000-book scorecard is 3.93ms.
+
+## [1.9.92.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.91–1.9.92** — #659 Nokogiri
+  parity reference (372/1555 exact-match floor; WHATWG-conformance
+  direction recorded) and the append-tail cache fix: entity-laden
+  HTML 291ms → 42ms per 1.3MB page (6.8x), now at par to 1.15x
+  AHEAD of libxml2 — no sub-1x HTML parse shape remains.
 
 ## [1.9.90.0] - 2026-09-05
 
 ### Changed
 
-- **Lockstep with libleptris 1.9.90** (1.9.88 → 1.9.90; no new C
-  surface — the audit holds at 261/261):
-  - 1.9.88: template dispatch indexes (#682) — named-template
-    hash, per-mode candidate buckets, bare-Name fast path.
-  - 1.9.89: `fn:analyze-string` group spans fixed (leptris/leptris
-    #857): pmatch offsets are subject-relative but were applied
-    from the match start, and excess regexec slots read stale
-    stack data — single-group matches leaked the following
-    non-match into group values. Two specs pin the corrected
-    shapes (`12`, not `12cd`) and the call-order independence.
-  - 1.9.90: html5lib tree-construction corpus harness upstream
-    (193/1753 passing with a red-list snapshot; the implied-head /
-    foster-parenting bucket shapes the next HTML slices).
+- **Lockstep with libleptris 1.9.90** — #659: the html5lib
+  tree-construction corpus harness (vendored snapshot, falsifiable
+  pass-count floor, red-list) and the empty-shape-inputs fix
+  (stray-end-only / doctype-only / empty input parse to the empty
+  document instead of failing).
 
-### Fixed
+## [1.9.89.0] - 2026-09-05
 
-- **Dispatch perf observation filed upstream (leptris/leptris
-  #866)**: predicate patterns (`match="item[@k='N']"` — the common
-  real-world shape) still pay the candidate ladder after 1.9.88;
-  measured 102.4 ms vs Nokogiri's 58.2 ms on a 120-template /
-  2400-element fixture (bare names ride the fast path). Suggested
-  per-Name sub-bucketing; offered to re-measure any experimental
-  build.
+### Changed
+
+- **Lockstep with libleptris 1.9.89** — #857: fn:analyze-string
+  group spans (subject-relative pmatch offsets + exact nmatch —
+  single-group regexes leaked the following non-match, and results
+  were call-order dependent).
+
+## [1.9.88.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.88** — #682 template dispatch
+  indexes: named-template hash, per-mode candidate buckets, and a
+  bare-Name pattern fast path. Template-heavy dispatch 10.21 →
+  5.56 ms per transform (1.83x); gap to in-process lxml/libxslt
+  narrows 3.27x → 1.78x.
 
 ## [1.9.87.0] - 2026-09-05
 
