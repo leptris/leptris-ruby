@@ -480,3 +480,15 @@ RSpec.describe "HTML head-content placement lift (libleptris 1.9.84, leptris/lep
     expect(doc.at_css("head")).to be_nil
   end
 end
+
+RSpec.describe "HTML characterization gates (libleptris 1.9.85, leptris/leptris#659)" do
+  it "keeps template as an ordinary element with children in place" do
+    tpl = Leptris::XML.parse_html("<template><p>inner</p></template>").at_css("template")
+    expect(tpl.children.select(&:element?).map(&:name)).to eq(%w[p])
+  end
+
+  it "closes the formatting element at the outer end tag and drops the stray one" do
+    body = Leptris::XML.parse_html("<b><i>x</b>y</i>").at_css("body")
+    expect(body.inner_html).to eq("<b><i>x</i></b>y")
+  end
+end

@@ -5,6 +5,24 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.86.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.86** (1.9.85 → 1.9.86; no new C
+  surface — the audit holds at 261/261):
+  - 1.9.85: HTML characterization gates for the two remaining
+    tree-builder behaviors — `<template>` is an ordinary element
+    with children in place (libxml2 predates the WHATWG
+    inert-fragment model), and misnesting closes the formatting
+    element at the outer end tag with the stray end tag dropped.
+    Both pinned binding-side as specs.
+  - 1.9.86: **HTML named-entity lookup via sorted index + binary
+    search** (was an O(2032)-entry scan per reference, leptris/
+    leptris#848). Measured: entity-heavy HTML parses at 3.7x
+    Nokogiri (984 vs 3631 µs per 110 KB document, entities in
+    every paragraph).
+
 ## [1.9.84.0] - 2026-09-05
 
 ### Changed
