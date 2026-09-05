@@ -5,6 +5,54 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.93.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.93** — #866: predicate-pattern
+  dispatch indexes (name keys + literal @attr='value' index). The
+  reported fixture drops 82 → 2ms per transform (40x; ~28x ahead
+  of libxslt); the 2000-book scorecard is 3.93ms.
+
+## [1.9.92.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.91–1.9.92** — #659 Nokogiri
+  parity reference (372/1555 exact-match floor; WHATWG-conformance
+  direction recorded) and the append-tail cache fix: entity-laden
+  HTML 291ms → 42ms per 1.3MB page (6.8x), now at par to 1.15x
+  AHEAD of libxml2 — no sub-1x HTML parse shape remains.
+
+## [1.9.90.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.90** — #659: the html5lib
+  tree-construction corpus harness (vendored snapshot, falsifiable
+  pass-count floor, red-list) and the empty-shape-inputs fix
+  (stray-end-only / doctype-only / empty input parse to the empty
+  document instead of failing).
+
+## [1.9.89.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.89** — #857: fn:analyze-string
+  group spans (subject-relative pmatch offsets + exact nmatch —
+  single-group regexes leaked the following non-match, and results
+  were call-order dependent).
+
+## [1.9.88.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.88** — #682 template dispatch
+  indexes: named-template hash, per-mode candidate buckets, and a
+  bare-Name pattern fast path. Template-heavy dispatch 10.21 →
+  5.56 ms per transform (1.83x); gap to in-process lxml/libxslt
+  narrows 3.27x → 1.78x.
+
 ## [1.9.87.0] - 2026-09-05
 
 ### Changed
