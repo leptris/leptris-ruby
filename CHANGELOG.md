@@ -5,6 +5,34 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.90.0] - 2026-09-05
+
+### Changed
+
+- **Lockstep with libleptris 1.9.90** (1.9.88 → 1.9.90; no new C
+  surface — the audit holds at 261/261):
+  - 1.9.88: template dispatch indexes (#682) — named-template
+    hash, per-mode candidate buckets, bare-Name fast path.
+  - 1.9.89: `fn:analyze-string` group spans fixed (leptris/leptris
+    #857): pmatch offsets are subject-relative but were applied
+    from the match start, and excess regexec slots read stale
+    stack data — single-group matches leaked the following
+    non-match into group values. Two specs pin the corrected
+    shapes (`12`, not `12cd`) and the call-order independence.
+  - 1.9.90: html5lib tree-construction corpus harness upstream
+    (193/1753 passing with a red-list snapshot; the implied-head /
+    foster-parenting bucket shapes the next HTML slices).
+
+### Fixed
+
+- **Dispatch perf observation filed upstream (leptris/leptris
+  #866)**: predicate patterns (`match="item[@k='N']"` — the common
+  real-world shape) still pay the candidate ladder after 1.9.88;
+  measured 102.4 ms vs Nokogiri's 58.2 ms on a 120-template /
+  2400-element fixture (bare names ride the fast path). Suggested
+  per-Name sub-bucketing; offered to re-measure any experimental
+  build.
+
 ## [1.9.87.0] - 2026-09-05
 
 ### Changed

@@ -207,3 +207,23 @@ RSpec.describe "fn:snapshot and fn:analyze-string (libleptris 1.9.81-1.9.82)" do
       .to include('xmlns:fn="http://www.w3.org/2005/xpath-functions"')
   end
 end
+
+RSpec.describe "fn:analyze-string group spans (libleptris 1.9.89, leptris/leptris#857)" do
+  let(:doc) { Leptris::XML::Document.parse("<r/>") }
+  let(:fn) { { "fn" => "http://www.w3.org/2005/xpath-functions" } }
+
+  it "reads group values at non-zero match offsets" do
+    skip "regex engine unavailable on MSVC builds" if Gem.win_platform?
+    result = doc.xpath("analyze-string('ab12cd', '([0-9]+)')", fn)
+    expect(result.first.to_xml)
+      .to include('<fn:match><fn:group nr="1">12</fn:group></fn:match>')
+  end
+
+  it "carries multi-group matches without cross-call contamination" do
+    skip "regex engine unavailable on MSVC builds" if Gem.win_platform?
+    expect(doc.xpath("count(analyze-string('x1y22z', '([a-z]+)([0-9]+)')/fn:match/fn:group)", fn))
+      .to eq(4.0)
+    expect(doc.xpath("count(analyze-string('a1', '[0-9]')/fn:match/fn:group)", fn))
+      .to eq(0.0)
+  end
+end
