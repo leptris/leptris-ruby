@@ -119,6 +119,11 @@ RSpec.describe "standalone XPath 2/3.1 expression subset (libleptris 1.9.35+)" d
     expect { doc.xpath("for $a in //a order by $a return $a") }
       .to raise_error(Leptris::XML::XPathError)
   end
+
+  it "raises explicitly when an XPath 3.0 function item would cross the FFI boundary" do
+    expect { doc.xpath("concat#2") }
+      .to raise_error(Leptris::XML::XPathError, /function items cannot cross the FFI boundary/)
+  end
 end
 
 RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79)" do
