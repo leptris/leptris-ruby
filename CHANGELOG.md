@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.93.0] - 2026-09-06
+
+### Changed
+
+- **Lockstep with libleptris 1.9.93** (1.9.91 → 1.9.93; no new C
+  surface — the audit holds at 261/261):
+  - 1.9.93 — **predicate-pattern dispatch indexes** (leptris/
+    leptris#866, filed from this binding last round): name keys
+    (a `foo` element never evaluates `item[...]` candidates) and a
+    literal `(name, attr, value)` bucket. Our exact fixture —
+    120 `item[@k='N']` templates over 2400 elements — went
+    **102.4 ms / 0.6x Nokogiri → 2.65 ms / 20.3x faster**.
+  - 1.9.92 — **append-tail cache fix** (leptris#848 follow-up):
+    the 8-slot direct-mapped cache thrashed on the HTML shape
+    (persistent <body> alternating with fresh parents — O(n²)
+    over 40k nodes); 64 slots. Entity-laden HTML at scale
+    (1.4 MB, 120k entity refs): **12.2 ms vs Nokogiri's 44.5 ms —
+    3.6x faster** (was 6x BEHIND libxml2 before the fix).
+  - 1.9.91 — the #659 Nokogiri-parity reference corpus (372/1555
+    exact tree matches, both conformance and parity floors
+    pinned) — test infra upstream; direction recorded: WHATWG
+    conformance with HTML4/HTML5 as distinct modes.
+
 ## [1.9.90.0] - 2026-09-05
 
 ### Changed
