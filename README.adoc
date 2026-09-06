@@ -548,6 +548,37 @@ is valid only while its Document is alive.
 * Don't hold a `Node` reference past the lifetime of its `Document`.
   The C memory is gone; using the wrapper is undefined behaviour.
 
+== Memory behavior
+
+Two facts worth knowing for memory-sensitive workloads:
+
+**Finalizers drain asynchronously.** When a Document becomes
+unreachable, its C tree frees when Ruby runs the registered
+finalizer — and MRI executes finalizers on its own scheduling, not
+synchronously inside `GC.start`. A tight `GC.start` loop can leave
+the last document's wrappers (flagged `uncollectible`) alive
+indefinitely; a short wall-clock yield drains the queue:
+
+[source,ruby]
+----
+doc = Leptris::XML::Document.parse(xml)
+doc.root.children   # ...
+doc = nil
+GC.start
+sleep 0.05          # yield to the finalizer queue
+GC.start            # now fully collected, C tree freed
+----
+
+**Held documents carry the Ruby wrapper layer.** A fully walked,
+held document costs roughly +552 kB of wrapper objects on top of
+the C tree's +456 kB (about 1.57x Nokogiri for the same held
+shape) — the measured cost of the FFI-only, no-compile-at-install
+architecture: every wrapped node is a small Ruby object holding an
+`FFI::Pointer`. Parse-and-discard workloads are unaffected (the
+tree is the dominant cost and the wrappers die young). See
+https://github.com/leptris/leptris-ruby/issues/147[#147] for the
+analysis and the open TypedData options.
+
 == Errors
 
 All Leptris errors descend from `Leptris::XML::Error`:

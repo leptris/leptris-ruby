@@ -47,23 +47,13 @@ class Leptris::XML::XQuery
   # an aggregate until the engine materializes readable sequence
   # items (same caveat as the XPath for-return subset).
   def eval(doc_or_element)
-    case doc_or_element
-    when Leptris::XML::Document
-      document = doc_or_element
-      context = nil
-    when Leptris::XML::Element
-      document = doc_or_element.document
-      context = doc_or_element.c_ptr
-    else
-      raise ArgumentError,
-        "expected a Leptris::XML::Document or Element, got #{doc_or_element.class}"
-    end
+    context = Leptris::XML::EvaluationContext.of(doc_or_element)
     result_ptr = Leptris::XML::FFI.leptris_xquery_eval(
-      @handle, document.c_ptr, context)
+      @handle, context.document.c_ptr, context.context_node_ptr)
     if result_ptr.null?
       raise Leptris::XML::XPathError,
         Leptris::XML::FFI.leptris_last_error.to_s
     end
-    Leptris::XML::Searchable.wrap_xpath_result(document, result_ptr)
+    Leptris::XML::Searchable.wrap_xpath_result(context.document, result_ptr)
   end
 end

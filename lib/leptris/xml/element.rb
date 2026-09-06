@@ -251,15 +251,12 @@ class Leptris::XML::Element < Leptris::XML::Node
     self
   end
 
-  # Deep copy in a NEW document via the C copy, attached as the
-  # fresh document's root (#696 1.9.39, #721 1.9.47, #812 1.9.76 —
-  # every child kind and namespace survives, pool-threaded).
+  # Deep copy in a NEW document via Document.copy_of (the single
+  # copy seam — every child kind and namespace survives,
+  # #696/#721/#812).
   def dup
     ensure_alive!
-    new_doc = Leptris::XML::Document.create
-    copy = Leptris::XML::FFI.leptris_element_copy(@c_ptr, new_doc.c_ptr)
-    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
-    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
+    Leptris::XML::Document.copy_of(self)
   end
   alias_method :clone, :dup
 

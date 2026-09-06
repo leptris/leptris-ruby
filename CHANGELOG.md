@@ -5,6 +5,41 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.92.2] - 2026-09-07
+
+### Changed — restructure round (TODO.restructure/01-06, all DONE)
+
+- **Constraint compliance**: the last `respond_to?` duck checks in
+  lib are gone — `Document.parse`/`Iterparse.parse` dispatch on
+  `is_a?(String)` (readable objects read; garbage fails honestly),
+  `SAX::Parser#parse` dispatches on explicit `IO, StringIO,
+  Pathname` types. Audit clean: no `send`, no
+  `instance_variable_set/_get`, no `require_relative`; the two
+  in-file-documented require exceptions (gem-root version, eager
+  FFI bootstrap) recorded in the audit.
+- **Deep-copy seam**: `Document.copy_of` is the single authority
+  for "C-copy an element as a new document's root" —
+  `Node#dup`/`Element#dup`/the indent-unit path delegate (three
+  inline duplicates retired; the drift that twice flipped dup
+  across #696/#721/#812 can no longer happen).
+- **Evaluation-context seam**: new `EvaluationContext` value object
+  (autoloaded) resolves Document-or-Element receivers for
+  `XPath#eval` and `XQuery#eval` — one typed seam, one
+  ArgumentError shape.
+- **Spec MECE**: HTML specs live in `spec/xml/html_spec.rb`;
+  pure-`#xpath` blocks (value-level surface, 2.0 ledger, type
+  operators, xs: constructors, ResultText) live in
+  `xpath_spec.rb`; `xquery_spec.rb` carries only the XQuery face.
+  Count-neutral: 535 examples before and after.
+- **Docs**: README gains a Memory section (finalizer-drain
+  semantics, held-workload profile — #147 option A); CLAUDE.md's
+  architecture map and conventions refreshed.
+
+No behavior change (same FFI sequences, delegation only); suite
+green throughout. The perf battery window was unavailable (shared
+machine at load 184) — neutrality is structural: identical call
+sequences plus one cold-path allocation per expression evaluation.
+
 ## [1.9.92.1] - 2026-09-06
 
 ### Changed — hotfix: replaces libleptris 1.9.93

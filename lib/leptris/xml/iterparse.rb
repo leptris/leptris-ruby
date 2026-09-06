@@ -41,7 +41,7 @@ class Leptris::XML::Iterparse
   # iterator starts — the bounded-memory path is parse_file (C-side
   # file streaming). The C API takes one (xml, len) buffer.
   def self.parse(xml_or_io, mode: :top_level, &block)
-    xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
+    xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
     iterator = new(Leptris::XML::FFI.leptris_iterparse_new_ex(
       xml, xml.bytesize, mode_code(mode)))
     return iterator unless block
