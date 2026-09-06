@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     literal `(name, attr, value)` bucket. Our exact fixture —
     120 `item[@k='N']` templates over 2400 elements — went
     **102.4 ms / 0.6x Nokogiri → 2.65 ms / 20.3x faster**.
+    - **CORRECTNESS CAVEAT (leptris/leptris#875, affects
+      1.9.93.0)**: the literal-value index silently drops
+      templates past 96 distinct literal patterns — with 97+
+      distinct `name[@attr='value']` patterns, every template
+      past the 96th never fires (silent missing output; 96 works,
+      97 misses the tail). Pinned by a pending spec and a
+      boundary guard; binding-side advisory release 1.9.93.1.
   - 1.9.92 — **append-tail cache fix** (leptris#848 follow-up):
     the 8-slot direct-mapped cache thrashed on the HTML shape
     (persistent <body> alternating with fresh parents — O(n²)

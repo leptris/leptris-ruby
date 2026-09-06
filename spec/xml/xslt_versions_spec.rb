@@ -428,3 +428,24 @@ RSpec.describe "XPath 2.0 type operators standalone (libleptris 1.9.50)" do
   # answers over nodes, and an invalid `cast as` returns instead of
   # raising FORG0001 — both tracked with the #683 grammar work.
 end
+
+RSpec.describe "predicate-pattern dispatch beyond 96 templates (leptris/leptris#875)" do
+  def dispatch_count(n)
+    templates = n.times.map { |i| %(<xsl:template match="item[@k='#{i}']"><o#{i}/></xsl:template>) }.join
+    sheet = %(<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">#{templates}</xsl:stylesheet>)
+    xml = "<root>" + (0...n).map { |i| %(<item k="#{i}"/>) }.join + "</root>"
+    Leptris::XML::XSLT.parse(sheet)
+      .apply_to(Leptris::XML::Document.parse(xml))
+      .children.select(&:element?).size
+  end
+
+  it "dispatches every distinct literal predicate pattern" do
+    skip "upstream leptris/leptris#875: 1.9.93's literal-value index silently drops templates past 96 distinct patterns"
+    expect(dispatch_count(97)).to eq(97)
+    expect(dispatch_count(120)).to eq(120)
+  end
+
+  it "dispatches up to the 96-pattern boundary (regression guard)" do
+    expect(dispatch_count(96)).to eq(96)
+  end
+end
