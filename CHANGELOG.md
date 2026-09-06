@@ -5,6 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.92.1] - 2026-09-06
+
+### Changed — hotfix: replaces libleptris 1.9.93
+
+- **Re-pinned to libleptris 1.9.92** (from 1.9.93): the 1.9.93
+  predicate-pattern dispatch index silently drops templates past
+  96 distinct literal patterns (leptris/leptris#875 — wrong
+  transform output with no error). 1.9.92 predates the index and
+  dispatches correctly for any pattern count; the #875 sentinel
+  spec un-pends (97/97, 120/120 verified on this build) and stays
+  as the guard. **1.9.93.0 and 1.9.93.1 are yanked.**
+- The honest cost: predicate-pattern dispatch returns to the
+  1.9.92 ladder (~102 ms on the 120-template fixture vs 1.9.93's
+  2.65 ms — but with correct output). Everything else from the
+  1.9.88-1.9.92 perf wave (bare-name dispatch indexes, the
+  append-tail cache — 3.6x Nokogiri on entity-laden HTML) is
+  retained.
+- When the #875 fix releases upstream, the next `{C}.0` re-adopts
+  the index and re-runs this exact fixture as the gate.
+
 ## [1.9.93.1] - 2026-09-06
 
 ### Changed

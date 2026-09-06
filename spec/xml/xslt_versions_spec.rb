@@ -440,7 +440,6 @@ RSpec.describe "predicate-pattern dispatch beyond 96 templates (leptris/leptris#
   end
 
   it "dispatches every distinct literal predicate pattern" do
-    skip "upstream leptris/leptris#875: 1.9.93's literal-value index silently drops templates past 96 distinct patterns"
     expect(dispatch_count(97)).to eq(97)
     expect(dispatch_count(120)).to eq(120)
   end
