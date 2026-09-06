@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "ffi"
+require "pathname"
+require "stringio"
 
 class Leptris::XML::SAX::Parser
   CHUNK_SIZE = 4096
@@ -42,7 +44,7 @@ class Leptris::XML::SAX::Parser
   def parse(input)
     case input
     when String                then parse_memory(input)
-    when ->(x) { x.respond_to?(:read) } then parse_io(input)
+    when IO, StringIO, Pathname then parse_io(input)
     else
       raise ArgumentError, "SAX parser expects a String or IO, got #{input.class}"
     end

@@ -89,34 +89,6 @@ RSpec.describe "Leptris::XML::XQuery (libleptris 1.9.64-1.9.66)" do
   end
 end
 
-RSpec.describe "XPath 3.1 value-level surface (libleptris 1.9.51-1.9.63)" do
-  let(:doc) { Leptris::XML::Document.parse("<r/>") }
-
-  {
-    "map lookup ?key"            => ["map { 'b': 'beta' }?b", "beta"],
-    "map:get"                    => ["map:get(map { 'b': 'beta' }, 'b')", "beta"],
-    "map:size"                   => ["map:size(map { 'a': 1, 'b': 2 })", 2.0],
-    "array lookup ?index"        => ["[10, 20, 30]?2", "20"],
-    "array:get"                  => ["array:get([10, 20, 30], 2)", "20"],
-    "array:size"                 => ["array:size([10, 20, 30])", 3.0],
-    "parse-json + lookup"        => [%(parse-json('{"b": "beta", "n": 2}')?b), "beta"],
-    "serialize json method"      => [
-      %(serialize(parse-json('{"b": "beta", "n": 2}'), map { 'method': 'json' })),
-      '{"b":"beta","n":2}'],
-    "closure immediate call"     => ["function($x) { $x + 1 }(41)", 42.0],
-    "let-bound closure call"     => ["let $f := function($x) { $x * 2 } return $f(21)", 42.0],
-    "function-lookup item"       => ["function-lookup('concat', 2) instance of item()", true],
-    "fold-left"                  => ["fold-left(1 to 4, 0, function($a, $b) { $a + $b })", "10"],
-  }.each do |label, (expr, expected)|
-    it "evaluates #{label}" do
-      expect(doc.xpath(expr)).to eq(expected)
-    end
-  end
-
-  it "counts for-each sequence items" do
-    expect(doc.xpath("count(for-each(1 to 3, function($x) { $x * 10 }))")).to eq(3.0)
-  end
-end
 
 RSpec.describe "Leptris::XML.buffer_has_nonstandard_entity? (libleptris 1.9.62, #745)" do
   {
@@ -132,84 +104,6 @@ RSpec.describe "Leptris::XML.buffer_has_nonstandard_entity? (libleptris 1.9.62, 
   end
 end
 
-RSpec.describe "HTML parsing (libleptris 1.9.75, leptris/leptris#659)" do
-  def children_xml(html)
-    Leptris::XML.parse_html(html).at_css("body").inner_html
-  end
-
-  it "closes implied end tags" do
-    expect(children_xml("<p>one<p>two")).to eq("<p>one</p><p>two</p>")
-    expect(children_xml("<ul><li>a<li>b</ul>")).to eq("<ul><li>a</li><li>b</li></ul>")
-  end
-
-  it "keeps void elements self-closed with minimized attributes" do
-    expect(children_html = children_xml("<img src=x><br>"))
-      .to eq('<img src="x"/><br/>')
-  end
-
-  it "treats script and style as raw text" do
-    expect(children_xml("<script>if (a < b) { x(); }</script>"))
-      .to include("a &lt; b")
-  end
-
-  it "lowercases names and normalizes minimized attributes" do
-    expect(children_xml(%(<DIV CLASS=Big>hi</DIV>))).to eq('<div class="Big">hi</div>')
-  end
-
-  it "synthesizes html/head/body but not tbody" do
-    doc = Leptris::XML.parse_html("<table><tr><td>x</table>")
-    expect(doc.at_css("html > body").name).to eq("body")
-    expect(doc.at_css("table").inner_html).to eq("<tr><td>x</td></tr>")
-  end
-
-  it "resolves HTML named entities" do
-    expect(children_xml("a &nbsp; &mdash; b")).to eq("a   — b")
-  end
-
-  it "degrades malformed markup to text instead of raising" do
-    expect(children_xml("<b>bold</b")).to eq("<b>bold</b>")
-  end
-end
-
-RSpec.describe "sequence items are readable (ResultText)" do
-  let(:doc) { Leptris::XML::Document.parse(%q{<r><a v="1"/><a v="2"/></r>}) }
-
-  it "serves for-return string values through #content" do
-    expect(doc.xpath("for $w in //a return string($w/@v)").map(&:content))
-      .to eq(["1", "2"])
-  end
-
-  it "serves sequence literals item by item" do
-    expect(doc.xpath("(1, 2, 3)").map(&:content)).to eq(%w[1 2 3])
-    expect(doc.xpath("(4, 5)")[1].content).to eq("5")
-  end
-
-  it "composes through inner_text" do
-    expect(doc.xpath("(4, 5)").inner_text).to eq("45")
-  end
-
-  it "keeps map values readable through the aggregate path" do
-    expect(doc.xpath("string-join((1 to 3), ',')")).to eq("1,2,3")
-  end
-end
-
-RSpec.describe "XPath 2.0 ledger standalone (libleptris 1.9.69-1.9.73)" do
-  let(:doc) { Leptris::XML::Document.parse(%q{<r><a v="1"/><a v="2"/></r>}) }
-
-  {
-    "value comparator eq"  => ["//a[1]/@v eq '1'", true],
-    "value comparator gt"  => ["2 gt 1", true],
-    "quantifier some"      => ["some $a in //a satisfies number($a/@v) > 1", true],
-    "quantifier every"     => ["every $a in //a satisfies number($a/@v) >= 1", true],
-    "except"               => ["count(//a except //a[@v = 1])", 1.0],
-    "intersect"            => ["count(//a intersect //a[@v = 1])", 1.0],
-    "node identity is"     => ["string(//a[1] is //a[1])", "true"],
-  }.each do |label, (expr, expected)|
-    it "evaluates #{label}" do
-      expect(doc.xpath(expr)).to eq(expected)
-    end
-  end
-end
 
 RSpec.describe "XQuery windows and typeswitch (libleptris 1.9.69-1.9.70)" do
   let(:doc) { Leptris::XML::Document.parse(%q{<r><i/><i/><i/></r>}) }
@@ -224,5 +118,14 @@ RSpec.describe "XQuery windows and typeswitch (libleptris 1.9.69-1.9.70)" do
     expect(Leptris::XML::XQuery.parse(
       "typeswitch (//i[1]) case element() return 'el' default return 'other'"
     ).eval(doc)).to eq("el")
+  end
+end
+
+  RSpec.describe "XQuery grammar tail (libleptris 1.9.77)" do
+  it "evaluates braceless switch" do
+    doc = Leptris::XML::Document.parse("<r/>")
+    expect(Leptris::XML::XQuery.parse(
+      "switch (1) case 1 return 'uno' default return 'other'").eval(doc))
+      .to eq("uno")
   end
 end

@@ -93,8 +93,8 @@ RSpec.describe "v0.6.0+ element/document deep copy + node path + fragment + doct
     it "parses mixed content (elements + text + comment)" do
       doc = Leptris::XML::Document.parse("<root/>")
       frag = doc.fragment("hello<a>x</a><!-- c -->")
-      types = frag.children.map { |n| [n.class.name.split("::").last, n.respond_to?(:name) ? n.name : nil] }
-      expect(types.map(&:first)).to include("Text", "Element", "Comment")
+      expect(frag.children.map { |n| n.class.name.split("::").last })
+        .to include("Text", "Element", "Comment")
     end
   end
 

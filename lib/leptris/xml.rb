@@ -22,6 +22,7 @@ module Leptris
     autoload :Serialization, "leptris/xml/serialization"
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
+    autoload :EvaluationContext, "leptris/xml/evaluation_context"
     autoload :ResultText, "leptris/xml/result_text"
     autoload :XSLT, "leptris/xml/xslt"
     autoload :XQuery, "leptris/xml/xquery"

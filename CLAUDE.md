@@ -39,24 +39,32 @@ The C DOM is the single source of truth; Ruby objects are thin FFI
 handles. One Ruby method = one FFI call wherever possible.
 
 ```
-lib/leptris.rb                — Leptris::VERSION
+lib/leptris.rb                — Leptris::VERSION + eager FFI bootstrap
 lib/leptris/xml.rb            — autoload registry, error classes,
-                                Leptris::XML.parse / parse_file
+                                Leptris::XML.parse / parse_html
 lib/leptris/xml/ffi.rb        — every public C declaration + seam
                                 helpers (check_status, read_owned_string,
-                                status_message)
+                                serialize_into_string, scratch buffers)
 lib/leptris/xml/document.rb   — the only C-memory owner (finalizer);
-                                factories, PI accessors, exslt, last_error
+                                factories; Document.copy_of: the single
+                                deep-copy seam behind Node#dup/Element#dup
 lib/leptris/xml/node.rb       — Node.wrap: the ONLY wrapper constructor
-                                (identity cache + type dispatch)
+                                (identity cache + type dispatch,
+                                ResultText for sequence items)
 lib/leptris/xml/element.rb    — attributes via the v1.1.0 iteration
-                                face; namespace/mutation surface
-lib/leptris/xml/node_set.rb   — lazy XPath results; batch fetch via
-                                get_nodes_ex
-lib/leptris/xml/searchable.rb — xpath/css/at_*; namespace-bound path
+                                face; namespace= (nil-detach/rebind)
+lib/leptris/xml/result_text.rb — sequence/map/array result items
+                                (values captured at materialization)
+lib/leptris/xml/node_set.rb   — lazy XPath/XQuery results; batch fetch
+                                via get_nodes_ex; ResultText capture
+lib/leptris/xml/searchable.rb — xpath/css/at_*; result materialization
+lib/leptris/xml/evaluation_context.rb — receiver -> (document,
+                                context-node ptr) for the expression faces
 lib/leptris/xml/xpath.rb      — compiled expressions (parse once,
                                 eval many)
-lib/leptris/xml/sax/          — callback SAX
+lib/leptris/xml/xquery.rb     — compiled XQuery 1.0 core face
+lib/leptris/xml/xslt.rb       — compiled XSLT 1.0-3.0 face
+lib/leptris/xml/sax/          — callback SAX (streaming + DOM dispatch)
 lib/leptris/xml/pull.rb       — StAX-style pull parsing
 lib/leptris/xml/iterparse.rb  — bounded-memory element iteration
 lib/leptris/xml/serialization.rb — serialize/c14n (Document + Element
@@ -81,9 +89,12 @@ lib/leptris/xml/css_to_xpath.rb   — minimal CSS translation
 
 ## Conventions
 
-- Autoload only — no `require_relative` inside `lib/`.
-- No `instance_variable_set`/`_get` across objects; no `respond_to?`
-  type checks; specs use real documents, never doubles.
+- Autoload only — no `require_relative` or intra-library `require`
+  inside `lib/` (sanctioned exceptions, with reasons in-file:
+  `leptris/version` at the gem root and the eager FFI bootstrap).
+- No `instance_variable_set`/`_get` across objects; no `send` to
+  private methods; no `respond_to?` type checks (dispatch on types
+  with `is_a?`/`case`); specs use real documents, never doubles.
 - New C surface: attach in `ffi.rb`, sugar where it earns its keep,
   specs against a locally built library, CHANGELOG, lockstep release.
 - All changes via PRs; no AI attribution; `git add` explicit paths.

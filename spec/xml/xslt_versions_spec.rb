@@ -379,55 +379,6 @@ RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
   end
 end
 
-RSpec.describe "xs: atomic constructors and sequence-use keys (libleptris 1.9.47-1.9.49)" do
-  it "constructs atomics from any expression (Saxon ground truth, 1.9.49)" do
-    doc = Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")
-    expect(doc.xpath("xs:integer('42') + 1")).to eq(43.0)
-    expect(doc.xpath("xs:double('1.5') * 2")).to eq(3.0)
-    expect(doc.xpath("xs:decimal('2.5') + 1")).to eq(3.5)
-    expect(doc.xpath("xs:boolean('true')")).to be(true)
-    expect(doc.xpath("xs:string(7)")).to eq("7")
-    expect(doc.xpath("xs:anyURI('urn:x')")).to eq("urn:x")
-  end
-
-  it "indexes every item of a sequence xsl:key use (#720 fixed in 1.9.47)" do
-    expect(Leptris::XML::XSLT.parse(<<~XSL)
-      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
-        <xsl:key name="k" match="a" use="@v, ."/>
-        <xsl:template match="/"><out><xsl:value-of select="count(key('k','1'))"/>|<xsl:value-of select="count(key('k','alpha'))"/></out></xsl:template>
-      </xsl:stylesheet>
-    XSL
-      .apply_to(Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")).to_s)
-      .to include("<out>1|1</out>")
-  end
-end
-
-RSpec.describe "XPath 2.0 type operators standalone (libleptris 1.9.50)" do
-  let(:doc) { Leptris::XML::Document.parse("<r><a>1</a></r>") }
-
-  {
-    "'42' castable as xs:integer" => true,
-    "'x' castable as xs:integer"  => false,
-    "1.9 cast as xs:integer"      => 1.0,
-    "1 treat as xs:integer"       => 1.0,
-    "//a instance of node()+"     => true,
-    "'s' instance of xs:string"   => true,
-    "1 instance of xs:double"     => true,
-  }.each do |expr, expected|
-    it "evaluates #{expr}" do
-      expect(doc.xpath(expr)).to eq(expected)
-    end
-  end
-
-  it "casts through the constructor semantics (xs:integer truncates toward zero)" do
-    expect(doc.xpath("-1.9 cast as xs:integer")).to eq(-1.0)
-  end
-
-  # Known edges, not specced as expectations: sequence literals come
-  # back as opaque result nodes so `(1,2) instance of xs:integer+`
-  # answers over nodes, and an invalid `cast as` returns instead of
-  # raising FORG0001 — both tracked with the #683 grammar work.
-end
 
 RSpec.describe "predicate-pattern dispatch beyond 96 templates (leptris/leptris#875)" do
   def dispatch_count(n)

@@ -58,7 +58,7 @@ class Leptris::XML::Document
   end
 
   def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
-    xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
+    xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
     end
@@ -117,6 +117,18 @@ class Leptris::XML::Document
     raise Leptris::XML::Error,
       "leptris_document_create failed" if raw.null?
     wrap(raw)
+  end
+
+  # Deep copy of +element+ as the root of a NEW document — the one
+  # authority behind Node#dup / Element#dup and the indent-unit
+  # path (the C copy keeps every child kind and namespace since
+  # libleptris 1.9.76 — #696/#721/#812). The returned tree is
+  # detached from the original and fully navigable.
+  def self.copy_of(element)
+    new_doc = create
+    copy = Leptris::XML::FFI.leptris_element_copy(element.c_ptr, new_doc.c_ptr)
+    raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
+    new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
   end
 
   # Convert a raw LeptrisDocument pointer into a Ruby Document with safe

@@ -147,12 +147,6 @@ RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79
     end
   end
 
-  it "evaluates braceless switch in the XQuery face" do
-    expect(Leptris::XML::XQuery.parse(
-      "switch (1) case 1 return 'uno' default return 'other'").eval(doc))
-      .to eq("uno")
-  end
-
   # fn:normalize-unicode needs utf8proc — compiled out of the
   # vendored platform builds (LEPTRIS_ENABLE_UTF8PROC=OFF).
   it "normalizes unicode where utf8proc is built in" do
@@ -226,4 +220,123 @@ RSpec.describe "fn:analyze-string group spans (libleptris 1.9.89, leptris/leptri
     expect(doc.xpath("count(analyze-string('a1', '[0-9]')/fn:match/fn:group)", fn))
       .to eq(0.0)
   end
+end
+
+RSpec.describe "XPath 3.1 value-level surface (libleptris 1.9.51-1.9.63)" do
+  let(:doc) { Leptris::XML::Document.parse("<r/>") }
+
+  {
+    "map lookup ?key"            => ["map { 'b': 'beta' }?b", "beta"],
+    "map:get"                    => ["map:get(map { 'b': 'beta' }, 'b')", "beta"],
+    "map:size"                   => ["map:size(map { 'a': 1, 'b': 2 })", 2.0],
+    "array lookup ?index"        => ["[10, 20, 30]?2", "20"],
+    "array:get"                  => ["array:get([10, 20, 30], 2)", "20"],
+    "array:size"                 => ["array:size([10, 20, 30])", 3.0],
+    "parse-json + lookup"        => [%(parse-json('{"b": "beta", "n": 2}')?b), "beta"],
+    "serialize json method"      => [
+      %(serialize(parse-json('{"b": "beta", "n": 2}'), map { 'method': 'json' })),
+      '{"b":"beta","n":2}'],
+    "closure immediate call"     => ["function($x) { $x + 1 }(41)", 42.0],
+    "let-bound closure call"     => ["let $f := function($x) { $x * 2 } return $f(21)", 42.0],
+    "function-lookup item"       => ["function-lookup('concat', 2) instance of item()", true],
+    "fold-left"                  => ["fold-left(1 to 4, 0, function($a, $b) { $a + $b })", "10"],
+  }.each do |label, (expr, expected)|
+    it "evaluates #{label}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+
+  it "counts for-each sequence items" do
+    expect(doc.xpath("count(for-each(1 to 3, function($x) { $x * 10 }))")).to eq(3.0)
+  end
+end
+
+RSpec.describe "sequence items are readable (ResultText)" do
+  let(:doc) { Leptris::XML::Document.parse(%q{<r><a v="1"/><a v="2"/></r>}) }
+
+  it "serves for-return string values through #content" do
+    expect(doc.xpath("for $w in //a return string($w/@v)").map(&:content))
+      .to eq(["1", "2"])
+  end
+
+  it "serves sequence literals item by item" do
+    expect(doc.xpath("(1, 2, 3)").map(&:content)).to eq(%w[1 2 3])
+    expect(doc.xpath("(4, 5)")[1].content).to eq("5")
+  end
+
+  it "composes through inner_text" do
+    expect(doc.xpath("(4, 5)").inner_text).to eq("45")
+  end
+
+  it "keeps map values readable through the aggregate path" do
+    expect(doc.xpath("string-join((1 to 3), ',')")).to eq("1,2,3")
+  end
+end
+
+RSpec.describe "XPath 2.0 ledger standalone (libleptris 1.9.69-1.9.73)" do
+  let(:doc) { Leptris::XML::Document.parse(%q{<r><a v="1"/><a v="2"/></r>}) }
+
+  {
+    "value comparator eq"  => ["//a[1]/@v eq '1'", true],
+    "value comparator gt"  => ["2 gt 1", true],
+    "quantifier some"      => ["some $a in //a satisfies number($a/@v) > 1", true],
+    "quantifier every"     => ["every $a in //a satisfies number($a/@v) >= 1", true],
+    "except"               => ["count(//a except //a[@v = 1])", 1.0],
+    "intersect"            => ["count(//a intersect //a[@v = 1])", 1.0],
+    "node identity is"     => ["string(//a[1] is //a[1])", "true"],
+  }.each do |label, (expr, expected)|
+    it "evaluates #{label}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+end
+
+RSpec.describe "xs: atomic constructors and sequence-use keys (libleptris 1.9.47-1.9.49)" do
+  it "constructs atomics from any expression (Saxon ground truth, 1.9.49)" do
+    doc = Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")
+    expect(doc.xpath("xs:integer('42') + 1")).to eq(43.0)
+    expect(doc.xpath("xs:double('1.5') * 2")).to eq(3.0)
+    expect(doc.xpath("xs:decimal('2.5') + 1")).to eq(3.5)
+    expect(doc.xpath("xs:boolean('true')")).to be(true)
+    expect(doc.xpath("xs:string(7)")).to eq("7")
+    expect(doc.xpath("xs:anyURI('urn:x')")).to eq("urn:x")
+  end
+
+  it "indexes every item of a sequence xsl:key use (#720 fixed in 1.9.47)" do
+    expect(Leptris::XML::XSLT.parse(<<~XSL)
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:key name="k" match="a" use="@v, ."/>
+        <xsl:template match="/"><out><xsl:value-of select="count(key('k','1'))"/>|<xsl:value-of select="count(key('k','alpha'))"/></out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+      .apply_to(Leptris::XML::Document.parse("<r><a v='1'>alpha</a></r>")).to_s)
+      .to include("<out>1|1</out>")
+  end
+end
+
+RSpec.describe "XPath 2.0 type operators standalone (libleptris 1.9.50)" do
+  let(:doc) { Leptris::XML::Document.parse("<r><a>1</a></r>") }
+
+  {
+    "'42' castable as xs:integer" => true,
+    "'x' castable as xs:integer"  => false,
+    "1.9 cast as xs:integer"      => 1.0,
+    "1 treat as xs:integer"       => 1.0,
+    "//a instance of node()+"     => true,
+    "'s' instance of xs:string"   => true,
+    "1 instance of xs:double"     => true,
+  }.each do |expr, expected|
+    it "evaluates #{expr}" do
+      expect(doc.xpath(expr)).to eq(expected)
+    end
+  end
+
+  it "casts through the constructor semantics (xs:integer truncates toward zero)" do
+    expect(doc.xpath("-1.9 cast as xs:integer")).to eq(-1.0)
+  end
+
+  # Known edges, not specced as expectations: sequence literals come
+  # back as opaque result nodes so `(1,2) instance of xs:integer+`
+  # answers over nodes, and an invalid `cast as` returns instead of
+  # raising FORG0001 — both tracked with the #683 grammar work.
 end
