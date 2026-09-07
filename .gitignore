@@ -43,3 +43,6 @@ Thumbs.db
 
 # Vendored libleptris stays untracked: platform gems are built by CI
 # (rake gem:native:<platform>) and never committed.
+
+# RSpec example-status artifact
+/.rspec_status
