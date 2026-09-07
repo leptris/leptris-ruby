@@ -104,6 +104,19 @@ end
 
 
 RSpec.describe "round IX: readonly [] and materialized NodeSets" do
+  # ruby#150: cold bare [] must not materialize every attribute.
+  it "cold bare [] pays one engine call and still answers" do
+    doc = Leptris::XML::Document.parse(%(<r><e id="i1" c="x">t</e></r>))
+    e = doc.root.element_children.first
+    # Completely cold element — no prior attributes/keys touch.
+    expect(e["id"]).to eq("i1")
+    expect(e["c"]).to eq("x")
+    expect(e["missing"]).to be_nil
+    # Full face still builds correctly after partial cold reads.
+    expect(e.attributes.keys.sort).to eq(%w[c id])
+    expect(e["id"]).to eq("i1")
+  end
+
   it "serves readonly [] from the memoized attributes hash" do
     doc = Leptris::XML.parse(%(<r a="1" b="café"><c/></r>), readonly: true)
     root = doc.root
