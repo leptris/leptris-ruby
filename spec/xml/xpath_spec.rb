@@ -353,3 +353,23 @@ RSpec.describe "Node#digest (libleptris 1.9.99, leptris/leptris#869)" do
     expect(d_p_c.digest).not_to eq(d_p_d.digest)
   end
 end
+
+# ruby#153: attribute-node results must come back as usable
+# attribute wrappers (name/value faces), not generic Nodes whose
+# #name raises — moxml gates native routing on this.
+RSpec.describe "attribute-node results" do
+  it "wraps as usable attribute nodes" do
+    d = Leptris::XML::Document.parse(%(<r><item id="1"/><item id="2"/></r>))
+    r = d.xpath("//item/@id")
+    expect(r.size).to eq(2)
+    first = r.to_a.first
+    expect(first.name).to eq("id")
+    expect(first.value).to eq("1")
+    expect(first.to_s).to eq("1")
+  end
+
+  it "serves attribute values through the single-node seam" do
+    d = Leptris::XML::Document.parse(%(<r><item id="7"/></r>))
+    expect(d.at_xpath("//item/@id").value).to eq("7")
+  end
+end

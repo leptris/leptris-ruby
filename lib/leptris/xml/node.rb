@@ -42,6 +42,15 @@ class Leptris::XML::Node
         # materialization (only the result handle can read them).
         Leptris::XML::ResultText.new(
           c_ptr, document, result_value, parent: parent, node_type: node_type)
+      when Leptris::XML::FFI::NODE_ATTRIBUTE
+        # ruby#153: synthetic attribute result nodes carry their
+        # name/value in the result handle — the NodeSet captures
+        # them at materialization (result_value is a {name:, value:}
+        # hash; the single-node seam captures the same way).
+        rv = result_value || {}
+        Leptris::XML::ResultAttr.new(
+          c_ptr, document, rv[:name], rv[:value],
+          parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_COMMENT
         Leptris::XML::Comment.new(c_ptr, document, parent: parent, node_type: node_type)
       when Leptris::XML::FFI::NODE_CDATA

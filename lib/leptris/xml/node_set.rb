@@ -72,8 +72,17 @@ class Leptris::XML::NodeSet
   # Sequence/map/array items ride synthetic text nodes whose value
   # only the live result handle can serve — capture it now.
   def text_item_value(kind, index)
-    return nil unless kind == Leptris::XML::FFI::XPATH_NODE_TEXT
-    Leptris::XML::FFI.leptris_xpath_result_node_value(@result_ptr, index)
+    case kind
+    when Leptris::XML::FFI::XPATH_NODE_TEXT
+      Leptris::XML::FFI.leptris_xpath_result_node_value(@result_ptr, index)
+    when Leptris::XML::FFI::XPATH_NODE_ATTRIBUTE
+      # ruby#153: capture both faces — only the live result handle
+      # can serve an attribute node's name and value.
+      {
+        name: Leptris::XML::FFI.leptris_xpath_result_node_name(@result_ptr, index),
+        value: Leptris::XML::FFI.leptris_xpath_result_node_value(@result_ptr, index)
+      }
+    end
   end
   private :text_item_value
 
