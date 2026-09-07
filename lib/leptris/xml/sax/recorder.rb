@@ -84,7 +84,9 @@ class Leptris::XML::SAX::Recorder
   # Feed one chunk; records/arena reset at feed entry, so drain
   # after every feed. Returns self.
   def feed(chunk, final: false)
-    chunk = chunk.dup.force_encoding(Encoding::UTF_8)
+    unless chunk.encoding == Encoding::UTF_8 && chunk.valid_encoding?
+      chunk = chunk.dup.force_encoding(Encoding::UTF_8)
+    end
     rc = Leptris::XML::FFI.leptris_sax_recorder_feed(
       @handle, chunk, chunk.bytesize, final ? 1 : 0)
     rc
@@ -157,13 +159,15 @@ class Leptris::XML::SAX::Recorder
         @handle, len_ptr)
       arena = arena_ptr.read_bytes(len_ptr.read_uint64)
       count = count_ptr.read_uint64
-      records = records_ptr.read_bytes(count * RECORD_STRIDE)
-      kinds = records.unpack(KIND_TEMPLATE_FOR[count])
-
+      # Kind is the first byte of each record — read it off the C
+      # pointer. The previous path copied every record into Ruby
+      # and unpacked a Fixnum array just for the kind strip
+      # (2.25M Integers on a single-feed drain); one get_uint8 per
+      # event replaces both.
       one_arg_start = dispatched[:start_element] == :one_arg
       i = 0
       while i < count
-        code = kinds[i]
+        code = records_ptr.get_uint8(i * RECORD_STRIDE)
         kind = KIND_BY_CODE[code]
         if kind && dispatched[kind]
           base = i * RECORD_STRIDE
@@ -275,21 +279,16 @@ class Leptris::XML::SAX::Recorder
       arena = arena_ptr.read_bytes(len_ptr.read_uint64)
       count = count_ptr.read_uint64
 
-      # Two-level drain: ONE bulk read + kind-strip unpack decides
-      # which records to touch, then each yielded event's fields are
-      # read individually (get_uint32 at layout offsets) — an
-      # unwanted record costs one strip read, an unused FIELD costs
-      # nothing, and no per-chunk field array is ever built.
-      records = records_ptr.read_bytes(count * RECORD_STRIDE)
-      kinds = records.unpack(KIND_TEMPLATE_FOR[count])
-
+      # Kind is the first byte of each record — read off the C
+      # pointer. The previous path copied every record and unpacked
+      # a Fixnum array just for the kind strip.
       has_name = HAS_NAME
       has_text = HAS_TEXT
       drain = wanted.nil?
       i = 0
       while i < count
-        code = kinds[i]
         base = i * RECORD_STRIDE
+        code = records_ptr.get_uint8(base)
         if code == SAX_EVENT_CHARACTERS_CODE && drain
           # The dominant branch (text-heavy documents): no name, no
           # attrs, no per-kind gate lookups — kind, text, position.
