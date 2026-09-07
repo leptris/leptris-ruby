@@ -5,6 +5,32 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.105.0] - 2026-09-08
+
+### Changed
+
+- **Lockstep with libleptris 1.9.105** (1.9.101 → 1.9.105 — five
+  releases). One new C symbol attached (audit 265/265):
+  - **HTML two-mode split** (1.9.104/1.9.105, #659):
+    `Leptris::XML.parse_html(html, mode: :html4 | :whatwg)`.
+    **:html4 is the default** — pins the libxml2/Nokogiri
+    compatibility shape (leading script/style stay in body) so the
+    binding's byte-parity contract holds; **:whatwg** selects the
+    conformant engine (full implied-head set, foster parenting —
+    html5lib corpus 294/1555 vs Nokogiri's 372). Four specs.
+  - **#904 fixed** (1.9.103): iterparse yields prime the TLS
+    last-root memo — the ~1.4 µs residual per streamed attribute
+    read is GONE (measured at the noise floor vs the parse-only
+    baseline; was 2.19 µs, document case 0.82 µs).
+  - **#905 hotfix** (1.9.102): the v1.9.99 register-elision
+    (SEGFAULT in `fn:snapshot`'s detached-copy path on macOS,
+    0-nodes on Linux) reverted — the Round-20 register-on-create
+    contract restored. **1.9.100.0/.1/.2 carried this segfault**
+    and are yanked.
+  - 1.9.101 eval perf: AVT brace-free fast path + the AST-cache
+    mutex skip for single-threaded transforms (~14400 lock/unlock
+    ops dropped per heavy transform).
+
 ## [1.9.100.2] - 2026-09-07
 
 ### Changed

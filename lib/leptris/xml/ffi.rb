@@ -142,6 +142,15 @@ module Leptris
       # the parse; only an entirely empty result is an error.
       attach_function :leptris_parse_html_string,
         [:string, :size_t, :pointer], :leptris_document
+      # HTML4/libxml2-compatibility mode (1.9.104, #659): the same
+      # tolerant tokenizer and Nokogiri document shape, except
+      # leading script/style stay in <body> (libxml2's shape —
+      # title/meta/link/base still lift). Bindings matching
+      # Nokogiri byte-for-byte pin this; _html_string is the
+      # WHATWG-conformant engine (implied-head full set, foster
+      # parenting from 1.9.105).
+      attach_function :leptris_parse_html4_string,
+        [:string, :size_t, :pointer], :leptris_document
 
 attach_function :leptris_parse_string,
         [:string, :size_t, :pointer], :leptris_document
