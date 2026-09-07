@@ -48,17 +48,32 @@ module Leptris
         string, string.bytesize) != 0
     end
 
-    # Tolerant HTML4/5 parse into a standard Document (libleptris
+    # Tolerant HTML parse into a standard Document (libleptris
     # 1.9.75): implied end tags, void elements, raw-text script and
     # style, lowercased names, minimized/unquoted attributes, and
-    # the HTML named entities. Document shape — html/head/body are
-    # synthesized (Nokogiri::HTML parity), but NO implied tbody.
-    # Malformed input degrades to text rather than raising; only an
-    # entirely empty result is an error.
-    def self.parse_html(html)
+    # the HTML named entities. html/head/body are synthesized; no
+    # implied tbody. Malformed input degrades to text rather than
+    # raising; only an entirely empty result is an error.
+    #
+    # MODES (libleptris 1.9.104, #659): :html4 (the default) pins
+    # the libxml2/Nokogiri compatibility shape — leading
+    # script/style stay in <body>, title/meta/link/base still lift
+    # — so byte-parity with Nokogiri::HTML holds. :whatwg selects
+    # the conformant engine: the full implied-<head> set
+    # (script/style/noscript/template/... lift) and foster
+    # parenting (1.9.105) — html5lib corpus 294/1555 vs Nokogiri's
+    # 372; the shapes genuinely differ by spec.
+    def self.parse_html(html, mode: :html4)
       html = html.to_s
-      raw = Leptris::XML::FFI.leptris_parse_html_string(
-        html, html.bytesize, nil)
+      entry =
+        case mode
+        when :html4 then Leptris::XML::FFI.method(:leptris_parse_html4_string)
+        when :whatwg then Leptris::XML::FFI.method(:leptris_parse_html_string)
+        else
+          raise ArgumentError,
+            "mode must be :html4 or :whatwg, got #{mode.inspect}"
+        end
+      raw = entry.call(html, html.bytesize, nil)
       if raw.null?
         raise Leptris::XML::ParseError,
           "HTML parse failed: #{Leptris::XML::FFI.leptris_last_error}"

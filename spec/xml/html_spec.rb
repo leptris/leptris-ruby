@@ -88,3 +88,28 @@ RSpec.describe "HTML characterization gates (libleptris 1.9.85, leptris/leptris#
     expect(body.inner_html).to eq("<b><i>x</i></b>y")
   end
 end
+
+RSpec.describe "HTML two-mode split (libleptris 1.9.104-1.9.105, leptris/leptris#659)" do
+  it "defaults to the html4 entry — Nokogiri/libxml2 byte-parity holds" do
+    body = Leptris::XML.parse_html("<script>var x</script><p>t</p>").at_css("body")
+    expect(body.children.select(&:element?).map(&:name)).to eq(%w[script p])
+  end
+
+  it "lifts leading script into the implied head in whatwg mode" do
+    doc = Leptris::XML.parse_html("<script>var x</script><p>t</p>", mode: :whatwg)
+    expect(doc.at_css("head").children.select(&:element?).map(&:name)).to eq(%w[script])
+  end
+
+  it "foster-parents text before the table in whatwg mode" do
+    kids = Leptris::XML.parse_html("<table><tr><td>c</td></tr>oops</table>", mode: :whatwg)
+      .at_css("body").children
+      .reject { |n| n.text? && n.content.strip.empty? }
+      .map { |n| n.text? ? "text:#{n.content}" : n.name }
+    expect(kids).to eq(["text:oops", "table"])
+  end
+
+  it "raises ArgumentError for an unknown mode" do
+    expect { Leptris::XML.parse_html("<p/>", mode: :bogus) }
+      .to raise_error(ArgumentError, /:html4 or :whatwg/)
+  end
+end
