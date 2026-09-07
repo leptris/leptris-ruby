@@ -51,6 +51,20 @@ module Leptris::XML::Serialization
       ELEMENT_SERIALIZE_INTO, c_ptr, DEFAULT_OPTIONS.pointer)
   end
 
+  # Element serialization with expand_empty (libleptris 1.9.95,
+  # #882): empty elements emit <a></a> instead of <a/> — the
+  # inverse of libxml2's XML_SAVE_NO_EMPTY, through the element
+  # ext entry (the sized form keeps older ext allocations safe).
+  def self.element_xml_expand_empty(c_ptr)
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    ext[:indent_text] = 0
+    ext[:indent_unit] = nil
+    ext[:expand_empty] = 1
+    str_ptr = Leptris::XML::FFI.leptris_element_serialize_ext_sized(
+      c_ptr, DEFAULT_OPTIONS.pointer, ext.pointer, ext.size)
+    Leptris::XML::FFI.read_owned_string(str_ptr)
+  end
+
   # Display-form document serialization (libleptris 1.9.9, #129):
   # the ext struct's indent_text hands ALL whitespace to the
   # formatter — text and mixed content indent too. Display-oriented:

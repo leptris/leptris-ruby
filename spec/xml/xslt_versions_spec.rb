@@ -390,12 +390,21 @@ RSpec.describe "predicate-pattern dispatch beyond 96 templates (leptris/leptris#
       .children.select(&:element?).size
   end
 
-  it "dispatches every distinct literal predicate pattern" do
+  it "dispatches every distinct literal predicate pattern (leptris/leptris#875 fixed in 1.9.97)" do
     expect(dispatch_count(97)).to eq(97)
     expect(dispatch_count(120)).to eq(120)
+    expect(dispatch_count(500)).to eq(500)
   end
 
   it "dispatches up to the 96-pattern boundary (regression guard)" do
     expect(dispatch_count(96)).to eq(96)
+  end
+end
+
+RSpec.describe "Element#to_xml expand_empty: true (libleptris 1.9.95, leptris/leptris#882)" do
+  it "emits <a></a> instead of <a/> for empty elements (libxml2 NO_EMPTY_TAGS parity)" do
+    el = Leptris::XML::Document.parse("<r><a/></r>").root.children.first
+    expect(el.to_xml).to eq("<a/>")
+    expect(el.to_xml(expand_empty: true)).to eq("<a></a>")
   end
 end

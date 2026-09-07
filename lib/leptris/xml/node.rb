@@ -83,6 +83,19 @@ class Leptris::XML::Node
   alias_method :node_type, :type
 
   def element?;  type == Leptris::XML::FFI::NODE_ELEMENT;  end
+
+  # Content-defined 64-bit Merkle digest of this subtree
+  # (libleptris 1.9.99, #869): element name/prefix/resolved
+  # namespace URI, attributes sorted and first-wins-deduplicated,
+  # children hashed in document order — no addresses participate,
+  # so equal trees hash equal across processes. Equality implies
+  # subtree equivalence; inequality implies nothing (descend).
+  # +drop_ws+ skips whitespace-only text nodes.
+  def digest(drop_ws: false)
+    ensure_alive!
+    Leptris::XML::FFI.leptris_node_digest(
+      @c_ptr, drop_ws ? 1 : 0)
+  end
   def text?;     type == Leptris::XML::FFI::NODE_TEXT;     end
   def comment?;  type == Leptris::XML::FFI::NODE_COMMENT;  end
   def cdata?;    type == Leptris::XML::FFI::NODE_CDATA;    end

@@ -340,3 +340,16 @@ RSpec.describe "XPath 2.0 type operators standalone (libleptris 1.9.50)" do
   # answers over nodes, and an invalid `cast as` returns instead of
   # raising FORG0001 — both tracked with the #683 grammar work.
 end
+
+RSpec.describe "Node#digest (libleptris 1.9.99, leptris/leptris#869)" do
+  it "matches for structurally-equal subtrees and differs for differing content" do
+    d1 = Leptris::XML::Document.parse(%q{<r><a x="1">hi<b/></a></r>}).root
+    d3 = Leptris::XML::Document.parse(%q{<r><a x="1">hi<b/></a></r>}).root
+    d_other_child = Leptris::XML::Document.parse(%q{<r><a x="1">hi<c/></a></r>}).root
+    d_p_c = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:c/></r>}).root
+    d_p_d = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:d/></r>}).root
+    expect(d1.digest).to eq(d3.digest)
+    expect(d1.digest).not_to eq(d_other_child.digest)
+    expect(d_p_c.digest).not_to eq(d_p_d.digest)
+  end
+end

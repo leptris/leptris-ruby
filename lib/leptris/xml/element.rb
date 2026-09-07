@@ -379,7 +379,8 @@ class Leptris::XML::Element < Leptris::XML::Node
   # semantics (leptris-ruby#109; via a C-side copy into a fresh
   # document — no element-level ext entry exists yet). true is NOT
   # supported here: the display form is document-level.
-  def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false)
+  def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false,
+              expand_empty: false)
     if indent_text == true
       raise ArgumentError,
         "indent_text: true (display form) is document-level — " \
@@ -387,6 +388,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     return Leptris::XML::Serialization.to_xml_element_unit(
       self, indent_text, indent: indent) if indent_text.is_a?(String)
+    return Leptris::XML::Serialization.element_xml_expand_empty(@c_ptr) if expand_empty
     Leptris::XML::Serialization.to_xml(
       Leptris::XML::Serialization::ELEMENT_SERIALIZE_INTO, @c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
