@@ -51,7 +51,12 @@ class Leptris::XML::SAX::Parser
   end
 
   def parse_memory(string)
-    string = string.dup.force_encoding("UTF-8")
+    # Only re-encode when the input is not already UTF-8 — a
+    # dup+force_encoding on a multi-MB document is a full copy
+    # before any parse work starts.
+    unless string.encoding == Encoding::UTF_8 && string.valid_encoding?
+      string = string.dup.force_encoding(Encoding::UTF_8)
+    end
     unless @streaming
       Leptris::XML::SAX::DomDispatch.parse(
         @document, dispatched_kinds, string)
