@@ -5,6 +5,28 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.100.2] - 2026-09-07
+
+### Changed
+
+- **Constraint compliance refresh** (TODO.restructure/14): two
+  fresh `respond_to?(:read)` duck checks that crept in with the
+  parallel SAX-drain and Pull-parse commits replaced with typed
+  branches (`is_a?(String) ? itself : .read`) — the same
+  discipline as 01.
+- README gains the three newest features: `Node#digest`,
+  `Element#to_xml(expand_empty: true)`, and the iterparse
+  lifetime contract (`UseAfterFreeError` on post-iteration use,
+  `#document` still nil).
+- CLAUDE.md architecture map refreshed: `iteration_scope.rb` and
+  `result_attr.rb` added with their seams.
+
+### Notes
+
+The perf battery window is still blocked on the shared host
+(load 169 at this writing); the standing baseline from the clean
+1.9.76 window holds.
+
 ## [1.9.100.1] - 2026-09-07
 
 ### Fixed — restructure round 2 (TODO.restructure/08-13, DONE)

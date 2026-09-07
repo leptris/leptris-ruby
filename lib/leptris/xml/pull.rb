@@ -39,7 +39,7 @@ module Leptris::XML::Pull
 
   class Parser
     def self.parse(xml_or_io)
-      xml = xml_or_io.respond_to?(:read) ? xml_or_io.read : xml_or_io.to_s
+      xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
       new(Leptris::XML::FFI.leptris_pull_new(xml, xml.bytesize))
     end
 

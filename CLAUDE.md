@@ -55,6 +55,10 @@ lib/leptris/xml/element.rb    — attributes via the v1.1.0 iteration
                                 face; namespace= (nil-detach/rebind)
 lib/leptris/xml/result_text.rb — sequence/map/array result items
                                 (values captured at materialization)
+lib/leptris/xml/result_attr.rb  — attribute-node result items
+                                (name/value captured at materialization)
+lib/leptris/xml/iteration_scope.rb — owning context for iterparse
+                                elements (liveness, identity, memos)
 lib/leptris/xml/node_set.rb   — lazy XPath/XQuery results; batch fetch
                                 via get_nodes_ex; ResultText capture
 lib/leptris/xml/searchable.rb — xpath/css/at_*; result materialization
