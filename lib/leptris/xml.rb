@@ -24,6 +24,7 @@ module Leptris
     autoload :XPath, "leptris/xml/xpath"
     autoload :EvaluationContext, "leptris/xml/evaluation_context"
     autoload :ResultText, "leptris/xml/result_text"
+    autoload :ResultAttr, "leptris/xml/result_attr"
     autoload :XSLT, "leptris/xml/xslt"
     autoload :XQuery, "leptris/xml/xquery"
     autoload :Pull, "leptris/xml/pull"

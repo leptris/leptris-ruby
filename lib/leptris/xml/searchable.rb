@@ -122,7 +122,19 @@ module Leptris::XML::Searchable
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     if type == Leptris::XML::FFI::XPATH_NODESET
       ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(result_ptr, 0)
-      node = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, document)
+      if ptr.null?
+        node = nil
+      else
+        kind = Leptris::XML::FFI.leptris_xpath_result_node_kind(result_ptr, 0)
+        node = if kind == Leptris::XML::FFI::XPATH_NODE_ATTRIBUTE
+                 Leptris::XML::ResultAttr.new(
+                   ptr, document,
+                   Leptris::XML::FFI.leptris_xpath_result_node_name(result_ptr, 0),
+                   Leptris::XML::FFI.leptris_xpath_result_node_value(result_ptr, 0))
+               else
+                 Leptris::XML::Node.wrap(ptr, document)
+               end
+      end
       Leptris::XML::FFI.leptris_xpath_result_free(result_ptr)
       node
     else
