@@ -42,20 +42,38 @@ class Leptris::XML::Element < Leptris::XML::Node
     # use-after-free. QUALIFIED names (with a colon) go to the
     # engine: they resolve through in-scope declarations, where the
     # written prefix never matters — the hash cannot answer them.
+    #
+    # Cold single-attribute reads (ruby#150): the previous path
+    # materialised EVERY attribute into two hashes on the first
+    # bare read (~17 allocs on a 2-attr element). Now a cold miss
+    # pays ONE FFI call and fills only that name; subsequent
+    # same-name reads hit the hash; a later attributes/keys call
+    # rebuilds the full face. Full-memo (@attributes set) still
+    # answers misses as nil without another FFI.
     name = key.to_s
     if @document && !name.include?(":")
-      # The hottest read in the library: the memo guard is spelled
-      # INLINE rather than through attributes/#memo_hit? — six
-      # method dispatches per read was ~40% of the read cost, and
-      # the external head-to-head (nokogiri's one C call) was
-      # winning on it. Same three-line memo semantics (ADR 0003),
-      # incl. the nil-miss — the hash answers misses too.
       values = @attr_values
-      unless values && @attributes_version == @document.version
-        attributes
-        values = @attr_values
+      if values && @attributes_version == @document.version
+        return values[name] if @attributes || values.key?(name)
+        # Partial memo: fill the hole with one engine call.
+        ensure_alive!
+        v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+        values[name] = v
+        return v
       end
-      return values[name]
+      # Completely cold: one FFI, start a partial values hash.
+      # Drop any full-face memos from a prior version — otherwise a
+      # post-mutation cold [] would stamp the new version onto a
+      # stale @attributes hash and attributes would serve it.
+      ensure_alive!
+      v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+      @attr_values = { name => v }
+      @attributes = nil
+      @attribute_nodes = nil
+      @keys = nil
+      @values = nil
+      @attributes_version = @document.version
+      return v
     end
     ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
@@ -141,7 +159,9 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def attributes
-    return @attributes if memo_hit?(@attributes_version)
+    # Require the full Attr-hash face — a cold [] may have set the
+    # version with only a partial @attr_values (ruby#150).
+    return @attributes if @attributes && memo_hit?(@attributes_version)
     result = {}
     values = {}
     each_attribute do |attr|
