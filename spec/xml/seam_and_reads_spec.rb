@@ -813,3 +813,51 @@ RSpec.describe "upstream #696/#721 fixed: the C copy is complete" do
     expect(wrapped.namespace.href).to eq("urn:p")
   end
 end
+
+RSpec.describe "Node#digest (libleptris 1.9.99, leptris/leptris#869)" do
+  it "matches for structurally-equal subtrees and differs for differing content" do
+    d1 = Leptris::XML::Document.parse(%q{<r><a x="1">hi<b/></a></r>}).root
+    d3 = Leptris::XML::Document.parse(%q{<r><a x="1">hi<b/></a></r>}).root
+    d_other_child = Leptris::XML::Document.parse(%q{<r><a x="1">hi<c/></a></r>}).root
+    d_p_c = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:c/></r>}).root
+    d_p_d = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:d/></r>}).root
+    expect(d1.digest).to eq(d3.digest)
+    expect(d1.digest).not_to eq(d_other_child.digest)
+    expect(d_p_c.digest).not_to eq(d_p_d.digest)
+  end
+end
+
+RSpec.describe "IterationScope: iterparse element lifetime and memoization (leptris-ruby#152)" do
+  let(:xml) do
+    %(<catalog>) + Array.new(50) { |i| %(<e id="r#{i}" a="1" b="2"/>) }.join + %(</catalog>)
+  end
+
+  it "raises UseAfterFreeError (does not segfault) on post-iteration use" do
+    held = nil
+    Leptris::XML::Iterparse.parse(xml) { |e| held ||= e }
+    expect { held.to_xml }.to raise_error(Leptris::XML::UseAfterFreeError)
+    expect { held["id"] }.to raise_error(Leptris::XML::UseAfterFreeError)
+  end
+
+  it "answers nil for #document while memoization engages" do
+    docs = []
+    Leptris::XML::Iterparse.parse(xml) { |e| docs << e.document; e["id"] }
+    expect(docs).to all(be_nil)
+  end
+
+  it "memoizes attribute reads within the iteration" do
+    reads = []
+    Leptris::XML::Iterparse.parse(xml) { |e| reads << e["id"] }
+    expect(reads.first(3)).to eq(%w[r0 r1 r2])
+  end
+
+  it "keeps wrapper identity within a yielded subtree and resets across yields" do
+    names = []
+    Leptris::XML::Iterparse.parse(%(<r><a><c/></a><b><c/></b></r>)) do |e|
+      child = e.children.first
+      expect(e.children.first).to equal(child)
+      names << e.name
+    end
+    expect(names).to eq(%w[a b])
+  end
+end

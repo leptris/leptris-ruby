@@ -5,6 +5,46 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.100.1] - 2026-09-07
+
+### Fixed — restructure round 2 (TODO.restructure/08-13, DONE)
+
+- **#152 closed** (iterparse lifetime + cost): new
+  `IterationScope` — the owning context for yielded elements.
+  Post-iteration use of a held element now raises
+  `UseAfterFreeError` instead of segfaulting (the scope carries
+  the iterator handle as the liveness signal `ensure_alive!`
+  reads); `Element#to_xml` and `#inner_html` gained the liveness
+  guard they were missing (serialization reads C memory
+  unguarded — true for freed Documents too); wrapper identity
+  holds within a yielded subtree and resets across yields (the
+  released pool memory is recycled); `#document` still answers
+  nil (documented contract) while memoization engages — the
+  reported ~8.5 µs parentless attribute read drops to ~2.2 µs.
+  The residual ~1.4 µs vs the document case is engine-side
+  (leptris/leptris#904). Four new specs.
+- **#153 closed** (PR #154, merged): XPath attribute-node results
+  wrap as usable `ResultAttr` faces (`#name`, `#value`, `#to_s`)
+  with values captured at result materialization — symmetric to
+  `ResultText`.
+- **#149 diet** (binding-side): `Node.wrap_fresh` — one
+  construction authority shared with `wrap` (the type dispatch
+  lives in one place), skipping the guaranteed-miss cache lookup
+  on factory paths. create_text measured 2.8x → 2.18x Nokogiri;
+  the remaining gap is per-call FFI marshaling vs a C extension —
+  the structural ceiling of the FFI-only architecture, documented
+  on the issue.
+- **Serialization**: `element_xml_expand_empty` memoizes its ext
+  struct (`EXPAND_EMPTY_EXT`), mirroring `INDENT_TEXT_EXT`.
+- **Spec MECE**: digest spec homed in seam_and_reads (Node
+  behavior), expand_empty in document_spec (serialization);
+  count-neutral moves, 544 examples total.
+
+### Changed
+
+- `#document` on iterparse-yielded elements preserves the nil
+  contract through a scope-aware reader.
+
 ## [1.9.100.0] - 2026-09-07
 
 ### Changed

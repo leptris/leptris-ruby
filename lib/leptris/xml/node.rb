@@ -1,7 +1,14 @@
 # frozen_string_literal: true
 
 class Leptris::XML::Node
-  attr_reader :c_ptr, :document
+  attr_reader :c_ptr
+
+  # Iterparse-yielded elements are owned by an IterationScope (the
+  # internal lifetime/memoization authority) — the public #document
+  # answers nil for them, per the documented contract.
+  def document
+    scope_owned? ? nil : @document
+  end
 
   def initialize(c_ptr, document, parent: nil, node_type: nil)
     @c_ptr = c_ptr
@@ -12,9 +19,28 @@ class Leptris::XML::Node
     @node_type = node_type
   end
 
+  # True when this node's owning context is an IterationScope
+  # (iterparse-yielded) rather than a Document.
+  def scope_owned?
+    @document.is_a?(Leptris::XML::IterationScope)
+  end
+  private :scope_owned?
+
   # node_type: callers holding a batch-fetched kind (the XPath
   # result-set batch fills out_kinds) pass it so the wrap skips the
   # get_type dispatch; nil (the default) dispatches as before.
+  # Factory variant: the pointer was JUST created by the engine,
+  # so the cache lookup is a guaranteed miss — skip straight to
+  # construction and store (identity still survives attach).
+  def self.wrap_fresh(c_ptr, document, node_type)
+    node = construct(c_ptr, document, nil, node_type, nil)
+    if document
+      cache = document.wrapper_cache
+      cache[c_ptr.address] = node
+    end
+    node
+  end
+
   def self.wrap(c_ptr, document, parent: nil, node_type: nil, result_value: nil)
     # Per-document weak-ref cache. Returns the existing wrapper when the
     # same c_ptr is wrapped twice (common in children/sibling walks,
@@ -31,39 +57,45 @@ class Leptris::XML::Node
     end
 
     node_type ||= Leptris::XML::FFI.leptris_node_get_type(c_ptr)
-    node =
-      case node_type
-      when Leptris::XML::FFI::NODE_ELEMENT
-        Leptris::XML::Element.new(c_ptr, document, parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_TEXT
-        Leptris::XML::Text.new(c_ptr, document, parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_SYNTHETIC_TEXT
-        # Sequence/map/array items: value captured by the NodeSet at
-        # materialization (only the result handle can read them).
-        Leptris::XML::ResultText.new(
-          c_ptr, document, result_value, parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_ATTRIBUTE
-        # ruby#153: synthetic attribute result nodes carry their
-        # name/value in the result handle — the NodeSet captures
-        # them at materialization (result_value is a {name:, value:}
-        # hash; the single-node seam captures the same way).
-        rv = result_value || {}
-        Leptris::XML::ResultAttr.new(
-          c_ptr, document, rv[:name], rv[:value],
-          parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_COMMENT
-        Leptris::XML::Comment.new(c_ptr, document, parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_CDATA
-        Leptris::XML::CDATA.new(c_ptr, document, parent: parent, node_type: node_type)
-      when Leptris::XML::FFI::NODE_PI
-        Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent, node_type: node_type)
-      else
-        new(c_ptr, document, parent: parent, node_type: node_type)
-      end
+    node = construct(c_ptr, document, parent, node_type, result_value)
 
     cache[address] = node if document
     node
   end
+
+  # The single type-dispatch construction authority shared by wrap
+  # (cache-checked) and wrap_fresh (factory path).
+  def self.construct(c_ptr, document, parent, node_type, result_value)
+    case node_type
+    when Leptris::XML::FFI::NODE_ELEMENT
+      Leptris::XML::Element.new(c_ptr, document, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_TEXT
+      Leptris::XML::Text.new(c_ptr, document, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_SYNTHETIC_TEXT
+      # Sequence/map/array items: value captured by the NodeSet at
+      # materialization (only the result handle can read them).
+      Leptris::XML::ResultText.new(
+        c_ptr, document, result_value, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_ATTRIBUTE
+      # ruby#153: synthetic attribute result nodes carry their
+      # name/value in the result handle — the NodeSet captures
+      # them at materialization (result_value is a {name:, value:}
+      # hash; the single-node seam captures the same way).
+      rv = result_value || {}
+      Leptris::XML::ResultAttr.new(
+        c_ptr, document, rv[:name], rv[:value],
+        parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_COMMENT
+      Leptris::XML::Comment.new(c_ptr, document, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_CDATA
+      Leptris::XML::CDATA.new(c_ptr, document, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_PI
+      Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent, node_type: node_type)
+    else
+      new(c_ptr, document, parent: parent, node_type: node_type)
+    end
+  end
+  private_class_method :construct
 
   def name
     raise NotImplementedError, "#{self.class}#name not implemented"

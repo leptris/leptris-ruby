@@ -444,3 +444,11 @@ RSpec.describe "text ampersands escape on serialize (leptris-ruby#120)" do
 end
 
 
+
+RSpec.describe "Element#to_xml expand_empty: true (libleptris 1.9.95, leptris/leptris#882)" do
+  it "emits <a></a> instead of <a/> for empty elements (libxml2 NO_EMPTY_TAGS parity)" do
+    el = Leptris::XML::Document.parse("<r><a/></r>").root.children.first
+    expect(el.to_xml).to eq("<a/>")
+    expect(el.to_xml(expand_empty: true)).to eq("<a></a>")
+  end
+end

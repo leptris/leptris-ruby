@@ -380,6 +380,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # comments/CDATA/PIs render their literal forms. The complement
   # of #inner_text, which returns the unescaped text content.
   def inner_html
+    ensure_alive!
     children.map do |child|
       case child
       when Leptris::XML::Element
@@ -404,6 +405,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # supported here: the display form is document-level.
   def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false,
               expand_empty: false)
+    ensure_alive!
     if indent_text == true
       raise ArgumentError,
         "indent_text: true (display form) is document-level — " \

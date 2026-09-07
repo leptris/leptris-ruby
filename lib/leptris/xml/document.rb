@@ -233,31 +233,31 @@ class Leptris::XML::Document
   def create_element(name)
     ptr = Leptris::XML::FFI.leptris_element_create(@c_ptr, name)
     raise Leptris::XML::Error, "leptris_element_create failed" if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_ELEMENT)
   end
 
   def create_text_node(content)
     ptr = Leptris::XML::FFI.leptris_text_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_text_node_create failed" if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_TEXT)
   end
 
   def create_comment(content)
     ptr = Leptris::XML::FFI.leptris_comment_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_comment_node_create failed" if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_COMMENT)
   end
 
   def create_cdata(content)
     ptr = Leptris::XML::FFI.leptris_cdata_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_cdata_node_create failed" if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_CDATA)
   end
 
   def create_processing_instruction(target, data = "")
     ptr = Leptris::XML::FFI.leptris_pi_node_create(@c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_pi_node_create failed" if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_PI)
   end
 
   def fragment(markup)
