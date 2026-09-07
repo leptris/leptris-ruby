@@ -389,6 +389,15 @@ doc.to_xml(indent: 2, indent_text: true)    # display form (documents only)
 `Element#inner_html` serializes the children with correct escaping —
 well-formed by construction (a re-parse spec pins it).
 
+`Element#to_xml(expand_empty: true)` emits `<a></a>` instead of `<a/>`
+for empty elements — libxml2's `XML_SAVE_NO_EMPTY_TAGS` parity.
+
+`Node#digest(drop_ws: false)` answers a content-defined 64-bit Merkle
+hash of the subtree: equal flags and equal digests imply structural
+equivalence (names, namespaces, sorted attributes, document-order
+children); inequality implies nothing — descend and decide. Stable
+across processes; `drop_ws: true` skips whitespace-only text nodes.
+
 XSLT 1.0–3.0 transforms run through `Leptris::XML::XSLT`:
 
 [source,ruby]
@@ -529,7 +538,12 @@ events in bulk with a corruption guard that fails loudly rather than
 delivering garbage. `Leptris::XML::Iterparse.parse(xml, mode:)` yields
 completed subtrees top-level (`:top_level`) or every element post-order
 (`:full_document`) with bounded memory, plus `#namespace_uri` on the last
-yielded element and an `#error` channel for truncated input.
+yielded element and an `#error` channel for truncated input. Yielded
+elements carry an internal lifetime scope: `#document` answers nil (the
+documented contract) while memoization and liveness guards engage —
+using an element after the iteration raises `UseAfterFreeError` instead
+of crashing, and repeated reads within the block ride the same fast
+paths as document-backed nodes.
 
 == Memory model
 

@@ -48,7 +48,7 @@ class Leptris::XML::SAX::Recorder
   def self.parse(xml_or_io, kinds: nil)
     recorder = open
     begin
-      if xml_or_io.respond_to?(:read)
+      unless xml_or_io.is_a?(String)
         recorder.feed_stream(xml_or_io, kinds: kinds) { |*args| yield(*args) }
       else
         recorder.feed(xml_or_io.to_s, final: true)
