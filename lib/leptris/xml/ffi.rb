@@ -79,7 +79,8 @@ module Leptris
       # entry.
       class SerializeExtStruct < ::FFI::Struct
         layout :indent_text, :int,
-               :indent_unit, :pointer
+               :indent_unit, :pointer,
+               :expand_empty, :int
       end
 
       # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
@@ -681,6 +682,22 @@ attach_function :leptris_parse_string,
         [:leptris_document, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_get_dtd,
         [:leptris_document], :pointer
+      # Element-level ext serialization (libleptris 1.9.95, #882):
+      # the document ext option surface (indent_text, indent_unit,
+      # expand_empty) at element level. The sized twin is the
+      # FFI-safe form (older ext allocations read within bounds).
+      attach_function :leptris_element_serialize_ext,
+        [:leptris_element, :pointer, :pointer], :pointer
+      attach_function :leptris_element_serialize_ext_sized,
+        [:leptris_element, :pointer, :pointer, :size_t], :pointer
+
+      # Content-defined Merkle digest of a subtree (libleptris
+      # 1.9.99, #869): equal flags + equal digests imply structural
+      # equivalence (descend to decide on inequality); flags bit 1
+      # (DROP_WS_TEXT) skips whitespace-only text nodes.
+      attach_function :leptris_node_digest,
+        [:leptris_node_ref, :int], :uint64
+
       attach_function :leptris_element_serialize,
         [:leptris_element, :pointer], :pointer
       attach_function :leptris_element_serialize_into,

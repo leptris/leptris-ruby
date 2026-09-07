@@ -5,6 +5,59 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.100.0] - 2026-09-07
+
+### Changed
+
+- **Lockstep with libleptris 1.9.100** (1.9.94 → 1.9.100 — seven
+  releases: TLS last-root memo, element-level ext entries,
+  namespace-fixup walk gating, **#875 dispatch index fix**,
+  namebp backpointer fix, **#869 `leptris_node_digest` Merkle
+  subtree digest**, streaming emission Phase 1). Three new public
+  symbols attached (audit 264/264):
+  - `leptris_element_serialize_ext[_sized]` (1.9.95, #882):
+    element-level `expand_empty` serialization — wired through
+    `Element#to_xml(expand_empty: true)` for libxml2's
+    `NO_EMPTY_TAGS` parity.
+  - `leptris_node_digest` (1.9.99, #869): content-defined 64-bit
+    Merkle digest of a subtree — wired through `Node#digest(drop_ws:)`
+    with structural-equality semantics.
+
+- **#875 sentinel gate extended**: verified 97/97, 120/120, **500/500**
+  on this build — the 1.9.93 dispatch overflow is gone (the
+  upstream fix used dynamic resize instead of the bare-continue
+  cap; the predicate-pattern index is back to ~25 ms on the
+  120-template fixture — fast and correct).
+- **Vendored `SerializeExtStruct` layout refreshed** to mirror the
+  new C layout (`expand_empty: :int`).
+- **#153 binding fix-forward**: leptris-ruby PR #154 (open,
+  ResultAttr wrap) — the engine needed nothing. The fix will
+  ride a follow-up binding release once it merges.
+
+### Fixed
+
+- **Namebp backpointer validity after QName split** (engine, 1.9.98)
+  — the round-21 mutation backpointer is only valid while `name`
+  points at the carve slot; prefixed names now drop the flag when
+  `#846`'s QName split advances past the colon.
+- **Namespace-fixup walk gating** (engine, 1.9.96): the
+  result-document walks are now gated on `has_namespaces` — the
+  common dispatch shape (no namespaces in the result) is a single
+  flag check.
+- **TLS last-root memo** (engine, 1.9.94): the
+  `leptris_element_get_document` hot path answers consecutive
+  same-tree queries with a single pointer compare.
+
+### Performance
+
+- **Streaming emission Phase 1** (engine, 1.9.100, gated): a
+  compile-time gate admits v1.x namespace-free literal elements,
+  text/value-of, comment/PI, select-only variables, and control
+  flow into direct byte emission — the result DOM is not
+  materialized for those safe shapes. Everything else keeps the
+  result-tree path byte-identically. Run-based emitters, 1306/1306
+  ctest.
+
 ## [1.9.92.2] - 2026-09-07
 
 ### Changed — restructure round (TODO.restructure/01-06, all DONE)
