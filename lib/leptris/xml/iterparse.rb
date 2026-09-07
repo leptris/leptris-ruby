@@ -29,8 +29,10 @@ require "ffi"
 #     # => nil, or the parse failure (readable after the run: the
 #     #    block form frees the iterator on return, snapshotting it)
 #
-# The yielded elements have no parent Document; #document returns
-# nil and they must not outlive the iteration.
+# The yielded elements are owned by an internal IterationScope:
+# #document returns nil (the documented contract) while liveness
+# guards and memoization engage — using an element after the
+# iterator frees raises UseAfterFreeError instead of crashing.
 class Leptris::XML::Iterparse
   MODES = {
     top_level: Leptris::XML::FFI::ITERPARSE_TOP_LEVEL,
@@ -76,6 +78,7 @@ class Leptris::XML::Iterparse
   def initialize(handle)
     raise Leptris::XML::ParseError, "leptris_iterparse_new failed" if handle.null?
     @handle = handle
+    @scope = Leptris::XML::IterationScope.new(handle)
   end
 
   # Yields completed elements until the document is exhausted or the
@@ -86,10 +89,15 @@ class Leptris::XML::Iterparse
     while @handle
       ptr = Leptris::XML::FFI.leptris_iterparse_next(@handle)
       break if ptr.null?
-      # document: nil — the subtree belongs to the iterator's pool,
-      # not a long-lived Document, so wrapper caching is skipped and
-      # #document is nil on the yielded elements.
-      yield Leptris::XML::Node.wrap(ptr, nil)
+      # The scope owns lifetime + memoization for yielded elements
+      # (ruby#152): liveness guards engage (post-free use raises
+      # instead of segfaulting), wrapper identity holds within a
+      # subtree, and memoized reads match document-backed cost.
+      # Each yield starts a fresh subtree — the released pool
+      # memory is recycled, so the identity cache resets with the
+      # memo version. #document still answers nil on the elements.
+      @scope.new_subtree!
+      yield Leptris::XML::Node.wrap(ptr, @scope)
     end
     self
   end
@@ -124,6 +132,7 @@ class Leptris::XML::Iterparse
     @last_error = live_error
     Leptris::XML::FFI.leptris_iterparse_free(@handle)
     @handle = nil
+    @scope.mark_freed
   end
 
   private

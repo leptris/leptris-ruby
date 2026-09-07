@@ -55,13 +55,19 @@ module Leptris::XML::Serialization
   # #882): empty elements emit <a></a> instead of <a/> — the
   # inverse of libxml2's XML_SAVE_NO_EMPTY, through the element
   # ext entry (the sized form keeps older ext allocations safe).
-  def self.element_xml_expand_empty(c_ptr)
+  EXPAND_EMPTY_EXT = begin
     ext = Leptris::XML::FFI::SerializeExtStruct.new
     ext[:indent_text] = 0
     ext[:indent_unit] = nil
     ext[:expand_empty] = 1
+    ext
+  end
+  private_constant :EXPAND_EMPTY_EXT
+
+  def self.element_xml_expand_empty(c_ptr)
     str_ptr = Leptris::XML::FFI.leptris_element_serialize_ext_sized(
-      c_ptr, DEFAULT_OPTIONS.pointer, ext.pointer, ext.size)
+      c_ptr, DEFAULT_OPTIONS.pointer,
+      EXPAND_EMPTY_EXT.pointer, EXPAND_EMPTY_EXT.size)
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
 

@@ -23,6 +23,7 @@ module Leptris
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
     autoload :EvaluationContext, "leptris/xml/evaluation_context"
+    autoload :IterationScope, "leptris/xml/iteration_scope"
     autoload :ResultText, "leptris/xml/result_text"
     autoload :ResultAttr, "leptris/xml/result_attr"
     autoload :XSLT, "leptris/xml/xslt"
