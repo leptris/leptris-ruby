@@ -54,8 +54,11 @@ class Leptris::XML::Element < Leptris::XML::Node
     if @document && !name.include?(":")
       values = @attr_values
       if values && @attributes_version == @document.version
-        return values[name] if @attributes || values.key?(name)
-        # Partial memo: fill the hole with one engine call.
+        v = values[name]
+        # Present, or a FULL-memo miss (absent). A partial-memo nil
+        # is ambiguous (un-queried vs absent) — one idempotent
+        # engine call resolves it, then the name is cached.
+        return v if !v.nil? || @attributes
         ensure_alive!
         v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
         values[name] = v
