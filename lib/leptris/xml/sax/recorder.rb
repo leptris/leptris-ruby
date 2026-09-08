@@ -159,16 +159,20 @@ class Leptris::XML::SAX::Recorder
         @handle, len_ptr)
       arena = arena_ptr.read_bytes(len_ptr.read_uint64)
       count = count_ptr.read_uint64
-      # Kind is the first byte of each record — read it off the C
-      # pointer. The previous path copied every record into Ruby
-      # and unpacked a Fixnum array just for the kind strip
-      # (2.25M Integers on a single-feed drain); one get_uint8 per
-      # event replaces both.
+      # Kind strip in ONE bulk read + ONE unpack per drain: the
+      # per-count template reads the first byte of each record,
+      # skipping the stride (KIND_TEMPLATE_FOR is memoized per
+      # count). Kind codes are 0..10 — unpack yields immediate
+      # Fixnums, so the strip allocates nothing. This replaces a
+      # get_uint8 crossing per EVENT (all events, dispatched or
+      # not) with one memory read per drain — the SAX gap to
+      # Nokogiri's per-event C callback lives exactly here.
+      kinds = records_ptr.get_bytes(0, count * RECORD_STRIDE)
+                         .unpack(KIND_TEMPLATE_FOR[count])
       one_arg_start = dispatched[:start_element] == :one_arg
       i = 0
       while i < count
-        code = records_ptr.get_uint8(i * RECORD_STRIDE)
-        kind = KIND_BY_CODE[code]
+        kind = kinds[i] && KIND_BY_CODE[kinds[i]]
         if kind && dispatched[kind]
           base = i * RECORD_STRIDE
           case kind
