@@ -7,6 +7,25 @@ module Leptris
     module FFI
       extend ::FFI::Library
 
+      # libleptris links utf8proc via @rpath (TODO.restructure/20
+      # — fn:normalize-unicode). dlopen the VENDORED utf8proc
+      # FIRST: once its install name is loaded, dyld resolves
+      # libleptris's dependent image from this image instead of
+      # searching system paths. Absent (pure-ruby fallback gem,
+      # UTF8PROC-less custom builds) is not an error — the loader
+      # tries and moves on, and libleptris without the dependency
+      # never consults it.
+      begin
+        ffi_lib [
+          File.expand_path("../../libutf8proc.3.dylib", __dir__),
+          File.expand_path("../../libutf8proc.so.3", __dir__),
+          File.expand_path("../../libutf8proc.so", __dir__),
+          File.expand_path("../../utf8proc.dll", __dir__),
+        ].compact
+      rescue LoadError
+        nil
+      end
+
       # Issue leptris-ruby#49: name the remedy when the library is
       # missing (ruby-platform gem without a vendored libleptris).
       begin
