@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.107.1] - 2026-09-08
+
+### Improved
+
+- **SAX drain: bulk kind strip** (TODO.restructure/22 — the moxml
+  0.77-0.93x row): the recorder's dispatch loop read the event
+  kind with a `get_uint8` per EVENT (a memory crossing for every
+  record, dispatched or not); the strip now reads in ONE bulk
+  `get_bytes` + ONE `unpack` per drain via the memoized
+  per-count template — kind codes 0..10 unpack to immediate
+  Fixnums, so the change strictly removes ~count FFI crossings
+  with zero new allocations. Allocation profile (load-independent
+  measurement) is far ahead either way: text-only 32,381 vs
+  Nokogiri's 400,061 allocs/parse (12x fewer); all-events 112,440
+  vs 400,034 (3.6x fewer) — the remaining gap is pure per-event
+  CPU, which this addresses. Timing verification gated on a clean
+  host window (bench staged; the shared machine sat at load
+  40-400 today).
+
 ## [1.9.107.0] - 2026-09-08
 
 ### Changed
