@@ -113,3 +113,20 @@ RSpec.describe "HTML two-mode split (libleptris 1.9.104-1.9.105, leptris/leptris
       .to raise_error(ArgumentError, /:html4 or :whatwg/)
   end
 end
+
+RSpec.describe "WHATWG adoption agency (libleptris 1.9.106-1.9.107, leptris/leptris#659)" do
+  it "reopens formatting elements cloned at the new insertion point" do
+    expect(Leptris::XML.parse_html("<b>1<i>2</b>3</i>", mode: :whatwg)
+      .at_css("body").inner_html).to eq("<b>1<i>2</i></b><i>3</i>")
+  end
+
+  it "carries attributes onto the reopened clones" do
+    expect(Leptris::XML.parse_html(%q{<a href="h">1<i>2</a>3</i>}, mode: :whatwg)
+      .at_css("body").inner_html).to eq(%q{<a href="h">1<i>2</i></a><i>3</i>})
+  end
+
+  it "keeps the html4 entry on libxml2's pop-away shape" do
+    expect(Leptris::XML.parse_html("<b>1<i>2</b>3</i>")
+      .at_css("body").inner_html).to eq("<b>1<i>2</i></b>3")
+  end
+end

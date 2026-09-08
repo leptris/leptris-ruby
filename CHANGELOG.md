@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.107.0] - 2026-09-08
+
+### Changed
+
+- **Lockstep with libleptris 1.9.107** (1.9.106 → 1.9.107, no new
+  C surface — audit 265/265): WHATWG adoption agency (simplified
+  8.2.5.4) — a formatting element closed out of order keeps its
+  scope for later content via cloned reopening; clones carry the
+  original's attributes. The html4 default keeps libxml2's
+  pop-away shape (byte-parity held). html5lib corpus 295 (+53%
+  since the two-mode split); Nokogiri parity 372 held exactly.
+  Three specs.
+
 ## [1.9.105.0] - 2026-09-08
 
 ### Changed
