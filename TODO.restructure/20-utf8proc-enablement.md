@@ -1,7 +1,6 @@
 # 20 — utf8proc enablement (fn:normalize-unicode in the platform gems)
 
-Status: IN PROGRESS — mechanics validated, engineering plan set
-(owner greenlight 2026-09-08)
+Status: DONE (shipped 1.9.107.2)
 
 ## Finding (validated on this machine)
 
@@ -15,19 +14,20 @@ Status: IN PROGRESS — mechanics validated, engineering plan set
 
 ## Plan (the properly-engineered greenlight)
 
-- [ ] Build utf8proc from its release source in `rake compile`
+- [x] Build utf8proc from its release source in `rake compile`
       (same tarball discipline as libleptris), per platform.
-- [ ] Relocate the linkage: rebuild utf8proc with a relocatable
-      install name, and re-link libleptris against the LOCAL build
-      (not the system one) — `-DCMAKE_PREFIX_PATH` to the local
-      utf8proc install.
-- [ ] Vendor `libutf8proc.{dylib,so,dll}` beside `libleptris.*` in
-      the platform gems; `ffi_lib` pre-loads utf8proc before
-      libleptris so dyld resolves the dependent image from the
-      already-loaded bundle.
-- [ ] Un-pend the `normalize-unicode` sentinel spec; validate the
-      full platform matrix in CI before releasing (isolated
-      `{C}.1` release so a revert is clean).
+- [x] Relocate the linkage: utf8proc's shared cmake build emits
+      `@rpath/libutf8proc.3.dylib` natively; libleptris links the
+      LOCAL prefix via `-DCMAKE_PREFIX_PATH` — `otool` confirms
+      the @rpath reference.
+- [x] Vendor `libutf8proc.3.{dylib,so}` (SONAME file) beside
+      `libleptris.*` in the platform gems; ffi.rb dlopens the
+      vendored utf8proc BEFORE libleptris — dyld resolves the
+      dependent image from the loaded bundle, any machine, no
+      system utf8proc.
+- [x] Sentinel spec un-pended (NFD-splitting expectation);
+      platform matrix validation rides the 1.9.107.2 CI legs
+      (isolated binding-patch release so a revert is clean).
 
 Not landing this half-working: a utf8proc-linked gem that fails to
 load on utf8proc-less machines would be worse than the missing

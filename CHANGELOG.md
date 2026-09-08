@@ -5,6 +5,24 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.107.2] - 2026-09-08
+
+### Added
+
+- **utf8proc vendored — `fn:normalize-unicode` unconditionally
+  available** (TODO.restructure/20, owner-greenlit): utf8proc
+  2.11.0 builds from its release tarball per platform (shared
+  only, RELOCATABLE `@rpath/libutf8proc.3` install name — the
+  absolute-path linkage that would have broken platform-gem
+  self-containment is engineered around), libleptris builds
+  against the local prefix with
+  `LEPTRIS_ENABLE_UTF8PROC=ON`, and ffi.rb dlopens the VENDORED
+  utf8proc before libleptris so the dependent image resolves
+  inside the gem (no system utf8proc needed, any machine).
+  Verified end-to-end: NFD splitting answers through the full
+  chain with zero environment setup. The pending sentinel spec
+  un-pends. Platform gems carry both vendored binaries.
+
 ## [1.9.107.1] - 2026-09-08
 
 ### Improved

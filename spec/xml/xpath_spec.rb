@@ -147,11 +147,11 @@ RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79
     end
   end
 
-  # fn:normalize-unicode needs utf8proc — compiled out of the
-  # vendored platform builds (LEPTRIS_ENABLE_UTF8PROC=OFF).
-  it "normalizes unicode where utf8proc is built in" do
-    skip "utf8proc disabled in vendored builds — raises for the same reason"
-    expect(doc.xpath("string-length(normalize-unicode('é'))")).to eq(1.0)
+  # utf8proc is vendored since TODO.restructure/20: built per
+  # platform with a relocatable @rpath install name and pre-loaded
+  # by ffi.rb — the function is unconditionally available.
+  it "normalizes unicode (NFD splits precomposed characters)" do
+    expect(doc.xpath("string-length(normalize-unicode('é́'))")).to eq(4.0)
   end
 end
 

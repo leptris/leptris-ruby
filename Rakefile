@@ -9,6 +9,11 @@ RSpec::Core::RakeTask.new(:spec)
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
 LIBLEPTRIS_VERSION = "1.9.107"
+# Vendored alongside libleptris for fn:normalize-unicode (TODO
+# .restructure/20): built per platform with a RELOCATABLE @rpath
+# install name, loaded by ffi.rb before libleptris so the
+# dependent image resolves inside the gem.
+UTF8PROC_VERSION = "2.11.0"
 
 CMAKE_FLAGS = %w[
   -DCMAKE_BUILD_TYPE=Release
@@ -22,7 +27,7 @@ CMAKE_FLAGS = %w[
   -DLEPTRIS_ENABLE_ICONV=OFF
 ].freeze
 
-desc "Build libleptris #{LIBLEPTRIS_VERSION} from its release tarball into lib/"
+desc "Build libleptris #{LIBLEPTRIS_VERSION} (+ utf8proc) from release tarballs into lib/"
 task :compile do
   version = ENV.fetch("LIBLEPTRIS_VERSION", LIBLEPTRIS_VERSION)
   build = File.expand_path("tmp/libleptris-#{version}", __dir__)
@@ -30,6 +35,19 @@ task :compile do
   mkdir_p(build)
   url = "https://api.github.com/repos/leptris/leptris/tarball/v#{version}"
   sh "curl -sL #{url} | tar xz -C #{build} --strip-components=1"
+
+  # utf8proc: shared build only, @rpath install name, local prefix.
+  u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)
+  u8_prefix = File.join(u8_dir, "prefix")
+  rm_rf(u8_dir)
+  mkdir_p(u8_dir)
+  u8_url = "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz"
+  sh "curl -sL -o #{u8_dir}/u8.tar.gz #{u8_url}"
+  sh "tar xzf #{u8_dir}/u8.tar.gz -C #{u8_dir} --strip-components=1"
+  sh "cmake -B #{u8_dir}/build -S #{u8_dir} -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DUTF8PROC_ENABLE_TESTING=OFF"
+  sh "cmake --build #{u8_dir}/build --config Release -j 4"
+  sh "cmake --install #{u8_dir}/build --prefix #{u8_prefix}"
+
   # libleptris 1.9.18's xslt_functions.c:270 assigns LeptrisElement
   # to LeptrisNodeRef — GCC 14 (Alpine/musl) makes incompatible
   # pointer types an error by default and the musl platform gems
@@ -40,7 +58,8 @@ task :compile do
   # GCC-family only — MSVC's cl rejects the flag outright (D8021).
   cflags = Gem.win_platform? ? "" : "-Wno-error=incompatible-pointer-types"
   sh "cmake -B #{build}/build -S #{build} " \
-     "#{CMAKE_FLAGS.join(' ')} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
+     "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
+     "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
   sh "cmake --build #{build}/build --config Release -j 4"
   # Windows names the shared library leptris.dll (no "lib" prefix);
   # vendoring under the uniform libleptris.* name keeps the FFI
@@ -52,7 +71,17 @@ task :compile do
   raise "libleptris shared library not found after build" unless lib
   ext = File.extname(lib)
   cp(lib, "lib/libleptris#{ext}")
-  puts "Vendored #{File.basename(lib)} as lib/libleptris#{ext}"
+  # The SONAME file is what @rpath references — .3.dylib on
+  # macOS, .so.3 on Linux (cmake installs the symlink chain;
+  # copying the symlink copies the target), plain .dll on
+  # Windows.
+  u8_lib = Dir.glob("#{u8_prefix}/lib/libutf8proc.3.dylib").first ||
+           Dir.glob("#{u8_prefix}/lib/libutf8proc.so.3").first ||
+           Dir.glob("#{u8_prefix}/lib/libutf8proc.so").first ||
+           Dir.glob("#{u8_prefix}/{lib,bin}/utf8proc.dll").first
+  raise "utf8proc shared library not found after build" unless u8_lib
+  cp(u8_lib, "lib/#{File.basename(u8_lib)}")
+  puts "Vendored #{File.basename(lib)} + #{File.basename(u8_lib)} into lib/"
 end
 
 task spec: :compile unless ENV.key?("LEPTRIS_LIB_PATH")
@@ -156,6 +185,7 @@ platforms.each do |platform|
     spec = Gem::Specification::load("leptris.gemspec").dup
     spec.platform = Gem::Platform.new(platform)
     spec.files += Dir.glob("lib/libleptris.{dll,so,dylib}")
+    spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
     task = Gem::PackageTask.new(spec)
     task.define
   end
@@ -167,4 +197,8 @@ CLOBBER.include("pkg")
 CLEAN.include("tmp",
               "lib/libleptris.dll",
               "lib/libleptris.dylib",
-              "lib/libleptris.so")
+              "lib/libleptris.so",
+              "lib/libutf8proc.3.dylib",
+              "lib/libutf8proc.so.3",
+              "lib/libutf8proc.so",
+              "lib/utf8proc.dll")
