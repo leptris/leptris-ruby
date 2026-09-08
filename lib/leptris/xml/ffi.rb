@@ -42,6 +42,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_result
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
+      typedef :pointer, :leptris_relaxng
       typedef :pointer, :leptris_xslt
       typedef :pointer, :leptris_xquery
       typedef :pointer, :leptris_sax_recorder
@@ -732,6 +733,18 @@ attach_function :leptris_parse_string,
       # pre-scan at C speed instead of a Ruby regex.
       attach_function :leptris_str_has_nonstandard_entity,
         [:string, :size_t], :int
+
+      attach_function :leptris_rng_parse,
+        [:string, :size_t, :pointer], :leptris_relaxng
+      attach_function :leptris_rng_parse_file,
+        [:string, :pointer], :leptris_relaxng
+      attach_function :leptris_rng_free,
+        [:leptris_relaxng], :void
+      # 1 valid; 0 invalid (detail via leptris_rng_error)
+      attach_function :leptris_rng_validate,
+        [:leptris_relaxng, :leptris_document], :int
+      attach_function :leptris_rng_error,
+        [:leptris_relaxng], :string
 
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
