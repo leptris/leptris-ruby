@@ -8,7 +8,7 @@ RSpec::Core::RakeTask.new(:spec)
 # Pin for `rake compile` and the platform-gem builds. Keep in lockstep
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
-LIBLEPTRIS_VERSION = "1.9.118"
+LIBLEPTRIS_VERSION = "1.9.121"
 # Vendored alongside libleptris for fn:normalize-unicode (TODO
 # .restructure/20): built per platform with a RELOCATABLE @rpath
 # install name, loaded by ffi.rb before libleptris so the

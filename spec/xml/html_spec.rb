@@ -154,3 +154,30 @@ RSpec.describe "HTML doctype and structural tags (libleptris 1.9.116-1.9.118, le
     expect(doc.at_css("head title")&.text).to eq("t")
   end
 end
+
+RSpec.describe "WHATWG foreign content and table synthesis (libleptris 1.9.119-1.9.121, leptris/leptris#659)" do
+  it "carries SVG/MathML namespaces with adjusted casing" do
+    doc = Leptris::XML.parse_html(%q{<svg><foreignObject><p>x</p></foreignObject></svg>}, mode: :whatwg)
+    svg = doc.at_xpath("//*[local-name()='svg']")
+    expect(svg.children.select(&:element?).map(&:name)).to eq(%w[foreignObject])
+    expect(svg.namespace.href).to eq("http://www.w3.org/2000/svg")
+    math = Leptris::XML.parse_html(%q{<math><mi>x</mi></math>}, mode: :whatwg)
+      .at_xpath("//*[local-name()='math']")
+    expect(math.namespace.href).to eq("http://www.w3.org/1998/Math/MathML")
+  end
+
+  it "synthesizes the in-table wrapper chain in whatwg mode" do
+    expect(Leptris::XML.parse_html("<table><tr><td>c</td></tr></table>", mode: :whatwg)
+      .at_css("table").children.select(&:element?).map(&:name)).to eq(%w[tbody])
+  end
+
+  it "keeps the html4 bare shape (no implied tbody)" do
+    expect(Leptris::XML.parse_html("<table><tr><td>c</td></tr></table>")
+      .at_css("table").children.select(&:element?).map(&:name)).to eq(%w[tr])
+  end
+
+  it "pops headings through the nearest heading of any name" do
+    expect(Leptris::XML.parse_html("<h1>a<h2>b</h1>c</h2>", mode: :whatwg)
+      .at_css("body").inner_html).to eq("<h1>a<h2>b</h2>c</h1>")
+  end
+end
