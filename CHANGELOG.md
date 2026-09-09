@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Jing's override rules, `<param>` datatype facets (portable
   matcher), and schema errors on `leptris_last_error`. Required by
   the RelaxNG binding (#165).
+## [1.9.118.0] - 2026-09-09
+
+### Changed
+
+- **Lockstep with libleptris 1.9.118** (1.9.116 → 1.9.118; no new
+  C surface — audit 270/270): HTML modes record the DOCTYPE
+  (1.9.116); structural `<head>`/`<body>` — every WHATWG document
+  is `html>[head, body]`, html4 keeps Nokogiri's no-empty-head
+  shape (1.9.117); `<template>` placed where the tokenizer meets
+  it + explicit head/body honored in place (1.9.118). Corpus:
+  WHATWG 623→652, Nokogiri-parity 777→783. Four specs.
+
 ## [1.9.115.1] - 2026-09-09
 
 ### Added
