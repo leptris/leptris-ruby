@@ -130,3 +130,27 @@ RSpec.describe "WHATWG adoption agency (libleptris 1.9.106-1.9.107, leptris/lept
       .at_css("body").inner_html).to eq("<b>1<i>2</i></b>3")
   end
 end
+
+RSpec.describe "HTML doctype and structural tags (libleptris 1.9.116-1.9.118, leptris/leptris#659)" do
+  it "records the DOCTYPE in both modes" do
+    expect(Leptris::XML.parse_html("<!DOCTYPE html><p>x</p>").internal_subset.name).to eq("html")
+    expect(Leptris::XML.parse_html("<!DOCTYPE html><p>x</p>", mode: :whatwg).internal_subset.name).to eq("html")
+  end
+
+  it "gives every WHATWG document the html>[head, body] shape" do
+    kids = Leptris::XML.parse_html("<p>only</p>", mode: :whatwg)
+      .at_css("html").children.select(&:element?).map(&:name)
+    expect(kids).to eq(%w[head body])
+  end
+
+  it "keeps the html4 shape — no synthesized empty head" do
+    kids = Leptris::XML.parse_html("<p>only</p>")
+      .at_css("html").children.select(&:element?).map(&:name)
+    expect(kids).to eq(%w[body])
+  end
+
+  it "honors explicit head/body tags in place" do
+    doc = Leptris::XML.parse_html("<head><title>t</title></head><body><p>x</p></body>", mode: :whatwg)
+    expect(doc.at_css("head title")&.text).to eq("t")
+  end
+end
