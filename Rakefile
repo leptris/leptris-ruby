@@ -43,8 +43,10 @@ task :compile do
   rm_rf(u8_dir)
   mkdir_p(u8_dir)
   u8_url = "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz"
-  sh "curl -sL -o #{u8_dir}/u8.tar.gz #{u8_url}"
-  sh "tar xzf #{u8_dir}/u8.tar.gz -C #{u8_dir} --strip-components=1"
+  # The piped form is the shape the libleptris fetch already uses —
+  # the -o file form produced a non-gzip artifact on the Windows
+  # runners (tar child status 128).
+  sh "curl -sL #{u8_url} | tar xz -C #{u8_dir} --strip-components=1"
   sh "cmake -B #{u8_dir}/build -S #{u8_dir} -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DUTF8PROC_ENABLE_TESTING=OFF"
   sh "cmake --build #{u8_dir}/build --config Release -j 4"
   sh "cmake --install #{u8_dir}/build --prefix #{u8_prefix}"
