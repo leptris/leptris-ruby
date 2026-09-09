@@ -1,6 +1,6 @@
 # 22 — SAX drain: bulk kind strip (the 0.77-0.93x row)
 
-Status: CODE DONE — timing verification gated on a clean window
+Status: DONE — timing gate PASSED (2026-09-09, load ~14)
 
 The moxml table shows SAX at 0.77-0.93x Nokogiri (it fully won at
 the 1.9.40-era battery). Investigation under load-404 conditions
@@ -22,7 +22,7 @@ the 1.9.40-era battery). Investigation under load-404 conditions
 
 - [x] Bulk strip restored; SAX suite green; allocation profile
       re-verified (32k/112k vs 400k/400k).
-- [ ] **Timing verification** (the actual 0.77-0.93x row): bench
-      staged at /tmp/bench_sax.rb — requires load < 20 (the host
-      has been at 40-400). Gate: text-only and all-events SAX at
-      parity or better vs Nokogiri on the raw binding.
+- [x] **Timing verification PASSED** (load ~14 window, min-of-7):
+      text-only 16.1 vs 169.3 ms = **10.51x faster**; all-events
+      146.9 vs 188.6 ms = **1.28x faster**. The moxml 0.77-0.93x
+      row is fully inverted on the raw binding.

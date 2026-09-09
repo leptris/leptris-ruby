@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Jing's override rules, `<param>` datatype facets (portable
   matcher), and schema errors on `leptris_last_error`. Required by
   the RelaxNG binding (#165).
+## [1.9.121.0] - 2026-09-09
+
+### Changed
+
+- **Lockstep with libleptris 1.9.121** (1.9.119 → 1.9.121; no new
+  C surface — audit 270/270): WHATWG-mode MathML/SVG foreign
+  content (namespaces, case adjustment, integration points —
+  1.9.119); in-table wrapper synthesis (`<tr>` implies `<tbody>`;
+  html4 keeps libxml2's bare shape — 1.9.120); insertion-mode
+  edges (heading pops, ruby nesting, plaintext raw-to-EOF —
+  1.9.121). Corpus: WHATWG 792→859, parity held. Four specs.
+- **TODO.restructure/22 closed with the timing gate PASSED**
+  (load ~14 window): SAX text-only **10.51x faster**, all-events
+  **1.28x faster** than Nokogiri — the moxml 0.77-0.93x row fully
+  inverted on the raw binding.
+
 ## [1.9.118.0] - 2026-09-09
 
 ### Changed
