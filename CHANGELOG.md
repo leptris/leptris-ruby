@@ -5,6 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.115.0] - 2026-09-09
+
+### Changed
+
+- Lockstep with libleptris 1.9.115: the RELAX NG arc completes —
+  the validator (Jing conformance gate 38/38), `<include>` with
+  Jing's override rules, `<param>` datatype facets (portable
+  matcher), and schema errors on `leptris_last_error`. Required by
+  the RelaxNG binding (#165).
+
 ## [1.9.107.1] - 2026-09-08
 
 ### Improved
