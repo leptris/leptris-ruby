@@ -29,6 +29,7 @@ module Leptris
     autoload :XSLT, "leptris/xml/xslt"
     autoload :XQuery, "leptris/xml/xquery"
     autoload :RelaxNG, "leptris/xml/relaxng"
+    autoload :Schematron, "leptris/xml/schematron"
     autoload :Pull, "leptris/xml/pull"
     autoload :Iterparse, "leptris/xml/iterparse"
 

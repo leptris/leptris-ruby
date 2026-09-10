@@ -62,6 +62,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
       typedef :pointer, :leptris_relaxng
+      typedef :pointer, :leptris_schematron
       typedef :pointer, :leptris_xslt
       typedef :pointer, :leptris_xquery
       typedef :pointer, :leptris_sax_recorder
@@ -764,6 +765,24 @@ attach_function :leptris_parse_string,
         [:leptris_relaxng, :leptris_document], :int
       attach_function :leptris_rng_error,
         [:leptris_relaxng], :string
+
+      # Schematron (libleptris >= 1.9.126; corpus gate 50/50)
+      attach_function :leptris_schematron_parse,
+        [:string, :size_t, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_parse_file,
+        [:string, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_parse_phase,
+        [:string, :size_t, :string, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_free,
+        [:leptris_schematron], :void
+      # 1 valid; 0 invalid (reports do not invalidate)
+      attach_function :leptris_schematron_valid,
+        [:leptris_schematron, :leptris_document], :int
+      # SVRL report document (caller frees), or NULL
+      attach_function :leptris_schematron_validate,
+        [:leptris_schematron, :leptris_document], :leptris_document
+      attach_function :leptris_schematron_error,
+        [:leptris_schematron], :string
 
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
