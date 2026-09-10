@@ -765,6 +765,29 @@ attach_function :leptris_parse_string,
       attach_function :leptris_rng_error,
         [:leptris_relaxng], :string
 
+      # XML diff (libleptris >= 1.9.127, lane 17)
+      typedef :pointer, :leptris_diff
+      # flags: 0 default, 1 ignore whitespace-only text nodes
+      attach_function :leptris_diff,
+        [:leptris_document, :leptris_document, :uint, :pointer],
+        :leptris_diff
+      attach_function :leptris_diff_free,
+        [:leptris_diff], :void
+      attach_function :leptris_diff_op_count,
+        [:leptris_diff], :size_t
+      attach_function :leptris_diff_op_type,
+        [:leptris_diff, :size_t], :int
+      attach_function :leptris_diff_op_path,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_name,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_before,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_after,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_serialize,
+        [:leptris_diff], :pointer
+
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
       attach_function :leptris_xslt_parse_file,
