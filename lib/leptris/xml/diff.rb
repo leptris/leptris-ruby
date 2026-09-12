@@ -40,6 +40,13 @@ class Leptris::XML::Diff
     new(Handle.new(raw))
   end
 
+  # The boolean fast path canon-style consumers want: are the two
+  # trees structurally identical? Zero ops == identical — the
+  # digest pruning makes the common equal case O(1) per subtree.
+  def self.identical?(document_a, document_b, ignore_ws: false)
+    compute(document_a, document_b, ignore_ws: ignore_ws).ops.empty?
+  end
+
   def initialize(handle)
     @handle = handle
   end

@@ -24,4 +24,14 @@ RSpec.describe "Leptris::XML.diff (libleptris 1.9.144 family)" do
     b = Leptris::XML::Document.parse("<r><i>2</i></r>")
     expect(Leptris::XML.diff(a, b).to_s).to include("/r/i", "1", "2")
   end
+
+  it "answers the identical? boolean fast path" do
+    same = Leptris::XML::Document.parse("<r><i>1</i></r>")
+    other = Leptris::XML::Document.parse("<r><i>2</i></r>")
+    expect(Leptris::XML::Diff.identical?(same, same)).to be(true)
+    expect(Leptris::XML::Diff.identical?(same, other)).to be(false)
+    ws_a = Leptris::XML::Document.parse("<r><i>1</i>  </r>")
+    ws_b = Leptris::XML::Document.parse("<r><i>1</i></r>")
+    expect(Leptris::XML::Diff.identical?(ws_a, ws_b, ignore_ws: true)).to be(true)
+  end
 end
