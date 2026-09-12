@@ -430,11 +430,10 @@ class Leptris::XML::Node
 
   # Deep copy in a NEW document via Document.copy_of (the single
   # copy seam — comment/PI children and namespaces both survive,
-  # #696/#721/#812; the copier is pool-threaded, ~2.3x Nokogiri).
+  # #696/#721/#812; the copier is pool-threaded, ~2.3x Nokogiri;
+  # non-element kinds rebuild by value — #161).
   def dup
     ensure_alive!
-    elem_ptr = Leptris::XML::FFI.leptris_node_as_element(@c_ptr)
-    raise Leptris::XML::Error, "dup is only supported for element nodes" if elem_ptr.null?
     Leptris::XML::Document.copy_of(self)
   end
   alias_method :clone, :dup

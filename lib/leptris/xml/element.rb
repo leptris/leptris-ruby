@@ -79,7 +79,13 @@ class Leptris::XML::Element < Leptris::XML::Node
       return v
     end
     ensure_alive!
-    Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+    v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+    # Namespace-aware misses (an undeclared prefix never resolves
+    # through in-scope declarations) fall back to the WRITTEN name
+    # — the same flat face #attributes exposes, so a value written
+    # as el["n:x"] reads back through el["n:x"] (#161).
+    return v unless v.nil?
+    attributes[name]&.value
   end
   alias_method :attr, :[]
   alias_method :get_attribute, :[]
@@ -94,7 +100,11 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def key?(name)
     ensure_alive!
-    Leptris::XML::FFI.leptris_element_has_attribute(@c_ptr, name.to_s) != 0
+    return true if Leptris::XML::FFI.leptris_element_has_attribute(
+      @c_ptr, name.to_s) != 0
+    # Same written-name fallback as #[] — the engine lookup is
+    # namespace-aware and misses undeclared prefixes (#161).
+    attributes.key?(name.to_s)
   end
   alias_method :has_attribute?, :key?
 
@@ -194,6 +204,15 @@ class Leptris::XML::Element < Leptris::XML::Node
   def prefix
     ensure_alive!
     Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
+  end
+
+  # The written qualified name — "foo:child" with a prefix, the
+  # bare local name without. The explicit contract behind the
+  # #name/#prefix split: #name answers the local part, the
+  # serialized form uses this spelling (#161).
+  def qualified_name
+    p = prefix
+    p ? "#{p}:#{name}" : name
   end
 
   def prepend_child(node)
