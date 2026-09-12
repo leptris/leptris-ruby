@@ -861,3 +861,15 @@ RSpec.describe "IterationScope: iterparse element lifetime and memoization (lept
     expect(names).to eq(%w[a b])
   end
 end
+
+RSpec.describe "Element#expanded_name (libleptris 1.9.144)" do
+  it "answers local, prefix, and URI in one call" do
+    el = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:c/></r>}).root.children.first
+    expect(el.expanded_name).to eq(local: "c", prefix: "p", namespace_uri: "urn:p")
+  end
+
+  it "answers nil prefix/URI when absent" do
+    el = Leptris::XML::Document.parse("<r><c/></r>").root.children.first
+    expect(el.expanded_name).to eq(local: "c", prefix: nil, namespace_uri: nil)
+  end
+end

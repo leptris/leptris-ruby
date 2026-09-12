@@ -64,6 +64,8 @@ module Leptris
       typedef :pointer, :leptris_relaxng
       typedef :pointer, :leptris_xslt
       typedef :pointer, :leptris_xquery
+      typedef :pointer, :leptris_schematron
+      typedef :pointer, :leptris_diff
       typedef :pointer, :leptris_sax_recorder
       typedef :pointer, :leptris_pull_parser
       typedef :pointer, :leptris_iterparse
@@ -744,7 +746,71 @@ attach_function :leptris_parse_string,
       attach_function :leptris_xquery_eval,
         [:leptris_xquery, :leptris_document, :leptris_element],
         :leptris_xpath_result
+      # External-variable XQuery evaluation (libleptris 1.9.133):
+      # names[i]/selects[i] bind `declare variable $name external`
+      # — each select is an XPath expression in an empty context
+      # (QT3 <param select> semantics), overriding any default
+      # initializer. An external with neither binding nor default
+      # fails evaluation.
+      attach_function :leptris_xquery_eval_params,
+        [:leptris_xquery, :leptris_document, :leptris_element,
+         :pointer, :pointer, :size_t], :leptris_xpath_result
       attach_function :leptris_xquery_free, [:leptris_xquery], :void
+
+      # Schematron validation (libleptris >= 1.9.126 family):
+      # parse once (optionally selecting a PHASE), validate any
+      # number of documents — #validate returns the SVRL report as
+      # a Document; #valid? answers through the SVRL root name.
+      attach_function :leptris_schematron_parse,
+        [:string, :size_t, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_parse_file,
+        [:string, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_parse_phase,
+        [:string, :size_t, :string, :pointer], :leptris_schematron
+      attach_function :leptris_schematron_free,
+        [:leptris_schematron], :void
+      attach_function :leptris_schematron_valid,
+        [:leptris_schematron, :leptris_document], :int
+      attach_function :leptris_schematron_validate,
+        [:leptris_schematron, :leptris_document], :leptris_document
+      attach_function :leptris_schematron_error,
+        [:leptris_schematron], :string
+
+      # Tree diff (libleptris >= 1.9.126 family): equal subtrees
+      # prune in O(1) by the #869 Merkle digest; diverging regions
+      # align via LCS on child digests, then recurse by name.
+      attach_function :leptris_diff,
+        [:leptris_document, :leptris_document, :int, :pointer],
+        :leptris_diff
+      attach_function :leptris_diff_free, [:leptris_diff], :void
+      attach_function :leptris_diff_op_count, [:leptris_diff], :size_t
+      attach_function :leptris_diff_op_type,
+        [:leptris_diff, :size_t], :int
+      attach_function :leptris_diff_op_name,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_path,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_before,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_op_after,
+        [:leptris_diff, :size_t], :string
+      attach_function :leptris_diff_serialize,
+        [:leptris_diff], :pointer
+
+      # One-call expanded name (libleptris 1.9.144): local name +
+      # prefix + resolved namespace URI in a single entry — the
+      # FFI-adapter fan-out read.
+      attach_function :leptris_element_expanded_name,
+        [:leptris_element, :pointer, :pointer, :pointer], :void
+
+      # Versioned XPath evaluation (libleptris lane 15): XPATH_10
+      # keeps the strict 1.0 surface (3.x syntax rejected with
+      # INVALID_ARG); XPATH_31 evaluates the full grammar.
+      attach_function :leptris_xpath_eval_versioned,
+        [:leptris_document, :leptris_element, :string, :int, :pointer],
+        :leptris_xpath_result
+      XPATH_10 = 1 # strict XPath 1.0: the 3.x surface is rejected
+      XPATH_31 = 3 # the full grammar (the default entry's surface)
 
       # One-pass entity pre-scan (libleptris 1.9.62, leptris#745):
       # 1 when the buffer holds a named entity that is not one of

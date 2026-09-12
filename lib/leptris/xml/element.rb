@@ -341,6 +341,30 @@ class Leptris::XML::Element < Leptris::XML::Node
     uri
   end
 
+  # The local name, prefix, and resolved namespace URI in ONE
+  # call (libleptris 1.9.144) — the adapter fan-out read.
+  # Equivalent to #name + #prefix + #namespace, single entry.
+  def expanded_name
+    ensure_alive!
+    local = ::FFI::MemoryPointer.new(:pointer)
+    prefix = ::FFI::MemoryPointer.new(:pointer)
+    uri = ::FFI::MemoryPointer.new(:pointer)
+    Leptris::XML::FFI.leptris_element_expanded_name(
+      @c_ptr, local, prefix, uri)
+    local_ptr = local.read_pointer
+    prefix_ptr = prefix.read_pointer
+    uri_ptr = uri.read_pointer
+    result = {
+      local: local_ptr.read_string,
+      prefix: prefix_ptr.null? ? nil : prefix_ptr.read_string,
+      namespace_uri: uri_ptr.null? ? nil : uri_ptr.read_string,
+    }
+    local.free
+    prefix.free
+    uri.free
+    result
+  end
+
   def namespace_definitions
     return @namespace_definitions if memo_hit?(@namespace_definitions_version)
     ensure_alive!

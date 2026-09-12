@@ -372,7 +372,11 @@ RSpec.describe "v1.3.0 surface" do
 
   it "does not leak EXSLT registration into other documents" do
     plain = Leptris::XML.parse("<r/>")
-    expect { plain.xpath("math:max(//x)") }.to raise_error(Leptris::XML::XPathError)
+    # math:max became an engine built-in (the 1.9.35 math: catalog
+    # slice), so the isolation probe uses a pack-only function that
+    # the engine does not define.
+    expect { plain.xpath(%q{exsl:node-set(//r)}) }
+      .to raise_error(Leptris::XML::XPathError)
   end
 
   it "exposes per-document last_error" do

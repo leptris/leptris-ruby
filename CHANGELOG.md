@@ -5,6 +5,57 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.144.0] - 2026-09-12
+
+### Changed
+
+- **Lockstep with libleptris 1.9.144** (1.9.121 → 1.9.144; audit
+  270 → 289 after attaching 19 new symbols).
+- **`Leptris::XML::Schematron`** — ISO Schematron validation
+  (libleptris 1.9.127/1.9.128; schematron-conformance corpus
+  50/50): `Schematron.parse(schema_xml, phase: nil)` / `.parse_file`
+  compile once, then `#valid?(doc)` answers the boolean and
+  `#validate(doc)` returns the SVRL report as a queryable
+  `Document` (failed-assert / successful-report with @location).
+- **`Leptris::XML::Diff`** — native tree diff (libleptris
+  1.9.127, namespace-aware 1.9.129): `Leptris::XML.diff(a, b,
+  ignore_ws: false)` → `#ops` (`{type:, name:, path:, before:,
+  after:}`; insert/delete/update_text/update_attr with
+  positional `/name[i]` paths) and `#to_s` (the serialized op
+  list).
+- **XQuery external variables** (libleptris 1.9.133) —
+  `XQuery#eval(doc, params)` binds `declare variable $x external`
+  through `leptris_xquery_eval_params` with QT3 `<param select>`
+  semantics (each value is an XPath expression in an empty
+  context); a binding overrides a default initializer, and an
+  empty params hash takes the same lane — the engine decides
+  between the default and failure.
+- **`Element#expanded_name`** (libleptris 1.9.144) —
+  `{local:, prefix:, namespace_uri:}` in one C call.
+- **`#xpath_versioned(expression, version)`** — version-pinned
+  evaluation via `leptris_xpath_eval_versioned`: `:xpath10`
+  keeps the strict 1.0 surface (3.x syntax raises), `:xpath31`
+  evaluates the full grammar. A separate method by design —
+  `#xpath`'s trailing-hash argument is the namespace-binding
+  channel.
+- **`Node#digest(drop_ws:)`** — the #869 content-defined Merkle
+  digest behind diff pruning.
+- **Serialization: `to_xml(..., expand_empty:)`** — the
+  `<e></e>` vs `<e/>` switch at the C seam.
+- Engine arc: the W3C QT3 suite adoption (fn/substring 45/45,
+  fn/contains 41/41, fn/starts-with 43/43, fn/ends-with 34/34,
+  fn/concat 80/80 — int64 integer fidelity keeps
+  `xs:integer('999999999999999999')` exact) and the WHATWG HTML
+  completion arc (frameset, in-head-noscript, character
+  references, comment close forms, **full adoption agency**
+  1.9.137 — `"<h1>a<h2>b</h1>c</h2>"` now yields
+  `<h1>a</h1><h2>b</h2>c` per the spec — initial-mode comment
+  placement, in-head comments, foreign-content integration
+  scopes, in-table clear-stack, script-data escapes, RCDATA/
+  rawtext, numeric-reference end states; html5lib floor
+  928 → 933). #965: relational comparisons no longer swap
+  operands (`10 >= @n` compares as written).
+
 ## [1.9.115.0] - 2026-09-09
 
 ### Changed
