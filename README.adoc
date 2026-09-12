@@ -60,6 +60,21 @@ export LEPTRIS_LIB_PATH=/usr/local/lib/libleptris.dylib
 If Leptris can't find the library at startup, every `parse` call raises
 `LoadError`.
 
+=== Alternative engines: TruffleRuby and JRuby (#160)
+
+The gem ships a plain `ruby`-platform variant alongside the precompiled
+platform gems, so Bundler activates `leptris` on TruffleRuby and JRuby
+(the binding is FFI-based — no MRI C extension anywhere). Those engines
+filter out precompiled platform gems at activation and always resolve
+the `ruby` variant, which does not vendor the native library:
+
+1. Install `libleptris` on the host — build from source (above) or set
+   `LEPTRIS_LIB_PATH=/path/to/libleptris.{so,dylib}`.
+2. `gem install leptris` (or `bundle install`) — activation succeeds
+   like on MRI, and FFI loads the system library at require time.
+
+The startup `LoadError` names this remedy when the library is missing.
+
 == Parsing
 
 The top-level entry point is `Leptris::XML`. Parse a string or an IO:
