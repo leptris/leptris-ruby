@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `to_xml(indent:)` was already documented in the README
     serialization section — no change needed.
 
+### Added
+
+- **XPATH_FUNCTION result mirror** (PR #127, libleptris TODO 07
+  lane): the type-4 constant is attached and `wrap_xpath_result`
+  raises an explicit, actionable error when an XPath 3.0 function
+  item would cross the FFI boundary (`concat#2`) instead of the
+  generic "unknown xpath result type 4".
+
 ## [1.9.144.0] - 2026-09-12
 
 ### Changed
