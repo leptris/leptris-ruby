@@ -5,6 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.144.1] - 2026-09-12
+
+### Fixed
+
+- **#161 (DOM parity for engine porters)**:
+  - `Node#dup` works for every node kind — text, comment, CDATA,
+    and PI rebuild by value through the document factories behind
+    the same `Document.copy_of` seam (elements keep the C deep
+    copy); previously `dup` raised "only supported for element
+    nodes".
+  - `Element#[]` and `#key?` read back qualified attribute names
+    the namespace-aware engine lookup misses (a value written as
+    `el["n:x"] = "9"` with an undeclared prefix now answers
+    `el["n:x"]` — the written-name face `#attributes` exposes);
+    declared-prefix reads are unchanged.
+  - `Element#qualified_name` — the written spelling ("p:c" /
+    "c") behind the `#name`/`#prefix` split.
+  - `to_xml(indent:)` was already documented in the README
+    serialization section — no change needed.
+
 ## [1.9.144.0] - 2026-09-12
 
 ### Changed

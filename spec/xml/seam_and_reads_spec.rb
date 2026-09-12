@@ -873,3 +873,47 @@ RSpec.describe "Element#expanded_name (libleptris 1.9.144)" do
     expect(el.expanded_name).to eq(local: "c", prefix: nil, namespace_uri: nil)
   end
 end
+
+RSpec.describe "leptris-ruby#161: DOM-parity gaps for engine porters" do
+  it "dups every node kind by value — not elements only" do
+    doc = Leptris::XML::Document.parse(
+      "<r>text<!-- note --><![CDATA[cd]]><?pi data?><b/></r>")
+    text, comment, cdata, pi, _element = doc.root.children.to_a
+    text_dup = text.dup
+    expect(text_dup).to be_a(Leptris::XML::Text)
+    expect(text_dup.content).to eq("text")
+    expect(text_dup.document).not_to eq(doc)
+    comment_dup = comment.dup
+    expect(comment_dup).to be_a(Leptris::XML::Comment)
+    expect(comment_dup.content).to eq(" note ")
+    cdata_dup = cdata.dup
+    expect(cdata_dup).to be_a(Leptris::XML::CDATA)
+    expect(cdata_dup.content).to eq("cd")
+    pi_dup = pi.dup
+    expect(pi_dup).to be_a(Leptris::XML::ProcessingInstruction)
+    expect(pi_dup.name).to eq("pi")
+    expect(pi_dup.content).to eq("data")
+  end
+
+  it "reads back qualified attribute names written by []=" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:m="urn:m"/>})
+    el = doc.create_element("a")
+    doc.root.add_child(el)
+    el["n:x"] = "9"
+    el["m:val"] = "1"
+    expect(el["n:x"]).to eq("9")
+    expect(el["m:val"]).to eq("1")
+    expect(el.key?("n:x")).to be(true)
+    expect(el.key?("nope:x")).to be(false)
+    expect(el.attributes.keys).to include("n:x", "m:val")
+  end
+
+  it "answers qualified_name — the written spelling #name splits" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:c/><c/></r>})
+    prefixed, bare = doc.root.children.to_a
+    expect(prefixed.qualified_name).to eq("p:c")
+    expect(bare.qualified_name).to eq("c")
+    expect(prefixed.name).to eq("c")
+    expect(prefixed.prefix).to eq("p")
+  end
+end

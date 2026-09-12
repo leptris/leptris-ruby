@@ -119,17 +119,37 @@ class Leptris::XML::Document
     wrap(raw)
   end
 
-  # Deep copy of +element+ as the root of a NEW document — the one
-  # authority behind Node#dup / Element#dup and the indent-unit
-  # path (the C copy keeps every child kind and namespace since
-  # libleptris 1.9.76 — #696/#721/#812). The returned tree is
-  # detached from the original and fully navigable.
-  def self.copy_of(element)
+  # Deep copy of +node+ in a NEW document — the one authority
+  # behind Node#dup / Element#dup and the indent-unit path.
+  # Elements deep-copy through the C copier (every child kind and
+  # namespace survives, #696/#721/#812); every other node kind
+  # rebuilds by value through this document's factories — their
+  # entire state is the payload the factory takes (#161). The
+  # returned node is detached from the original and fully usable.
+  def self.copy_of(node)
     new_doc = create
-    copy = Leptris::XML::FFI.leptris_element_copy(element.c_ptr, new_doc.c_ptr)
+    return rebuild_node(node, new_doc) unless node.element?
+    copy = Leptris::XML::FFI.leptris_element_copy(node.c_ptr, new_doc.c_ptr)
     raise Leptris::XML::Error, "leptris_element_copy failed" if copy.null?
     new_doc.root = Leptris::XML::Node.wrap(copy, new_doc)
   end
+
+  def self.rebuild_node(node, new_doc)
+    case node.type
+    when Leptris::XML::FFI::NODE_TEXT
+      new_doc.create_text_node(node.content)
+    when Leptris::XML::FFI::NODE_CDATA
+      new_doc.create_cdata(node.content)
+    when Leptris::XML::FFI::NODE_COMMENT
+      new_doc.create_comment(node.content)
+    when Leptris::XML::FFI::NODE_PI
+      new_doc.create_processing_instruction(node.name, node.content)
+    else
+      raise Leptris::XML::Error,
+        "dup is not supported for #{node.class} nodes"
+    end
+  end
+  private_class_method :rebuild_node
 
   # Convert a raw LeptrisDocument pointer into a Ruby Document with safe
   # GC lifetime management. The finalizer captures the raw address
