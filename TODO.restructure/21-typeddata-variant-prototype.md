@@ -8,6 +8,10 @@ in verification order:
 - [x] Minimal C ext (one file): a TypedData class holding
       (pointer, document-ref) — prototype built and measured
       (ext + bench preserved under /tmp/typedproto, /tmp/bench_typed.rb).
+- [x] NOTE (2026-09-12): /tmp was wiped — the prototype ext and
+      bench under /tmp/typedproto, /tmp/bench_typed.rb are GONE.
+      The measurements below stand (recorded here); the build
+      phase rebuilds the ext properly under ext/ anyway.
 - [x] Measured (100k holders, GC.settled RSS deltas):
       FFI::Pointer-backed 154 B/node vs TypedData 40 B/node —
       **114 B/node saved**, ~40% of the wrapper layer (#147's
