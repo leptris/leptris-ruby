@@ -46,10 +46,28 @@ class Leptris::XML::XQuery
   # FLWOR results arrive as the sequence channel — read them through
   # an aggregate until the engine materializes readable sequence
   # items (same caveat as the XPath for-return subset).
-  def eval(doc_or_element)
+  # +params+ binds external variables (libleptris 1.9.133): each
+  # value is an XPath expression evaluated in an empty context
+  # (QT3 <param select> semantics) — {"x" => "21 * 2"} binds
+  # `declare variable $x external`. A binding overrides the
+  # declaration's default initializer; an external with neither
+  # fails evaluation. An empty params hash takes the same lane —
+  # the engine decides between default initializer and failure.
+  def eval(doc_or_element, params = nil)
     context = Leptris::XML::EvaluationContext.of(doc_or_element)
-    result_ptr = Leptris::XML::FFI.leptris_xquery_eval(
-      @handle, context.document.c_ptr, context.context_node_ptr)
+    result_ptr =
+      if params
+        names, name_anchors = Leptris::XML::CStringArray.to_c(
+          params.keys.map(&:to_s))
+        selects, select_anchors = Leptris::XML::CStringArray.to_c(
+          params.values.map(&:to_s))
+        Leptris::XML::FFI.leptris_xquery_eval_params(
+          @handle, context.document.c_ptr, context.context_node_ptr,
+          names, selects, params.size)
+      else
+        Leptris::XML::FFI.leptris_xquery_eval(
+          @handle, context.document.c_ptr, context.context_node_ptr)
+      end
     if result_ptr.null?
       raise Leptris::XML::XPathError,
         Leptris::XML::FFI.leptris_last_error.to_s

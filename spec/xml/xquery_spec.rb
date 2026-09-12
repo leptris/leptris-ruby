@@ -129,3 +129,23 @@ end
       .to eq("uno")
   end
 end
+
+RSpec.describe "XQuery external variables (libleptris 1.9.133)" do
+  it "binds params as XPath expressions (QT3 select semantics)" do
+    q = Leptris::XML::XQuery.parse("declare variable $x external; $x * 2")
+    expect(q.eval(Leptris::XML::Document.parse("<r/>"), { "x" => "21" })).to eq(42.0)
+  end
+
+  it "overrides a default initializer and fails without either" do
+    doc = Leptris::XML::Document.parse("<r/>")
+    q = Leptris::XML::XQuery.parse(
+      "declare variable $x external := 5; $x")
+    expect(q.eval(doc, { "x" => "9" }).map(&:content)).to eq(["9"])
+    expect(q.eval(doc).map(&:content)).to eq(["5"])
+    expect(q.eval(doc, {}).map(&:content)).to eq(["5"])
+    bare = Leptris::XML::XQuery.parse(
+      "declare variable $x external; $x")
+    expect { bare.eval(doc) }.to raise_error(Leptris::XML::XPathError)
+    expect { bare.eval(doc, {}) }.to raise_error(Leptris::XML::XPathError)
+  end
+end

@@ -85,6 +85,27 @@ module Leptris::XML::Searchable
     at_xpath(expr)
   end
 
+  # Version-pinned evaluation (libleptris lane 15,
+  # leptris_xpath_eval_versioned): :xpath10 keeps the strict XPath
+  # 1.0 surface — 3.x syntax (arrow, bang, lookup, let, inline
+  # functions, string templates) raises; :xpath31 evaluates the
+  # full grammar (identical to #xpath's default entry). A separate
+  # method by design: #xpath's trailing-hash argument is the
+  # namespace-binding channel, and a declared keyword would
+  # capture it.
+  def xpath_versioned(expression, version)
+    doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
+    context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
+    result_ptr = Leptris::XML::FFI.leptris_xpath_eval_versioned(
+      doc_ptr, context_ptr, expression,
+      Leptris::XML::Searchable.xpath_version_code(version), nil)
+    if result_ptr.null?
+      raise Leptris::XML::XPathError,
+        Leptris::XML::FFI.leptris_last_error.to_s
+    end
+    Leptris::XML::Searchable.wrap_xpath_result(document, result_ptr)
+  end
+
   protected
 
   # Evaluates against a caller-owned namespace binding set; the
@@ -92,6 +113,21 @@ module Leptris::XML::Searchable
   def xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
     Leptris::XML::FFI.with_ns_set(ns) do |set|
       Leptris::XML::FFI.leptris_xpath_eval_ns(doc_ptr, context_ptr, expr, set)
+    end
+  end
+
+
+  # Version pin for xpath_versioned: :xpath10
+  # keeps the strict XPath 1.0 surface (3.x syntax — arrow, bang,
+  # lookup, let, inline functions — raises); :xpath31 evaluates the
+  # full grammar (identical to the default entry).
+  def self.xpath_version_code(version)
+    case version
+    when :xpath10, "1.0" then Leptris::XML::FFI::XPATH_10
+    when :xpath31, "3.1" then Leptris::XML::FFI::XPATH_31
+    else
+      raise ArgumentError,
+        "version must be :xpath10 or :xpath31, got #{version.inspect}"
     end
   end
 

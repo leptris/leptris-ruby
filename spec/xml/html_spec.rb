@@ -176,8 +176,12 @@ RSpec.describe "WHATWG foreign content and table synthesis (libleptris 1.9.119-1
       .at_css("table").children.select(&:element?).map(&:name)).to eq(%w[tr])
   end
 
-  it "pops headings through the nearest heading of any name" do
+  it "pops headings through the nearest heading of any name (full adoption agency shape, 1.9.137)" do
+    # The full WHATWG adoption agency (1.9.137) reworks the
+    # simplified 1.9.121 shape: h1's end pops both headings, h2
+    # reopens as a clone carrying b, the stray </h2> closes it,
+    # and c flows at body level.
     expect(Leptris::XML.parse_html("<h1>a<h2>b</h1>c</h2>", mode: :whatwg)
-      .at_css("body").inner_html).to eq("<h1>a<h2>b</h2>c</h1>")
+      .at_css("body").inner_html).to eq("<h1>a</h1><h2>b</h2>c")
   end
 end

@@ -361,3 +361,22 @@ RSpec.describe "attribute-node results" do
     expect(d.at_xpath("//item/@id").value).to eq("7")
   end
 end
+
+RSpec.describe "xpath version pin (libleptris lane 15)" do
+  it "evaluates the full 3.1 grammar under :xpath31" do
+    doc = Leptris::XML::Document.parse("<r><a>1</a></r>")
+    expect(doc.xpath_versioned("//a => count()", :xpath31)).to eq(1.0)
+  end
+
+  it "rejects 3.x syntax under :xpath10, accepts classic 1.0" do
+    doc = Leptris::XML::Document.parse("<r><a>1</a></r>")
+    expect { doc.xpath_versioned("//a => count()", :xpath10) }
+      .to raise_error(Leptris::XML::XPathError)
+    expect(doc.xpath_versioned("count(//a)", :xpath10)).to eq(1.0)
+  end
+
+  it "raises ArgumentError for an unknown version" do
+    expect { Leptris::XML::Document.parse("<r/>").xpath_versioned("count(//r)", :bogus) }
+      .to raise_error(ArgumentError, /:xpath10 or :xpath31/)
+  end
+end

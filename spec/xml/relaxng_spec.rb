@@ -78,3 +78,20 @@ RSpec.describe Leptris::XML::RelaxNG do
     }.to raise_error(Leptris::XML::Error, /cannot open/)
   end
 end
+
+RSpec.describe "Leptris::XML::Schematron (libleptris 1.9.144 family)" do
+  SCH = '<schema xmlns="http://purl.oclc.org/dsdl/schematron"><pattern><rule context="item"><assert test="@id">item needs id</assert></rule></pattern></schema>'.freeze
+
+  it "validates and answers valid? both ways" do
+    sch = Leptris::XML::Schematron.parse(SCH)
+    expect(sch.valid?(Leptris::XML::Document.parse("<r><item id='1'/></r>"))).to be(true)
+    expect(sch.valid?(Leptris::XML::Document.parse("<r><item/></r>"))).to be(false)
+  end
+
+  it "returns the SVRL report as a queryable Document" do
+    sch = Leptris::XML::Schematron.parse(SCH)
+    svrl = sch.validate(Leptris::XML::Document.parse("<r><item/></r>"))
+    expect(svrl).to be_a(Leptris::XML::Document)
+    expect(svrl.at_xpath("//*[local-name()='failed-assert']")).not_to be_nil
+  end
+end

@@ -23,6 +23,8 @@ module Leptris
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
     autoload :EvaluationContext, "leptris/xml/evaluation_context"
+    autoload :Schematron, "leptris/xml/schematron"
+    autoload :Diff, "leptris/xml/diff"
     autoload :IterationScope, "leptris/xml/iteration_scope"
     autoload :ResultText, "leptris/xml/result_text"
     autoload :ResultAttr, "leptris/xml/result_attr"
@@ -37,6 +39,14 @@ module Leptris
     def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
       Document.parse(xml_or_io, options: options, readonly: readonly,
                      recover: recover)
+    end
+
+    # Tree diff between two documents: equal subtrees prune in
+    # O(1) by content digest; diverging regions align by LCS.
+    # +ignore_ws+ treats whitespace-only text nodes as absent.
+    def self.diff(document_a, document_b, ignore_ws: false)
+      Leptris::XML::Diff.compute(document_a, document_b,
+                                 ignore_ws: ignore_ws)
     end
 
     # Does +string+ contain a named entity reference that is not
