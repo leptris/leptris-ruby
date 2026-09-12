@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ignore_ws: false)` → `#ops` (`{type:, name:, path:, before:,
   after:}`; insert/delete/update_text/update_attr with
   positional `/name[i]` paths) and `#to_s` (the serialized op
-  list).
+  list); `Diff.identical?(a, b, ignore_ws:)` answers the boolean
+  fast path.
 - **XQuery external variables** (libleptris 1.9.133) —
   `XQuery#eval(doc, params)` binds `declare variable $x external`
   through `leptris_xquery_eval_params` with QT3 `<param select>`
