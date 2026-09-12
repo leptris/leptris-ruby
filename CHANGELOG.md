@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   item would cross the FFI boundary (`concat#2`) instead of the
   generic "unknown xpath result type 4".
 
+### Documentation
+
+- **#160**: README "Alternative engines" section — the plain
+  `ruby`-platform gem ships with every release, so TruffleRuby and
+  JRuby activate leptris via FFI; the section documents the
+  system-library / `LEPTRIS_LIB_PATH` path those engines need.
+
 ## [1.9.144.0] - 2026-09-12
 
 ### Changed
