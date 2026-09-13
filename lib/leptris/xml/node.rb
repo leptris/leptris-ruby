@@ -3,6 +3,43 @@
 class Leptris::XML::Node
   attr_reader :c_ptr
 
+  # Handle-variant resolution (TODO.restructure/21, #147 option B):
+  # LEPTRIS_WRAPPER=typed selects the TypedPtr RVALUE-embedded
+  # handle — 114 B/node saved on held, walked documents — where the
+  # default stores the 88 B FFI::Pointer per node. Resolved once at
+  # load; the compiled TypedPtr bundle ships in platform gems and
+  # local builds, and an absent bundle (ruby-platform gem without a
+  # build) falls back to ffi handles with a warning. This require is
+  # a sanctioned exception: a compiled .bundle cannot go through
+  # autoload.
+  TYPED_HANDLE =
+    if ENV["LEPTRIS_WRAPPER"] == "typed"
+      begin
+        require "leptris/xml/typed_ptr"
+        true
+      rescue LoadError
+        warn "leptris: LEPTRIS_WRAPPER=typed but the typed_ptr bundle " \
+             "is unavailable; using ffi handles"
+        false
+      end
+    else
+      false
+    end
+  private_constant :TYPED_HANDLE
+
+  # The one conversion seam: incoming engine pointers (FFI::Pointer
+  # values returned from C) become whichever handle the variant
+  # stores. Both respond to #address (cache keys), == (identity),
+  # and marshal into FFI :pointer parameters (the FFI::Pointer
+  # natively, TypedPtr via #to_ptr).
+  def self.handle_for(c_ptr, document)
+    if TYPED_HANDLE
+      Leptris::XML::TypedPtr.create(c_ptr.address, document)
+    else
+      c_ptr
+    end
+  end
+
   # Iterparse-yielded elements are owned by an IterationScope (the
   # internal lifetime/memoization authority) — the public #document
   # answers nil for them, per the documented contract.
@@ -33,7 +70,7 @@ class Leptris::XML::Node
   # so the cache lookup is a guaranteed miss — skip straight to
   # construction and store (identity still survives attach).
   def self.wrap_fresh(c_ptr, document, node_type)
-    node = construct(c_ptr, document, nil, node_type, nil)
+    node = construct(handle_for(c_ptr, document), document, nil, node_type, nil)
     if document
       cache = document.wrapper_cache
       cache[c_ptr.address] = node
@@ -57,7 +94,7 @@ class Leptris::XML::Node
     end
 
     node_type ||= Leptris::XML::FFI.leptris_node_get_type(c_ptr)
-    node = construct(c_ptr, document, parent, node_type, result_value)
+    node = construct(handle_for(c_ptr, document), document, parent, node_type, result_value)
 
     cache[address] = node if document
     node

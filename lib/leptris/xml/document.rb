@@ -213,7 +213,9 @@ class Leptris::XML::Document
     kids = doc_node.children.to_a
     root_ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
     return kids if root_ptr.null?
-    return kids if kids.any? { |child| child.c_ptr == root_ptr }
+    # Address comparison — handle variants (ffi/typed) carry no
+    # cross-type #==.
+    return kids if kids.any? { |child| child.c_ptr.address == root_ptr.address }
     root = Leptris::XML::Node.wrap(root_ptr, self)
     # A replaced root stays in the C chain until another document
     # mutation refreshes it — the chain's element slots other than

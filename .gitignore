@@ -46,3 +46,6 @@ Thumbs.db
 
 # RSpec example-status artifact
 /.rspec_status
+ext/leptris/typed_ptr/*.o
+ext/leptris/typed_ptr/*.bundle
+ext/leptris/typed_ptr/Makefile
