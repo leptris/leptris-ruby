@@ -215,8 +215,35 @@ class Leptris::XML::Element < Leptris::XML::Node
     p ? "#{p}:#{name}" : name
   end
 
+  # Cross-document and cross-scope adoption (#178 ask 1): the
+  # engine's attach entries move a subtree but do not lift the
+  # source's in-scope namespace declarations, so serialized output
+  # can carry undeclared prefixes. Re-declares on +node+ everything
+  # from its in-scope set that +target_scope+ (the attach target's
+  # in-scope map) does not already resolve identically — the
+  # declarations ride the moved element, staying local to the
+  # adopted subtree. Call BEFORE attaching: the source scope is
+  # read through the node's current ancestors. Identical scopes
+  # (the common same-document move) add nothing.
+  def self.lift_namespaces_for_adoption(node, target_scope)
+    return unless node.is_a?(Leptris::XML::Element)
+    # Declarations the node already carries (its own definitions —
+    # preserved by the C copy and by moves) ride it as-is; lifting
+    # must not duplicate them, only what came from ANCESTORS.
+    own = node.namespace_definitions.each_with_object({}) do |ns, h|
+      h[ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns"] = ns.href
+    end
+    node.namespaces.each do |key, uri|
+      next if target_scope[key] == uri || own[key] == uri
+      prefix = key.start_with?("xmlns:") ? key.delete_prefix("xmlns:") : nil
+      node.add_namespace_definition(prefix, uri)
+    end
+    nil
+  end
+
   def prepend_child(node)
     ensure_writable!
+    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
     node
@@ -224,6 +251,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def add_next_sibling(node)
     ensure_writable!
+    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
     node
@@ -231,6 +259,7 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def add_previous_sibling(node)
     ensure_writable!
+    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
     node
@@ -306,6 +335,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
+      Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr))
       node_or_markup
