@@ -416,6 +416,19 @@ class Leptris::XML::Document
     self
   end
 
+  # Append a document-level comment (epilog position, after the
+  # root element) — the add_pi twin (libleptris 1.9.160, #1032;
+  # parsed document-level comments round-tripped since 1.9.3/#578,
+  # this is the writer). Returns self.
+  def add_comment(content)
+    witness = Leptris::XML::FFI.leptris_document_add_comment(
+      @c_ptr, content.to_s)
+    raise Leptris::XML::Error,
+      "leptris_document_add_comment failed" if witness.null?
+    @version += 1
+    self
+  end
+
   # Marks the document read-only: tree mutations raise
   # Leptris::XML::ReadOnlyError, and read paths memoize aggressively
   # (names, content, children, attributes) since they can never go

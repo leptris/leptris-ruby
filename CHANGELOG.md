@@ -5,7 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.156.2] - 2026-09-13
+## [1.9.160.0] - 2026-09-14
+
+### Changed
+
+- **Lockstep with libleptris 1.9.160** (1.9.156 → 1.9.160; audit
+  290 → 291): the lane-18 engine performance arc — one TLS read
+  per document resolution (under nearly every API call; 1.9.158),
+  inline tree-edge encoding and register promotion in the parse
+  loop, inline int32 edge codecs, document-free back to
+  O(this document) (1.9.159), split_qname colon gate, shared edge
+  tables for parent reads, name carve, one-strlen attribute find
+  (1.9.160).
+- **`Document#add_comment(content)`** (libleptris 1.9.160, #1032):
+  the document-level comment writer (epilog append, the #add_pi
+  twin) — parsed document-level comments round-tripped since
+  1.9.3; this closes the creation gap.
+- Fixed a duplicate `leptris_element_create_child` attachment
+  left by the stacked 1.9.156 lockstep commits (audit silently
+  deduplicated; now clean at 291/291).
+\n## [1.9.156.2] - 2026-09-13
 
 ### Added
 

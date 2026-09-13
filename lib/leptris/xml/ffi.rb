@@ -220,6 +220,10 @@ attach_function :leptris_parse_string,
         [:leptris_document, :string, :size_t], :leptris_node_ref
       attach_function :leptris_document_add_pi,
         [:leptris_document, :string, :string], :pointer
+      # Document-level comment writer (libleptris 1.9.160, #1032):
+      # epilog append, the add_pi shape.
+      attach_function :leptris_document_add_comment,
+        [:leptris_document, :string], :leptris_node_ref
       # Document-level comments (libleptris 1.9.3, #578): parsed
       # <!-- ... --> outside the root, prolog then epilog, in
       # document order. Read-only surface (no add_comment yet).
@@ -435,8 +439,6 @@ attach_function :leptris_parse_string,
 
       attach_function :leptris_element_create,
         [:leptris_document, :string], :leptris_element
-      attach_function :leptris_element_create_child,
-        [:leptris_element, :string], :leptris_element
       attach_function :leptris_element_set_name,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_set_text,
