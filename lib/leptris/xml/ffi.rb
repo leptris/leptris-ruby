@@ -435,6 +435,8 @@ attach_function :leptris_parse_string,
 
       attach_function :leptris_element_create,
         [:leptris_document, :string], :leptris_element
+      attach_function :leptris_element_create_child,
+        [:leptris_element, :string], :leptris_element
       attach_function :leptris_element_set_name,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_set_text,
