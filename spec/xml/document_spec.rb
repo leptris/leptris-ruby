@@ -478,3 +478,18 @@ RSpec.describe "Element#create_child (libleptris 1.9.153)" do
     expect(doc.root.children.first.namespace.href).to eq("urn:p")
   end
 end
+
+RSpec.describe "Document#add_comment (libleptris 1.9.160, upstream #1032)" do
+  it "appends a document-level comment in the epilog and serializes it" do
+    doc = Leptris::XML::Document.parse("<r/>")
+    expect(doc.add_comment("trailing note")).to be(doc)
+    expect(doc.to_xml).to eq(%q{<?xml version="1.0"?><r/><!--trailing note-->})
+  end
+
+  it "round-trips with parsed document-level comments" do
+    doc = Leptris::XML::Document.parse("<r/><!--epilog--><?pi d?>")
+    doc.add_comment("added")
+    comments = doc.children.select(&:comment?)
+    expect(comments.map(&:content)).to eq(%w[epilog added])
+  end
+end
