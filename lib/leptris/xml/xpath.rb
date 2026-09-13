@@ -18,28 +18,44 @@ class Leptris::XML::XPath
 
   attr_reader :expression
 
-  def self.compile(expression)
+  # +version+ (#183, mirroring leptris-py#105): nil compiles the
+  # full-grammar expression (the default); :xpath10 / "1.0" pins
+  # the strict XPath 1.0 surface. Validated at the boundary.
+  def self.compile(expression, version: nil)
     raw = Leptris::XML::FFI.leptris_xpath_compile(expression.to_s)
     if raw.null?
       raise Leptris::XML::XPathError,
         "invalid expression: #{Leptris::XML::FFI.leptris_last_error}"
     end
-    new(expression.to_s, CompiledHandle.new(raw))
+    version_code =
+      Leptris::XML::Searchable.xpath_version_code(version) if version
+    new(expression.to_s, CompiledHandle.new(raw), version_code)
   end
 
-  def initialize(expression, handle)
+  def initialize(expression, handle, version_code = nil)
     @expression = expression
     @handle = handle
+    @version_code = version_code
   end
 
   # Evaluates against +doc_or_element+. An optional trailing hash of
   # namespace bindings ("prefix" => uri) routes the evaluation through
   # the namespace-bound path, matching Searchable#xpath semantics.
+  # A compiled version pin routes through the engine's versioned
+  # entry instead of the compiled handle — there is no compiled
+  # versioned lane yet (engine gap), so the strict-1.0 surface is
+  # enforced per evaluation over the stored expression.
   def eval(doc_or_element, ns = nil)
     context = Leptris::XML::EvaluationContext.of(doc_or_element)
     document = context.document
     result_ptr =
-      if ns && !ns.empty?
+      if @version_code
+        raise ArgumentError,
+          "version: cannot be combined with namespace bindings "           "(the versioned engine entry takes no ns set yet)" if ns && !ns.empty?
+        Leptris::XML::FFI.leptris_xpath_eval_versioned(
+          document.c_ptr, context.context_node_ptr,
+          @expression, @version_code, nil)
+      elsif ns && !ns.empty?
         Leptris::XML::FFI.with_ns_set(ns) do |set|
           Leptris::XML::FFI.leptris_xpath_compiled_eval_ns(
             @handle, document.c_ptr, context.context_node_ptr, set)

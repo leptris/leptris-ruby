@@ -385,3 +385,51 @@ RSpec.describe "xpath version pin (libleptris lane 15)" do
       .to raise_error(ArgumentError, /:xpath10 or :xpath31/)
   end
 end
+
+RSpec.describe "XPath version selection (leptris-ruby#183, mirroring leptris-py#105)" do
+  let(:doc) do
+    Leptris::XML::Document.parse(
+      %q{<r xmlns:x="urn:x" xmlns:version="urn:v"><x:t id="1"/><version:t/></r>})
+  end
+
+  it "accepts the strict 1.0 surface via version:" do
+    expect(doc.xpath("count(//x:t)", version: "1.0")).to eq(1.0)
+    expect(doc.at_xpath("//x:t[1]/@id", version: "1.0").value).to eq("1")
+  end
+
+  it "rejects 3.x syntax under 1.0 and evaluates it under 3.1" do
+    expect { doc.xpath("//x:t ! @id", version: "1.0") }
+      .to raise_error(Leptris::XML::XPathError)
+    expect(doc.xpath("//x:t ! string(@id)", version: "3.1").map(&:content)).to eq(["1"])
+  end
+
+  it "raises at the boundary for unknown versions" do
+    expect { doc.xpath("//t", version: "2.0") }
+      .to raise_error(ArgumentError, /unknown XPath version "2.0"/)
+  end
+
+  it "keeps the namespace channels intact — string, symbol, and a prefix literally named version" do
+    expect(doc.xpath("//x:t", { "x" => "urn:x" }).size).to eq(1)
+    expect(doc.xpath("//x:t", { x: "urn:x" }).size).to eq(1)
+    expect(doc.xpath("//version:t", { version: "urn:v" }).size).to eq(1)
+  end
+
+  it "refuses version combined with namespace bindings (engine gap)" do
+    expect { doc.xpath("//x:t", "x" => "urn:x", version: "1.0") }
+      .to raise_error(ArgumentError, /cannot be combined with namespace bindings/)
+  end
+
+  it "compiles with a version pin" do
+    strict = Leptris::XML::XPath.compile("//x:t[1]/@id", version: "1.0")
+    expect(strict.eval(doc).first.value).to eq("1")
+    bang = Leptris::XML::XPath.compile("//x:t ! string(@id)", version: "3.1")
+    expect(bang.eval(doc).map(&:content)).to eq(["1"])
+    expect { Leptris::XML::XPath.compile("//x:t ! @id", version: "1.0").eval(doc) }
+      .to raise_error(Leptris::XML::XPathError)
+  end
+
+  it "refuses version on css" do
+    expect { doc.css("t", version: "1.0") }
+      .to raise_error(ArgumentError, /XPath-only/)
+  end
+end

@@ -5,7 +5,27 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.156.1] - 2026-09-13
+## [1.9.156.2] - 2026-09-13
+
+### Added
+
+- **#183: XPath version selection** (mirroring leptris-py#105):
+  `xpath`/`at_xpath` take a trailing `version:` selector —
+  `doc.xpath("count(//b)", version: "1.0")` evaluates through the
+  strict 1.0 engine lane (3.x syntax raises), `"3.1"` the full
+  grammar; `XPath.compile(expr, version:)` pins compiled
+  expressions the same way. Carried positionally — a declared
+  keyword is impossible without breaking the namespace-binding
+  hash channel (Ruby converts a trailing String-keyed hash into
+  keywords the moment one exists), so a `:version` key whose
+  VALUE is a version selector ("1.0"/"3.1"/:xpath10/:xpath31)
+  selects the channel; dotted-number values raise at the boundary
+  with the valid values; any other value stays a prefix binding
+  (a prefix literally named "version" keeps working). `version:`
+  combined with namespace bindings raises (the versioned engine
+  entry takes no ns set yet), as does `version:` on css. The nil
+  default keeps the existing eval path verbatim.
+\n## [1.9.156.1] - 2026-09-13
 
 ### Added
 
