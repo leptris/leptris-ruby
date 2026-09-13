@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.156.1] - 2026-09-13
+
+### Added
+
+- **`Element#create_child(name)`** — the fused create+append
+  (libleptris 1.9.153 `leptris_element_create_child`, audit 290)
+  landed on main seconds after the 1.9.156.0 platform gems were
+  built and published, so that release ships without the binding
+  face. This patch release carries it: one C call, tree semantics
+  identical to `create_element` + `add_child`, the builder-shape
+  single call.
+
 ## [1.9.156.0] - 2026-09-13
 
 ### Security/correctness
