@@ -30,6 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one-shot medians (n=9, the CLI-workload shape where YJIT never
   amortizes).
 
+## [1.9.156.0] - 2026-09-13
+
+### Changed
+
+- **Lockstep with libleptris 1.9.156** (1.9.152 → 1.9.156; audit
+  290/290 — new symbol `leptris_element_create_child` attached):
+  pulls in the leptris/leptris#1038 heap-corruption fix — stale
+  root-doc map entries (pool-fallback creates + XInclude
+  adopted-child free) resolved freed documents after address
+  recycling, corrupting the heap in ~5-10% of long-running
+  processes; entries now die with their document. 1.9.152 and
+  1.9.152.1 shipped inside the affected range (1.9.151-154).
+  Also rides: WHATWG `<template>` cgroup drops and `</template>`
+  pop-through (html5lib corpus 1200 → 1206), frame/frameset
+  in-template drops (1.9.154), and the lane-18 DOM perf rows.
+
 ## [1.9.152.0] - 2026-09-13
 
 ### Changed
