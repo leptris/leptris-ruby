@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
 module Leptris::XML::Searchable
+  # Values that make a :version key the version channel (#183,
+  # mirroring leptris-py#105); anything else is a namespace prefix.
+  VERSION_SELECTORS = ["1.0", "3.1", :xpath10, :xpath31].freeze
+
   def xpath(*paths)
-    handler, ns, _vars = parse_search_args(paths)
+    handler, ns, version = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
 
@@ -10,7 +14,16 @@ module Leptris::XML::Searchable
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 
     result_ptr =
-      if ns && !ns.empty?
+      if version
+        if ns && !ns.empty?
+          raise ArgumentError,
+            "version: cannot be combined with namespace bindings " \
+            "(the versioned engine entry takes no ns set yet)"
+        end
+        Leptris::XML::FFI.leptris_xpath_eval_versioned(
+          doc_ptr, context_ptr, expr,
+          Leptris::XML::Searchable.xpath_version_code(version), nil)
+      elsif ns && !ns.empty?
         xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
       else
         Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
@@ -24,7 +37,7 @@ module Leptris::XML::Searchable
   end
 
   def at_xpath(*paths)
-    handler, ns, _vars = parse_search_args(paths)
+    handler, ns, version = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
     expr = paths.join(" | ")
 
@@ -32,7 +45,16 @@ module Leptris::XML::Searchable
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 
     result_ptr =
-      if ns && !ns.empty?
+      if version
+        if ns && !ns.empty?
+          raise ArgumentError,
+            "version: cannot be combined with namespace bindings " \
+            "(the versioned engine entry takes no ns set yet)"
+        end
+        Leptris::XML::FFI.leptris_xpath_eval_versioned(
+          doc_ptr, context_ptr, expr,
+          Leptris::XML::Searchable.xpath_version_code(version), nil)
+      elsif ns && !ns.empty?
         xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
       else
         Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
@@ -64,8 +86,9 @@ module Leptris::XML::Searchable
   alias_method :%, :at
 
   def css(*args)
-    handler, ns, _ = parse_search_args(args)
+    handler, ns, version = parse_search_args(args)
     raise ArgumentError, "namespace bindings not supported in css" if ns && !ns.empty?
+    raise ArgumentError, "version: is XPath-only" if version
     raise ArgumentError, "custom CSS handlers not supported" if handler
     # Nokogiri semantics: css is receiver-relative — absolute "//"
     # from a Document, descendant ".//" from elements and fragments.
@@ -76,8 +99,9 @@ module Leptris::XML::Searchable
   end
 
   def at_css(*args)
-    handler, ns, _ = parse_search_args(args)
+    handler, ns, version = parse_search_args(args)
     raise ArgumentError, "namespace bindings not supported in css" if ns && !ns.empty?
+    raise ArgumentError, "version: is XPath-only" if version
     raise ArgumentError, "custom CSS handlers not supported" if handler
     prefix = is_a?(Leptris::XML::Document) ? "//" : ".//"
     expr = args.map { |r| Leptris::XML::CssToXPath.convert(r, prefix: prefix) }
@@ -131,6 +155,15 @@ module Leptris::XML::Searchable
     end
   end
 
+  # Trailing-argument contract (#183): a String-keyed hash is the
+  # namespace-binding channel — as is a Symbol-keyed hash (the
+  # legacy prefix vocabulary, {x: "urn:x"}); a :version key whose
+  # VALUE is a version selector is the version-selection channel
+  # (xpath("//b", version: "1.0"), mirroring leptris-py#105). A
+  # DECLARED keyword cannot carry this: the moment #xpath declares
+  # one, Ruby converts the trailing namespace hash into keywords
+  # (unknown keyword: "p") — so both channels stay positional and
+  # dispatch on key/value here.
   def parse_search_args(args)
     handler = args.find { |a| !a.is_a?(String) && !a.is_a?(Hash) && !a.is_a?(Symbol) }
     args = args - [handler] if handler
@@ -143,7 +176,27 @@ module Leptris::XML::Searchable
     unless vars.nil? || vars.empty?
       raise ArgumentError, "XPath variable bindings are not supported"
     end
-    [handler, ns, vars]
+    # Value-based disambiguation is load-bearing: Symbol keys are
+    # also the namespace vocabulary, and bare keywords FUSE into a
+    # preceding String-keyed hash at the call site ({"p" => uri,
+    # version: "1.0"} arrives as ONE hash). A :version key with any
+    # other value stays a prefix binding.
+    version = nil
+    if ns.is_a?(Hash)
+      v = ns[:version]
+      if VERSION_SELECTORS.include?(v)
+        version = ns.delete(:version)
+        ns = nil if ns.empty?
+      elsif v.is_a?(String) && v.match?(/\A\d+\.\d+\z/)
+        # A dotted-number :version value is version INTENT — raise
+        # with the valid values rather than silently binding a
+        # prefix literally. Genuine prefix bindings carry URIs.
+        raise ArgumentError,
+          "unknown XPath version #{v.inspect} " \
+          "(valid: \"1.0\"/:xpath10, \"3.1\"/:xpath31)"
+      end
+    end
+    [handler, ns, version]
   end
 
   def looks_like_xpath?(str)
