@@ -244,6 +244,9 @@ class Leptris::XML::Document
   # document's pool until #free).
   def root=(element)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    # A document root has no in-scope declarations of its own —
+    # lift everything the element's source scope carried (#178).
+    Leptris::XML::Element.lift_namespaces_for_adoption(element, {})
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
     @version += 1

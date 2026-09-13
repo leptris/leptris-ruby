@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.152.1] - 2026-09-13
+
+### Fixed
+
+- **#178 (ask 1): attach seams lift in-scope namespace
+  declarations on adoption.** The engine's attach entries move a
+  subtree but not the source's in-scope declarations — a
+  cross-document (or out-of-scope) `add_child` /
+  `prepend_child` / `add_next_sibling` / `add_previous_sibling` /
+  `Document#root=` produced serialized output with UNDECLARED
+  prefixes. `Element.lift_namespaces_for_adoption` snapshots the
+  node's scope before the move and re-declares on the moved
+  element everything the target does not already resolve
+  identically (own declarations and identical target scopes add
+  nothing — same-scope moves stay output-identical).
+
+### Added
+
+- **#178 (ask 3): `benchmark/consumer_pipeline.rb`** — the
+  model-pipeline leg: a nested 7000-item document walked into
+  typed objects, with `GC.stat` allocation deltas (load
+  independent: ~799k allocations per run) and fresh-process
+  one-shot medians (n=9, the CLI-workload shape where YJIT never
+  amortizes).
+
 ## [1.9.152.0] - 2026-09-13
 
 ### Changed

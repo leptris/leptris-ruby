@@ -190,3 +190,42 @@ RSpec.describe "Element#namespace= (libleptris 1.9.76, leptris/leptris#817)" do
       .to raise_error(Leptris::XML::Error)
   end
 end
+
+RSpec.describe "namespace adoption on attach (#178)" do
+  it "lifts in-scope declarations on cross-document add_child" do
+    src = Leptris::XML::Document.parse(
+      %q{<r xmlns:p="urn:p" xmlns:q="urn:q"><p:c q:a="1"><p:d/></p:c></r>})
+    dst = Leptris::XML::Document.parse("<d/>")
+    dst.root.add_child(src.root.children.first)
+    xml = dst.to_xml
+    expect(xml.scan("xmlns:").size).to eq(2)
+    expect(xml).to include('xmlns:p="urn:p"', 'xmlns:q="urn:q"', 'q:a="1"', "<p:d/>")
+    # every serialized prefix resolves: re-parsing the output succeeds
+    expect(Leptris::XML::Document.parse(xml.sub(/<\?xml[^>]*\?>/, "")).root.children.first.namespace.href)
+      .to eq("urn:p")
+  end
+
+  it "lifts the default namespace declaration" do
+    src = Leptris::XML::Document.parse(%q{<r xmlns="urn:d"><c><n/></c></r>})
+    dst = Leptris::XML::Document.parse("<d/>")
+    dst.root.add_child(src.root.children.first)
+    expect(dst.root.children.first.to_xml).to eq(%q{<c xmlns="urn:d"><n/></c>})
+  end
+
+  it "adds nothing when the target scope already resolves identically" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><a><p:x/></a><b/></r>})
+    doc.root.children.last.add_child(doc.root.children.first.children.first)
+    # one xmlns:p in the whole document — the root's own; the moved
+    # element carries no local declaration
+    expect(doc.to_xml.scan("xmlns:p=").size).to eq(1)
+    expect(doc.to_xml).to include("<b><p:x/></b>")
+  end
+
+  it "covers prepend_child and the sibling seams" do
+    src = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"><p:c/><p:d/></r>})
+    dst = Leptris::XML::Document.parse("<d><m/></d>")
+    dst.root.children.first.add_previous_sibling(src.root.children.first)
+    dst.root.children.first.add_next_sibling(src.root.children.first)
+    expect(dst.to_xml).to include('xmlns:p="urn:p"', "<p:c", "<p:d")
+  end
+end
