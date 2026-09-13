@@ -39,10 +39,11 @@ RSpec.describe "Memory hygiene", if: RUBY_ENGINE == "ruby" do
     end
     3.times { GC.start }
     # The original 50-element cluster is RELEASED; what remains is
-    # exactly the last dummy document's own three elements (root +
-    # two <e/>) — the same conservative-stack residue, one doc deep,
-    # never growing.
-    expect(count_elements).to eq(3)
+    # at most the last dummy document's own three elements (root +
+    # two <e/>) — the same conservative-stack residue, one doc
+    # deep, never growing. Platforms without the pin (macOS
+    # runners, Ruby 4.0) release that too: 0.
+    expect(count_elements).to be <= 3
   end
 
   private
