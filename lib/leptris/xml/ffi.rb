@@ -457,6 +457,10 @@ attach_function :leptris_parse_string,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_append_child,
         [:leptris_element, :leptris_element], :leptris_status
+      # Fused create+append (libleptris 1.9.153): one document
+      # resolution, identical tree semantics to the two-call pair.
+      attach_function :leptris_element_create_child,
+        [:leptris_element, :string], :leptris_element
       attach_function :leptris_element_prepend_child,
         [:leptris_element, :leptris_element], :leptris_status
       attach_function :leptris_element_insert_before,

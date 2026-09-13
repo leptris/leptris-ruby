@@ -5,6 +5,34 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.156.0] - 2026-09-13
+
+### Security/correctness
+
+- **Lockstep with libleptris 1.9.156 (1.9.152 → 1.9.156)** — carries
+  the **#1038 heap-corruption fix** (engine regression window:
+  libleptris 1.9.151–1.9.155; root-doc map entries outlived their
+  document and wrote through freed pools — roaming crashes in
+  downstream binding suites at ~5% of runs). The two gem versions
+  that embedded the affected engine, **1.9.152.0 and 1.9.152.1,
+  are YANKED**; upgrade to 1.9.156.0.
+
+### Added
+
+- **`Element#create_child(name)`** (libleptris 1.9.153): the fused
+  create+append — one document resolution, one C call, tree
+  semantics identical to `create_element` + `add_child`; the
+  builder-shape single call.
+
+### Changed
+
+- Engine: WHATWG template-mode gaps closed (1.9.154/1.9.155):
+  frame/frameset drops inside templates, in-column-group token
+  gating, `</template>` inside `<select>`, foreign-content
+  template end-tag matching — html5lib corpus 1197 → 1206;
+  Nokogiri parity floor held. Audit 289 → 290
+  (leptris_element_create_child).
+
 ## [1.9.152.1] - 2026-09-13
 
 ### Fixed

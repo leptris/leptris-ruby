@@ -456,3 +456,25 @@ RSpec.describe "Element#to_xml expand_empty: true (libleptris 1.9.95, leptris/le
     expect(el.to_xml(expand_empty: true)).to eq("<a></a>")
   end
 end
+
+RSpec.describe "Element#create_child (libleptris 1.9.153)" do
+  it "creates and appends in one call, identical to the two-call pair" do
+    doc = Leptris::XML::Document.parse("<r/>")
+    fused = doc.root.create_child("a")
+    pair_doc = Leptris::XML::Document.parse("<r/>")
+    pair = pair_doc.root.add_child(pair_doc.create_element("a"))
+    expect(fused.name).to eq("a")
+    expect(fused.parent).to eq(doc.root)
+    expect(doc.root.children.size).to eq(1)
+    expect(doc.to_xml).to eq(pair_doc.to_xml)
+    expect(doc.root.children.first.digest).to eq(pair_doc.root.children.first.digest)
+  end
+
+  it "handles QNames and appends in order" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"/>})
+    doc.root.create_child("p:c")
+    doc.root.create_child("b")
+    expect(doc.root.children.map(&:name)).to eq(%w[c b])
+    expect(doc.root.children.first.namespace.href).to eq("urn:p")
+  end
+end

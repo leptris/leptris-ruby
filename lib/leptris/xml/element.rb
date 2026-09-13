@@ -331,6 +331,19 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
   alias_method :clone, :dup
 
+  # Fused create+append (libleptris 1.9.153): builds a child
+  # element of +name+ in this element's document and attaches it
+  # in ONE C call — the builder-shape single call
+  # (leptris_element_create_child). Tree semantics identical to
+  # document.create_element(name) + add_child.
+  def create_child(name)
+    ensure_writable!
+    ptr = Leptris::XML::FFI.leptris_element_create_child(@c_ptr, name.to_s)
+    raise Leptris::XML::Error,
+      "leptris_element_create_child failed for #{name.inspect}" if ptr.null?
+    Leptris::XML::Node.wrap_fresh(ptr, @document, Leptris::XML::FFI::NODE_ELEMENT)
+  end
+
   def add_child(node_or_markup)
     ensure_writable!
     case node_or_markup
