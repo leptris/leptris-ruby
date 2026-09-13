@@ -23,7 +23,11 @@ RSpec.describe "Memory hygiene", if: RUBY_ENGINE == "ruby" do
       doc.root.children.each { |k| k.children.to_a }
     end
     3.times { GC.start }
-    expect(count_elements).to be > 0  # the conservative stack pins it
+    # Bounded, one-doc deep: the conservative stack pins the last
+    # cluster on some platforms (observed on MRI 3.4 x86/arm
+    # Linux) and releases it outright on others (macOS runners,
+    # Ruby 4.0) — either way it NEVER grows past one document.
+    expect(count_elements).to be <= 51
 
     # Same-depth C activity overwrites the stale native slots
     # deterministically (the mechanism the standalone repro shows
