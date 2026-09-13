@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.152.0] - 2026-09-13
+
+### Changed
+
+- **Lockstep with libleptris 1.9.152** (1.9.144 → 1.9.152; no new
+  C surface — audit 289/289): the lane-18 DOM mutation performance
+  arc rides the binding directly — attr-heavy parse up to 2.7x
+  faster (1.9.147/1.9.149), the DOM create path 91.6 → 6.6 ns/op
+  and the append row 401 → ~258 µs (1.9.150–1.9.152), set-attr row
+  390 → 262 µs. WHATWG HTML: `<template>` insertion modes
+  (1.9.146/1.9.148) — an open template is a scope boundary for
+  table-context starts, and each open template tracks its saved
+  insertion mode (implied tr/tbody/rows per WHATWG 13.2.6.4.10).
+
 ## [1.9.144.1] - 2026-09-12
 
 ### Fixed
