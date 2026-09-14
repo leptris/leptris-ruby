@@ -60,20 +60,21 @@ export LEPTRIS_LIB_PATH=/usr/local/lib/libleptris.dylib
 If Leptris can't find the library at startup, every `parse` call raises
 `LoadError`.
 
-=== Alternative engines: TruffleRuby and JRuby (#160)
+=== Alternative engines: TruffleRuby and JRuby (#160) — zero setup
 
-The gem ships a plain `ruby`-platform variant alongside the precompiled
-platform gems, so Bundler activates `leptris` on TruffleRuby and JRuby
-(the binding is FFI-based — no MRI C extension anywhere). Those engines
-filter out precompiled platform gems at activation and always resolve
-the `ruby` variant, which does not vendor the native library:
+The `ruby`-platform variant (what TruffleRuby and JRuby resolve)
+vendors precompiled `libleptris` + `libutf8proc` binaries for the
+common engine platforms under `lib/leptris/vendor/`:
 
-1. Install `libleptris` on the host — build from source (above) or set
-   `LEPTRIS_LIB_PATH=/path/to/libleptris.{so,dylib}`.
-2. `gem install leptris` (or `bundle install`) — activation succeeds
-   like on MRI, and FFI loads the system library at require time.
+- `arm64-darwin`, `x86_64-darwin`
+- `x86_64-linux`, `aarch64-linux` (glibc; the musl variants are
+  tried as fallback for Alpine hosts)
 
-The startup `LoadError` names this remedy when the library is missing.
+`gem install leptris` just works on both engines — the FFI layer
+selects the matching vendored binary at require time (the binding
+is FFI-based; no MRI C extension anywhere). `LEPTRIS_LIB_PATH`
+still overrides, and a system library remains the fallback for
+OSes the variant does not carry.
 
 == Parsing
 

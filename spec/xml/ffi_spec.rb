@@ -218,3 +218,22 @@ RSpec.describe Leptris::XML::FFI do
     end
   end
 end
+
+RSpec.describe "Leptris::XML::FFI.vendor_platforms_for (ruby-variant vendor tree, #160)" do
+  it "maps the common engine platforms in preference order" do
+    expect(Leptris::XML::FFI.vendor_platforms_for("arm64-darwin23"))
+      .to eq(%w[arm64-darwin])
+    expect(Leptris::XML::FFI.vendor_platforms_for("x86_64-darwin22"))
+      .to eq(%w[x86_64-darwin])
+    expect(Leptris::XML::FFI.vendor_platforms_for("aarch64-linux"))
+      .to eq(%w[aarch64-linux aarch64-linux-musl])
+    expect(Leptris::XML::FFI.vendor_platforms_for("x86_64-linux"))
+      .to eq(%w[x86_64-linux x86_64-linux-musl])
+    expect(Leptris::XML::FFI.vendor_platforms_for("x64-mingw-ucrt")).to eq([])
+    expect(Leptris::XML::FFI.vendor_platforms_for("java")).to eq([])
+  end
+
+  it "resolves only directories that exist" do
+    expect(Leptris::XML::FFI.vendor_dirs).to all(be_a(String))
+  end
+end

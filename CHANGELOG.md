@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.162.8] - 2026-09-14
+
+### Added
+
+- **Zero-setup TruffleRuby/JRuby (#160)**: the `ruby`-platform gem
+  now vendors `libleptris` + `libutf8proc` for arm64/x86_64-darwin
+  and x86_64/aarch64-linux (plus musl fallbacks) under
+  `lib/leptris/vendor/<platform>/`; `FFI.libleptris_candidates`
+  probes them first at require time. Both engines activate and
+  load with no system library and no env vars — the release
+  assembly gathers the binaries from every platform build leg.
+  MRI behavior is unchanged (platform gems resolve first); a
+  forced `--platform ruby` MRI install also works via the vendor
+  tree. Fixed a split-library hazard along the way: the native
+  read layer now resolves the exact image the FFI layer loads
+  (two differently-pathed copies split per-document state).
+
 ## [1.9.162.7] - 2026-09-14
 
 ### Added

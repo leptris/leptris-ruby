@@ -96,8 +96,6 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            platform: any
-          - os: ubuntu-latest
             platform: x86_64-linux
           - os: ubuntu-24.04-arm
             platform: aarch64-linux
@@ -129,6 +127,15 @@ jobs:
         with:
           name: pkg-${{ matrix.platform }}
           path: pkg/*.gem
+
+      - name: Upload vendored binaries for the ruby variant
+        if: matrix.platform != 'x64-mingw32' && matrix.platform != 'x64-mingw-ucrt' && matrix.platform != 'aarch64-mingw-ucrt'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.platform }}
+          path: |
+            lib/libleptris.*
+            lib/libutf8proc.*
 
   build-musl:
     needs: bump
@@ -175,8 +182,54 @@ jobs:
           name: pkg-${{ matrix.platform }}
           path: pkg/*.gem
 
-  publish:
+      - name: Upload vendored binaries for the ruby variant
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.platform }}
+          path: |
+            lib/libleptris.*
+            lib/libutf8proc.*
+
+  build-ruby:
+    # Zero-setup TruffleRuby/JRuby (#160): assemble the ruby-platform
+    # gem with per-OS vendored binaries gathered from every leg.
     needs: [ bump, build, build-musl ]
+    if: always() && !cancelled() && !failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || github.ref }}
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: bins
+          merge-multiple: false
+
+      - name: Stage vendor tree and build the ruby gem
+        run: |
+          set -eux
+          for d in bins/bin-*; do
+            plat="${d#bins/bin-}"
+            mkdir -p "lib/leptris/vendor/${plat}"
+            cp "${d}"/libleptris.* "${d}"/libutf8proc.* "lib/leptris/vendor/${plat}/" 2>/dev/null || true
+          done
+          find lib/leptris/vendor -type f
+          bundle exec rake platform:any gem
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-any
+          path: pkg/*.gem
+
+  publish:
+    needs: [ bump, build, build-musl, build-ruby ]
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:
