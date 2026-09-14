@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.162.9] - 2026-09-14
+
+### Performance
+
+- **TODO.perf/01 — ext-accelerated default reads**: with the
+  native layer loaded, the DEFAULT binding classes' hot reads
+  (`Element#name`, `#content`, `#prefix`, `#[]`'s engine lookups)
+  call the ext directly (one C-API dispatch + UTF-8 string build —
+  no FFI marshaling): name 276->84ns, attribute 373->199ns per
+  read. Warm loops are memo-served and unaffected; the win lands
+  on cold one-shot passes (fresh doc, single read per node):
+  13-25% on the #187 workload shape.
+
 ## [1.9.162.8] - 2026-09-14
 
 ### Added
