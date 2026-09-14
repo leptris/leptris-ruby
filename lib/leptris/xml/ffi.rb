@@ -7,6 +7,50 @@ module Leptris
     module FFI
       extend ::FFI::Library
 
+      # The per-OS vendor directory of the ruby-platform gem
+      # (zero-setup TruffleRuby/JRuby, #160): binaries for the
+      # common engines' OSes under lib/leptris/vendor/<platform>/.
+      # Returns [] in platform gems (no vendor tree) and on
+      # OSes the variant does not carry.
+      # Dir-name candidates for a RUBY_PLATFORM string, in
+      # preference order (glibc before musl — dlopen falls through
+      # on musl hosts).
+      def self.vendor_platforms_for(ruby_platform)
+        case ruby_platform
+        when /arm64.*darwin|aarch64.*darwin/ then %w[arm64-darwin]
+        when /x86_64.*darwin/ then %w[x86_64-darwin]
+        when /aarch64.*linux/ then %w[aarch64-linux aarch64-linux-musl]
+        when /x86_64.*linux/ then %w[x86_64-linux x86_64-linux-musl]
+        else []
+        end
+      end
+
+      def self.vendor_dirs
+        vendor_platforms_for(RUBY_PLATFORM)
+          .map { |d| File.expand_path("../../leptris/vendor/#{d}", __dir__) }
+          .select { |dir| File.directory?(dir) }
+      end
+
+      # THE libleptris candidate list, in order — shared with the
+      # native read layer's resolve!. Single source of truth is
+      # load-bearing: two differently-pathed copies of the library
+      # load as two images with split per-document state.
+      def self.libleptris_candidates
+        [
+          ENV["LEPTRIS_LIB_PATH"],
+          *vendor_dirs.flat_map { |d|
+            %w[libleptris.dylib libleptris.so libleptris.dll]
+              .map { |n| File.join(d, n) }
+          },
+          File.expand_path("../../libleptris.dylib", __dir__),
+          File.expand_path("../../libleptris.so", __dir__),
+          File.expand_path("../../libleptris.dll", __dir__),
+          "/usr/local/lib/libleptris.dylib",
+          "/usr/local/lib/libleptris.so",
+          "leptris",
+        ].compact
+      end
+
       # libleptris links utf8proc via @rpath (TODO.restructure/20
       # — fn:normalize-unicode). dlopen the VENDORED utf8proc
       # FIRST: once its install name is loaded, dyld resolves
@@ -17,6 +61,10 @@ module Leptris
       # never consults it.
       begin
         ffi_lib [
+          *Leptris::XML::FFI.vendor_dirs.flat_map { |d|
+            %w[libutf8proc.3.dylib libutf8proc.so.3 libutf8proc.so
+               utf8proc.dll].map { |n| File.join(d, n) }
+          },
           File.expand_path("../../libutf8proc.3.dylib", __dir__),
           File.expand_path("../../libutf8proc.so.3", __dir__),
           File.expand_path("../../libutf8proc.so", __dir__),
@@ -29,15 +77,7 @@ module Leptris
       # Issue leptris-ruby#49: name the remedy when the library is
       # missing (ruby-platform gem without a vendored libleptris).
       begin
-        ffi_lib [
-          ENV["LEPTRIS_LIB_PATH"],
-          File.expand_path("../../libleptris.dylib", __dir__),
-          File.expand_path("../../libleptris.so", __dir__),
-          File.expand_path("../../libleptris.dll", __dir__),
-          "/usr/local/lib/libleptris.dylib",
-          "/usr/local/lib/libleptris.so",
-          "leptris",
-        ].compact
+        ffi_lib Leptris::XML::FFI.libleptris_candidates
       rescue LoadError => e
         raise LoadError, <<~MSG
           leptris: cannot load the vendored libleptris library.

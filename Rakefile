@@ -189,9 +189,15 @@ task "gem:native:any" do
   sh "rake platform:any gem"
 end
 
-desc "Define the gem task to build the pure-Ruby gem"
+desc "Define the gem task to build the ruby-platform gem"
 task "platform:any" do
   spec = Gem::Specification::load("leptris.gemspec").dup
+  # Zero-setup TruffleRuby/JRuby (#160): per-OS binaries staged
+  # under lib/leptris/vendor/<platform>/ by the release assembly
+  # (or by hand: cp from each platform build). Absent on a plain
+  # checkout — the variant then carries no binaries and the
+  # system-library / LEPTRIS_LIB_PATH path applies as before.
+  spec.files += Dir.glob("lib/leptris/vendor/**/*")
   task = Gem::PackageTask.new(spec)
   task.define
 end

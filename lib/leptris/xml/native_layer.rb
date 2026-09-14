@@ -29,29 +29,26 @@ rescue LoadError => e
 end
 
 module Leptris::XML::Native
-  LIB_CANDIDATES = [
-    ENV["LEPTRIS_LIB_PATH"],
-    File.expand_path("../../libleptris.dylib", __dir__),
-    File.expand_path("../../libleptris.so", __dir__),
-    File.expand_path("../../libleptris.dll", __dir__),
-    "libleptris",
-  ].compact.freeze
+  # FFI.libleptris_candidates is the single source of truth — the
+  # native layer MUST dlsym the exact image the FFI layer loaded,
+  # or two library instances split per-document state.
+  def self.lib_candidates
+    Leptris::XML::FFI.libleptris_candidates
+  end
 end
 
-candidates = Leptris::XML::Native::LIB_CANDIDATES
+candidates = Leptris::XML::Native.lib_candidates
 resolved = candidates.any? do |path|
-  resolved = Leptris::XML::Native::LIB_CANDIDATES.any? do |path|
-    begin
-      Leptris::XML::NativeNode.resolve!(path)
-      true
-    rescue RuntimeError
-      false
-    end
+  begin
+    Leptris::XML::NativeNode.resolve!(path)
+    true
+  rescue RuntimeError
+    false
   end
-  raise LoadError,
-    "leptris: native layer loaded but libleptris could not be " \
-    "resolved from #{candidates.inspect}" unless resolved
 end
+raise LoadError,
+  "leptris: native layer loaded but libleptris could not be " \
+  "resolved from #{candidates.inspect}" unless resolved
 
 class Leptris::XML::Document
   # Separate identity cache for NativeNodes so binding Node.wrap
