@@ -436,6 +436,45 @@ dispositions drop unmatched subtrees in the built-in initial
 descent (https://github.com/leptris/leptris/issues/705[#705]) —
 the other four dispositions are spec-correct. XQuery has no
 entry point yet.
+== Descriptor materialization
+
+Compile a schema descriptor once, then materialize a whole subtree
+against it in ONE native pass — no per-element Ruby calls (frameworks
+rebuilding typed models from XML; libleptris 1.9.162):
+
+[source,ruby]
+----
+descriptor = Leptris::XML::Descriptor.build(
+  name: "catalog",
+  attributes: [{ name: "version", kind: :scalar }],
+  children: [
+    { name: "item", kind: :nested, plan: {
+      name: "item",
+      attributes: [{ name: "id", kind: :scalar }],
+      children: [
+        { name: "name", kind: :scalar },
+        { name: "price", kind: :scalar },
+        { name: "opt", kind: :collection },
+      ] } },
+  ])
+
+tree = descriptor.walk(doc.root).to_ruby
+# { kind: :element, attributes: { "version" => "2.0" }, children: [
+#   { kind: :element, name: "item", attributes: { "id" => "1" },
+#     children: ["first", "1.99", ["a", "b"]] }, ...] }
+----
+
+Row kinds: `:scalar`, `:collection`, `:nested` (via `plan:`), `:raw`
+(serialized subtree), `:content` (mixed-content text runs — pair with
+`flags: [:mixed_content]`), `:callback` (raw value + document byte
+offset + `type_tag` echo, matching `Node#byte_offset`). Namespace
+binding lives on plans: `ns:` is `:none` (default), `:any`, or
+`{ exact: "urn:..." }`; `flags:` also accepts `:cdata`, `:ordered`,
+`:ns_lenient` (#754 out-of-namespace adoption). Children the plan
+does not describe are skipped; undescribed document order within a
+row is preserved. `#walk` returns a lazy `PlanValue` tree (the
+result outlives the document); `#to_ruby` materializes it.
+
 == XQuery
 
 XQuery 1.0 core through `Leptris::XML::XQuery` (compile once,

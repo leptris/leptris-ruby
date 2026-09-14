@@ -199,6 +199,15 @@ class Leptris::XML::Node
     Leptris::XML::FFI.leptris_node_line(@c_ptr)
   end
 
+  # Byte offset of the node's markup in its parse source (the '<'
+  # of the tag; libleptris 1.9.162, #1039 — the position descriptor
+  # CALLBACK rows echo). 0 when unknown: mutation-created nodes, or
+  # documents >= 2 GiB.
+  def byte_offset
+    ensure_alive!
+    Leptris::XML::FFI.leptris_node_byte_offset(@c_ptr)
+  end
+
   def <=>(other)
     return nil unless other.is_a?(Leptris::XML::Node)
     return nil unless @document == other.document

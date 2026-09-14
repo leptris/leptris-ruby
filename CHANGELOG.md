@@ -5,7 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.160.0] - 2026-09-14
+## [1.9.162.0] - 2026-09-14
+
+### Added
+
+- **`Leptris::XML::Descriptor`** (libleptris 1.9.162, upstream
+  #1039 — the tree-shaped schema-descriptor materialization ABI):
+  compile a plan tree once (`Descriptor.build` — Ruby hash DSL;
+  nested plans flatten to the engine's plan array), then
+  `#walk(element)` materializes a whole subtree in ONE native
+  pass — no per-element Ruby calls. Rows: :scalar / :collection /
+  :nested / :raw / :content (mixed-content text runs) / :callback
+  (value + byte position + type_tag echo); per-plan namespace
+  forms (:none/:any/{exact:}), flags (:mixed_content/:ordered/
+  :cdata/:ns_lenient). Results are lazy PlanValue trees that
+  OUTLIVE the document; `#to_ruby` materializes. ABI
+  version-checked at build. Audit 291 -> 306.
+- **`Node#byte_offset`** — the parse-source byte position of the
+  node's markup (the position CALLBACK rows echo; 0 unknown).
+
+### Changed
+
+- **Lockstep with libleptris 1.9.162** (1.9.160 -> 1.9.162):
+  NEON count3 deferred horizontal reduction (-33% on the 48 KB
+  copy+count pre-scan; parse rows gain ~1 us each) — 1.9.161.
+\n## [1.9.160.0] - 2026-09-14
 
 ### Changed
 
