@@ -31,3 +31,18 @@ rescue LoadError => e
     (Underlying error: #{e.message})
   MSG
 end
+
+# TODO.perf/02: auto-enable the native acceleration layer when the
+# compiled bundle is present (platform gems). Quietly falls back
+# to pure FFI when absent (ruby-variant on TruffleRuby/JRuby,
+# custom builds). LEPTRIS_NO_NATIVE=1 forces the FFI path (the
+# suite uses it to exercise both surfaces). The explicit
+# `require "leptris/xml/native_layer"` remains the parallel-API
+# entry for NativeNode builders.
+unless ENV["LEPTRIS_NO_NATIVE"] == "1"
+  begin
+    require "leptris/xml/native_layer"
+  rescue LoadError
+    nil
+  end
+end

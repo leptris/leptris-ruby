@@ -16,7 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no FFI marshaling): name 276->84ns, attribute 373->199ns per
   read. Warm loops are memo-served and unaffected; the win lands
   on cold one-shot passes (fresh doc, single read per node):
-  13-25% on the #187 workload shape.
+  13-25% on the #187 workload shape. Scope-owned (iterparse)
+  elements stay on the FFI path (pool addresses recycle).
+- **TODO.perf/02 — auto-enable**: `require "leptris"` quietly
+  activates the native acceleration when the compiled bundle is
+  present (platform gems). Falls back to pure FFI when absent
+  (ruby-variant on TruffleRuby/JRuby). `LEPTRIS_NO_NATIVE=1`
+  forces the FFI path. The explicit `native_layer` require remains
+  the parallel-API entry for NativeNode builders.
 
 ## [1.9.162.8] - 2026-09-14
 
