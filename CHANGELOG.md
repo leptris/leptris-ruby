@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.2] - 2026-09-14
+
+### Added
+
+- **TODO.perf/05 — NativeNode surface**: `#attributes` (the
+  flat name=>value hash in one C walk — the `[]` shape, not the
+  binding's Attr-valued hash), `#line`, `#byte_offset` (binding
+  parity). Binding classes inside the ext now resolve lazily —
+  `Init_native` can run before the binding's autoload entries
+  load, and `require "leptris/xml/native_layer"` standalone
+  crashed on undefined `FFI::Pointer` before the ffi require was
+  made explicit.
+
 ## [1.9.163.1] - 2026-09-14
 
 ### Performance

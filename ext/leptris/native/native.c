@@ -28,6 +28,12 @@ typedef int (*xp_node_kind_fn)(void *, int);
 typedef const char *(*xp_node_name_fn)(void *, int);
 typedef const char *(*xp_node_value_fn)(void *, int);
 typedef size_t (*serialize_into_fn)(void *, char *, size_t, void *, void *);
+typedef void *(*attr_first_fn)(void *);
+typedef void *(*attr_next_fn)(void *);
+typedef const char *(*attr_name_fn)(void *);
+typedef const char *(*attr_value_fn)(void *, void *);
+typedef unsigned int (*node_line_fn)(void *);
+typedef size_t (*node_offset_fn)(void *);
 typedef const char *(*element_text_fn)(void *);
 typedef void *(*doc_create_fn)(void);
 typedef void *(*elem_create_fn)(void *, const char *);
@@ -51,6 +57,12 @@ static xp_node_kind_fn f_xp_node_kind;
 static xp_node_name_fn f_xp_node_name;
 static xp_node_value_fn f_xp_node_value;
 static serialize_into_fn f_doc_serialize, f_elem_serialize;
+static attr_first_fn f_attr_first;
+static attr_next_fn f_attr_next;
+static attr_name_fn f_attr_name;
+static attr_value_fn f_attr_value;
+static node_line_fn f_node_line;
+static node_offset_fn f_node_offset;
 static element_text_fn f_element_text;
 static doc_create_fn f_doc_create;
 static elem_create_fn f_elem_create;
@@ -117,6 +129,12 @@ static void resolve_symbols(const char *lib_path)
     f_xp_node_value = (xp_node_value_fn)lib_sym(h, "leptris_xpath_result_node_value");
     f_doc_serialize = (serialize_into_fn)lib_sym(h, "leptris_document_serialize_into");
     f_elem_serialize = (serialize_into_fn)lib_sym(h, "leptris_element_serialize_into");
+    f_attr_first = (attr_first_fn)lib_sym(h, "leptris_element_first_attribute");
+    f_attr_next = (attr_next_fn)lib_sym(h, "leptris_attribute_next");
+    f_attr_name = (attr_name_fn)lib_sym(h, "leptris_attribute_get_name");
+    f_attr_value = (attr_value_fn)lib_sym(h, "leptris_attribute_get_value");
+    f_node_line = (node_line_fn)lib_sym(h, "leptris_node_line");
+    f_node_offset = (node_offset_fn)lib_sym(h, "leptris_node_byte_offset");
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     f_doc_create = (doc_create_fn)lib_sym(h, "leptris_document_create");
     f_elem_create = (elem_create_fn)lib_sym(h, "leptris_element_create");
@@ -131,7 +149,9 @@ static void resolve_symbols(const char *lib_path)
         !f_create_child || !f_append_child || !f_set_root || !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
-        !f_doc_serialize || !f_elem_serialize)
+        !f_doc_serialize || !f_elem_serialize || !f_attr_first ||
+        !f_attr_next || !f_attr_name || !f_attr_value ||
+        !f_node_line || !f_node_offset)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
 }
 
@@ -374,6 +394,43 @@ static VALUE nn_set_root(VALUE klass, VALUE document, VALUE element)
     return element;
 }
 
+/* NativeNode surface completion (TODO.perf/05): bulk attribute
+ * hash (name => value, one C walk, no per-attr Ruby frames) and
+ * the position readers. */
+static VALUE nn_attributes(VALUE self)
+{
+    struct native_node *n;
+    VALUE hash;
+    void *attr;
+
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    hash = rb_hash_new();
+    attr = f_attr_first(n->ptr);
+    while (attr) {
+        const char *name = f_attr_name(attr);
+        const char *value = f_attr_value(n->ptr, attr);
+        rb_hash_aset(hash,
+                     name ? rb_utf8_str_new_cstr(name) : Qnil,
+                     value ? rb_utf8_str_new_cstr(value) : Qnil);
+        attr = f_attr_next(attr);
+    }
+    return hash;
+}
+
+static VALUE nn_line(VALUE self)
+{
+    struct native_node *n;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    return UINT2NUM(f_node_line(n->ptr));
+}
+
+static VALUE nn_byte_offset(VALUE self)
+{
+    struct native_node *n;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    return ULL2NUM((uint64_t)f_node_offset(n->ptr));
+}
+
 static VALUE nn_address(VALUE self)
 {
     struct native_node *n;
@@ -388,9 +445,38 @@ static VALUE nn_address(VALUE self)
  * is loaded. Class constants and FFI::Pointer resolve once at
  * Init; the per-node Ruby frames (wrap/construct/memo/alive)
  * disappear. */
-static VALUE c_b_element, c_b_text, c_b_comment, c_b_cdata, c_b_pi,
-             c_b_node, c_ffi_pointer;
+static VALUE c_b_element = Qundef, c_b_text, c_b_comment, c_b_cdata,
+             c_b_pi, c_b_node, c_b_result_text, c_b_result_attr,
+             c_ffi_pointer;
 static ID id_ptr_new;
+
+/* Binding classes resolve LAZILY: Init_native can run before the
+ * binding's autoload entries load (require "leptris" flow) —
+ * rb_path2class at Init time raises for undefined constants. */
+static void resolve_binding_classes(void)
+{
+    if (c_b_element != Qundef)
+        return;
+    c_b_element = rb_path2class("Leptris::XML::Element");
+    c_b_text = rb_path2class("Leptris::XML::Text");
+    c_b_comment = rb_path2class("Leptris::XML::Comment");
+    c_b_cdata = rb_path2class("Leptris::XML::CDATA");
+    c_b_pi = rb_path2class("Leptris::XML::ProcessingInstruction");
+    c_b_node = rb_path2class("Leptris::XML::Node");
+    c_b_result_text = rb_path2class("Leptris::XML::ResultText");
+    c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
+    c_ffi_pointer = rb_path2class("FFI::Pointer");
+    id_ptr_new = rb_intern("new");
+    rb_gc_register_mark_object(c_b_element);
+    rb_gc_register_mark_object(c_b_text);
+    rb_gc_register_mark_object(c_b_comment);
+    rb_gc_register_mark_object(c_b_cdata);
+    rb_gc_register_mark_object(c_b_pi);
+    rb_gc_register_mark_object(c_b_node);
+    rb_gc_register_mark_object(c_b_result_text);
+    rb_gc_register_mark_object(c_b_result_attr);
+    rb_gc_register_mark_object(c_ffi_pointer);
+}
 
 static VALUE binding_klass_for(int kind)
 {
@@ -442,6 +528,7 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
 static VALUE nf_bulk_children(VALUE self, VALUE document, VALUE parent_addr)
 {
     (void)self;
+    resolve_binding_classes();
     return bulk_children_impl(document, parent_addr, 0);
 }
 
@@ -449,6 +536,7 @@ static VALUE nf_bulk_element_children(VALUE self, VALUE document,
                                       VALUE parent_addr)
 {
     (void)self;
+    resolve_binding_classes();
     return bulk_children_impl(document, parent_addr, 1);
 }
 
@@ -458,7 +546,6 @@ static VALUE nf_bulk_element_children(VALUE self, VALUE document,
  * 3 other), value capture for synthetic text/attribute items
  * while the result handle is alive, identity-cache check/store
  * for elements. Returns the Ruby Array. */
-static VALUE c_b_result_text, c_b_result_attr;
 static VALUE m_native_sentinel; /* module object = fallback marker */
 
 static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
@@ -470,6 +557,7 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
     VALUE cache, out;
 
     (void)self;
+    resolve_binding_classes();
     count = f_xp_count(result);
     if (count <= 0)
         return rb_ary_new2(0);
@@ -703,6 +791,9 @@ void Init_native(void)
     rb_define_method(c_native_node, "append_child", nn_append_child, 1);
     rb_define_method(c_native_node, "add_child", nn_append_child, 1);
     rb_define_method(c_native_node, "address", nn_address, 0);
+    rb_define_method(c_native_node, "attributes", nn_attributes, 0);
+    rb_define_method(c_native_node, "line", nn_line, 0);
+    rb_define_method(c_native_node, "byte_offset", nn_byte_offset, 0);
     rb_define_method(c_native_node, "name", nn_name, 0);
     rb_define_method(c_native_node, "content", nn_content, 0);
     rb_define_method(c_native_node, "attribute", nn_attribute, 1);
@@ -714,17 +805,6 @@ void Init_native(void)
     rb_define_method(c_native_node, "node_type", nn_type_sym, 0);
     rb_define_singleton_method(c_native_node, "resolve!",
                                leptris_native_resolve_rb, 1);
-
-    c_b_element = rb_path2class("Leptris::XML::Element");
-    c_b_text = rb_path2class("Leptris::XML::Text");
-    c_b_comment = rb_path2class("Leptris::XML::Comment");
-    c_b_cdata = rb_path2class("Leptris::XML::CDATA");
-    c_b_pi = rb_path2class("Leptris::XML::ProcessingInstruction");
-    c_b_node = rb_path2class("Leptris::XML::Node");
-    c_b_result_text = rb_path2class("Leptris::XML::ResultText");
-    c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
-    c_ffi_pointer = rb_path2class("FFI::Pointer");
-    id_ptr_new = rb_intern("new");
 
     m_native = rb_define_module_under(m_xml, "Native");
     m_native_sentinel = m_native;
