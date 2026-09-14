@@ -1,6 +1,11 @@
 # 21 — #147 option B: TypedData wrapper variant (owner greenlit)
 
-Status: PROTOTYPE DONE — hypothesis VALIDATED (114 B/node measured)
+Status: round 2 PASSED (2026-09-14) — branch proto/native-nodes
+is the reference implementation; build phase remains (full read
+surface, seam, 9-platform packaging). Round 1 handle-level spike
+(feat/typed-wrapper-variant, never merged) FAILED its gate — held
+-8% vs walks +40% because per-call FFI::Pointer marshaling
+dominates; the fix was C-binding the reads themselves.
 
 The greenlight arrived ("proceed with all"); the execution plan,
 in verification order:
@@ -24,3 +29,14 @@ in verification order:
       compilation per platform, packaging).
 - [ ] If NOT validated (win < ~15%): record the negative result on
       #147 and close option B with data.
+
+## Round 2 (2026-09-14): converged native nodes — PASSED
+
+ext/leptris/native/native.c: TypedData wrappers (ptr + document
+embedded), C-bound hot reads via dlsym (no FFI marshaling), bulk
+children (one cache round-trip, zero Ruby frames). Measured: walk
+17.2 -> 2.8 ms (6.2x, interleaved best-of under load ~148 — ratio
+conservative); held wrappers ~54 kB/doc (RSS, load-independent).
+Identity shared through the binding wrapper_cache. Data on #185.
+Remaining: full read surface, variant seam, compiled-ext
+packaging (9-platform), release.
