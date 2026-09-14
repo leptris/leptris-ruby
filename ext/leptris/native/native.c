@@ -49,7 +49,8 @@ static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
 static VALUE c_native_node;
-static ID id_wrapper_cache;
+static ID id_wrapper_cache;   /* native_cache: NativeNode identity */
+static ID id_binding_cache;   /* wrapper_cache: binding Node identity */
 
 #define NT_ELEMENT 0
 
@@ -359,6 +360,77 @@ static VALUE nn_address(VALUE self)
     return ULL2NUM((uint64_t)(uintptr_t)n->ptr);
 }
 
+/* ---- Bulk children for BINDING wrappers (TODO.perf/01 tail) ----
+ * One C pass: children_ex + binding-class dispatch + ivar set +
+ * identity-cache check/store. Returns a Ruby Array of Element/
+ * Text/... wrappers — Node#children swaps this in when the ext
+ * is loaded. Class constants and FFI::Pointer resolve once at
+ * Init; the per-node Ruby frames (wrap/construct/memo/alive)
+ * disappear. */
+static VALUE c_b_element, c_b_text, c_b_comment, c_b_cdata, c_b_pi,
+             c_b_node, c_ffi_pointer;
+static ID id_ptr_new;
+
+static VALUE binding_klass_for(int kind)
+{
+    switch (kind) {
+    case 0: return c_b_element;
+    case 1: return c_b_text;
+    case 2: return c_b_comment;
+    case 3: return c_b_cdata;
+    case 4: return c_b_pi;
+    default: return c_b_node;
+    }
+}
+
+static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
+                                int elements_only)
+{
+    void *buf[512];
+    int kinds[512];
+    int count, i;
+    VALUE cache, out;
+
+    count = f_children_ex((void *)(uintptr_t)NUM2ULL(parent_addr),
+                          buf, kinds, 512);
+    if (count <= 0)
+        return rb_ary_new2(0);
+
+    cache = rb_funcall(document, id_binding_cache, 0);
+    out = rb_ary_new2(elements_only ? 8 : count);
+    for (i = 0; i < count; i++) {
+        VALUE key, node;
+        if (elements_only && kinds[i] != 0)
+            continue;
+        key = ULL2NUM((uint64_t)(uintptr_t)buf[i]);
+        node = rb_hash_aref(cache, key);
+        if (NIL_P(node)) {
+            VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+            node = rb_obj_alloc(binding_klass_for(kinds[i]));
+            rb_iv_set(node, "@c_ptr", ptr);
+            rb_iv_set(node, "@document", document);
+            rb_iv_set(node, "@parent", Qnil);
+            rb_iv_set(node, "@node_type", INT2FIX(kinds[i]));
+            rb_hash_aset(cache, key, node);
+        }
+        rb_ary_push(out, node);
+    }
+    return out;
+}
+
+static VALUE nf_bulk_children(VALUE self, VALUE document, VALUE parent_addr)
+{
+    (void)self;
+    return bulk_children_impl(document, parent_addr, 0);
+}
+
+static VALUE nf_bulk_element_children(VALUE self, VALUE document,
+                                      VALUE parent_addr)
+{
+    (void)self;
+    return bulk_children_impl(document, parent_addr, 1);
+}
+
 /* ---- Address-based fast readers (TODO.perf/01) -----------------
  * The DEFAULT binding classes call these when the bundle is
  * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
@@ -432,6 +504,7 @@ void Init_native(void)
     rb_undef_alloc_func(c_native_node);
 
     id_wrapper_cache = rb_intern("native_cache");
+    id_binding_cache = rb_intern("wrapper_cache");
 
     rb_define_singleton_method(c_native_node, "from", nn_from, 2);
     rb_define_singleton_method(c_native_node, "create_element", nn_create_element, 2);
@@ -453,9 +526,21 @@ void Init_native(void)
     rb_define_singleton_method(c_native_node, "resolve!",
                                leptris_native_resolve_rb, 1);
 
+    c_b_element = rb_path2class("Leptris::XML::Element");
+    c_b_text = rb_path2class("Leptris::XML::Text");
+    c_b_comment = rb_path2class("Leptris::XML::Comment");
+    c_b_cdata = rb_path2class("Leptris::XML::CDATA");
+    c_b_pi = rb_path2class("Leptris::XML::ProcessingInstruction");
+    c_b_node = rb_path2class("Leptris::XML::Node");
+    c_ffi_pointer = rb_path2class("FFI::Pointer");
+    id_ptr_new = rb_intern("new");
+
     m_native = rb_define_module_under(m_xml, "Native");
     rb_define_module_function(m_native, "fast_name", nf_name, 1);
     rb_define_module_function(m_native, "fast_element_text", nf_element_text, 1);
     rb_define_module_function(m_native, "fast_attribute", nf_attribute, 2);
     rb_define_module_function(m_native, "fast_prefix", nf_prefix, 1);
+    rb_define_module_function(m_native, "bulk_children", nf_bulk_children, 2);
+    rb_define_module_function(m_native, "bulk_element_children",
+                              nf_bulk_element_children, 2);
 }
