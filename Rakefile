@@ -97,10 +97,22 @@ task :compile do
   bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
   raise "native layer bundle not found after build" unless bundle
   if RUBY_PLATFORM =~ /darwin/
-    # Build-log diagnostics: the linkage contract is libSystem-only.
+    # The linkage contract is libSystem-only. setup-ruby's custom
+    # rubies make mkmf link libruby by absolute runner path
+    # (unresolvable on user machines) regardless of cleared
+    # RbConfig entries — rewrite that dependency post-link: Ruby
+    # symbols resolve from the loading interpreter via
+    # -undefined dynamic_lookup, so the libruby LC_LOAD_DYLIB is
+    # dead weight; point it at libSystem and re-sign (arm64
+    # requires a valid signature after any rewrite).
+    `otool -L #{bundle}`.lines.each do |line|
+      if (libruby = line[/\S*libruby[\d.]*\.dylib/])
+        sh "install_name_tool -change #{libruby} /usr/lib/libSystem.B.dylib #{bundle}"
+      end
+    end
+    sh "codesign --force -s - #{bundle}" if RUBY_PLATFORM =~ /arm64/
+    # Build-log proof of the contract.
     puts `otool -L #{bundle}`
-    puts File.readlines("#{ext_dir}/Makefile")
-      .grep(/^\w*(LIBS|LOCAL_LIBS|DLDFLAGS|LIBRUBY|LIBPATH|ldflags|dldflags)\w*\s*=/)
   end
   cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
   puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
