@@ -71,6 +71,11 @@ class Leptris::XML::NodeSet
 
   # Sequence/map/array items ride synthetic text nodes whose value
   # only the live result handle can serve — capture it now.
+  def native_fast?
+    defined?(Leptris::XML::NATIVE_FAST)
+  end
+  private :native_fast?
+
   def text_item_value(kind, index)
     case kind
     when Leptris::XML::FFI::XPATH_NODE_TEXT
@@ -95,7 +100,37 @@ class Leptris::XML::NodeSet
     unless @array
       return self unless @result_ptr
       n = length
-      if n > 0
+      if n > 0 && native_fast?
+        # TODO.perf/03: one C pass materializes the whole result —
+        # class dispatch, synthetic text/attr value capture, and
+        # element identity-cache check/store in the ext. Qundef
+        # slots (rare non-element/attr/text kinds) and the >512
+        # remainder fall back to the per-index path below.
+        fast = Leptris::XML::Native.bulk_xpath(
+          @document, @result_ptr.to_i)
+        nodes = []
+        fast.each_with_index do |node, i|
+          if node.equal?(Leptris::XML::Native)
+            ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
+            next if ptr.null?
+            nodes << Leptris::XML::Node.wrap(
+              ptr, @document,
+              result_value: text_item_value(
+                Leptris::XML::FFI.leptris_xpath_result_node_kind(@result_ptr, i), i))
+          else
+            nodes << node
+          end
+        end
+        (fast.length...n).each do |i|
+          ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(@result_ptr, i)
+          next if ptr.null?
+          nodes << Leptris::XML::Node.wrap(
+            ptr, @document,
+            result_value: text_item_value(
+              Leptris::XML::FFI.leptris_xpath_result_node_kind(@result_ptr, i), i))
+        end
+        @array = nodes
+      elsif n > 0
         # Batch-fetch all node pointers through the FFI seam
         # (leptris_xpath_result_get_nodes_ex copies every node kind,
         # not just elements); the batch accessor under-copies

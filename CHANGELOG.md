@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one-shot walk (fresh doc, element_children + name/[]/content
   per node): **9.2 -> 1.2 ms (~8x)**. Warm paths unchanged
   (memoized); scope-owned iterparse elements stay on the FFI path.
+- **TODO.perf/03 — bulk XPath result materialization**: NodeSet
+  materializes through one C pass (kind dispatch with synthetic
+  text/attribute value capture in-C; node-type consult for real
+  Text/CDATA under XPATH's TEXT). One-shot xpath rows gain ~1.4x
+  on the materialization slice (the call is parse-dominated);
+  >512-entry results and rare kinds keep the per-index fallback.
 
 ## [1.9.162.9] - 2026-09-14
 

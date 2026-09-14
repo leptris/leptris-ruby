@@ -22,6 +22,11 @@ typedef int (*node_type_fn)(void *);
 typedef void *(*next_sibling_fn)(void *);
 typedef void *(*parent_fn)(void *);
 typedef const char *(*elem_prefix_fn)(void *);
+typedef int (*xp_count_fn)(void *);
+typedef int (*xp_nodes_ex_fn)(void *, void **, int *, int);
+typedef int (*xp_node_kind_fn)(void *, int);
+typedef const char *(*xp_node_name_fn)(void *, int);
+typedef const char *(*xp_node_value_fn)(void *, int);
 typedef const char *(*element_text_fn)(void *);
 typedef void *(*doc_create_fn)(void);
 typedef void *(*elem_create_fn)(void *, const char *);
@@ -39,6 +44,11 @@ static node_type_fn f_node_type;
 static next_sibling_fn f_next_sibling;
 static parent_fn f_parent;
 static elem_prefix_fn f_elem_prefix;
+static xp_count_fn f_xp_count;
+static xp_nodes_ex_fn f_xp_nodes_ex;
+static xp_node_kind_fn f_xp_node_kind;
+static xp_node_name_fn f_xp_node_name;
+static xp_node_value_fn f_xp_node_value;
 static element_text_fn f_element_text;
 static doc_create_fn f_doc_create;
 static elem_create_fn f_elem_create;
@@ -98,6 +108,11 @@ static void resolve_symbols(const char *lib_path)
     f_next_sibling = (next_sibling_fn)lib_sym(h, "leptris_node_next_sibling");
     f_parent = (parent_fn)lib_sym(h, "leptris_node_parent");
     f_elem_prefix = (elem_prefix_fn)lib_sym(h, "leptris_element_prefix");
+    f_xp_count = (xp_count_fn)lib_sym(h, "leptris_xpath_result_count");
+    f_xp_nodes_ex = (xp_nodes_ex_fn)lib_sym(h, "leptris_xpath_result_get_nodes_ex");
+    f_xp_node_kind = (xp_node_kind_fn)lib_sym(h, "leptris_xpath_result_node_kind");
+    f_xp_node_name = (xp_node_name_fn)lib_sym(h, "leptris_xpath_result_node_name");
+    f_xp_node_value = (xp_node_value_fn)lib_sym(h, "leptris_xpath_result_node_value");
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     f_doc_create = (doc_create_fn)lib_sym(h, "leptris_document_create");
     f_elem_create = (elem_create_fn)lib_sym(h, "leptris_element_create");
@@ -110,7 +125,8 @@ static void resolve_symbols(const char *lib_path)
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
         !f_create_child || !f_append_child || !f_set_root || !f_doc_free ||
-        !f_elem_prefix)
+        !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
+        !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
 }
 
@@ -431,6 +447,102 @@ static VALUE nf_bulk_element_children(VALUE self, VALUE document,
     return bulk_children_impl(document, parent_addr, 1);
 }
 
+/* ---- Bulk XPath result materialization (TODO.perf/03) ----------
+ * One C pass over leptris_xpath_result_get_nodes_ex: binding-class
+ * dispatch (XPATH_NODE space: 0 element, 1 attribute, 2 text,
+ * 3 other), value capture for synthetic text/attribute items
+ * while the result handle is alive, identity-cache check/store
+ * for elements. Returns the Ruby Array. */
+static VALUE c_b_result_text, c_b_result_attr;
+static VALUE m_native_sentinel; /* module object = fallback marker */
+
+static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
+{
+    void *result = (void *)(uintptr_t)NUM2ULL(result_ptr_val);
+    void *buf[512];
+    int kinds[512];
+    int count, i;
+    VALUE cache, out;
+
+    (void)self;
+    count = f_xp_count(result);
+    if (count <= 0)
+        return rb_ary_new2(0);
+    if (count > 512)
+        count = 512;  /* remainder handled by the Ruby fallback */
+
+    count = f_xp_nodes_ex(result, buf, kinds, count);
+    cache = rb_funcall(document, id_binding_cache, 0);
+    out = rb_ary_new2(count);
+    for (i = 0; i < count; i++) {
+        VALUE node, key;
+        const char *s;
+        if (buf[i] == NULL)
+            continue;
+        key = ULL2NUM((uint64_t)(uintptr_t)buf[i]);
+        switch (kinds[i]) {
+        case 0: /* element */
+            node = rb_hash_aref(cache, key);
+            if (NIL_P(node)) {
+                VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+                node = rb_obj_alloc(c_b_element);
+                rb_iv_set(node, "@c_ptr", ptr);
+                rb_iv_set(node, "@document", document);
+                rb_iv_set(node, "@parent", Qnil);
+                rb_iv_set(node, "@node_type", INT2FIX(0));
+                rb_hash_aset(cache, key, node);
+            }
+            break;
+        case 1: /* synthetic attribute */
+            {
+                const char *name = f_xp_node_name(result, i);
+                const char *value = f_xp_node_value(result, i);
+                VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+                node = rb_obj_alloc(c_b_result_attr);
+                rb_iv_set(node, "@c_ptr", ptr);
+                rb_iv_set(node, "@document", document);
+                rb_iv_set(node, "@attr_name",
+                          name ? rb_utf8_str_new_cstr(name) : Qnil);
+                rb_iv_set(node, "@attr_value",
+                          value ? rb_utf8_str_new_cstr(value) : Qnil);
+            }
+            break;
+        case 2: /* text-kind: synthetic sequence carrier, or a real
+                 * Text/CDATA node (XPath reports both as TEXT) —
+                 * dispatch on the node's own type like Node.wrap. */
+            {
+                int nt = f_node_type(buf[i]);
+                if (nt == 8) { /* NODE_SYNTHETIC_TEXT */
+                    s = f_xp_node_value(result, i);
+                    node = rb_obj_alloc(c_b_result_text);
+                    rb_iv_set(node, "@c_ptr",
+                              rb_funcall(c_ffi_pointer, id_ptr_new, 1, key));
+                    rb_iv_set(node, "@document", document);
+                    rb_iv_set(node, "@value",
+                              s ? rb_utf8_str_new_cstr(s) : Qnil);
+                } else {
+                    VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+                    node = rb_hash_aref(cache, key);
+                    if (NIL_P(node)) {
+                        node = rb_obj_alloc(binding_klass_for(nt));
+                        rb_iv_set(node, "@c_ptr", ptr);
+                        rb_iv_set(node, "@document", document);
+                        rb_iv_set(node, "@parent", Qnil);
+                        rb_iv_set(node, "@node_type", INT2FIX(nt));
+                        rb_hash_aset(cache, key, node);
+                    }
+                }
+            }
+            break;
+        default: /* other: rare — signal Ruby fallback for this index */
+            rb_ary_push(out, m_native_sentinel);
+            continue;
+        }
+        rb_ary_push(out, node);
+    }
+    return out;
+}
+
 /* ---- Address-based fast readers (TODO.perf/01) -----------------
  * The DEFAULT binding classes call these when the bundle is
  * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
@@ -532,10 +644,13 @@ void Init_native(void)
     c_b_cdata = rb_path2class("Leptris::XML::CDATA");
     c_b_pi = rb_path2class("Leptris::XML::ProcessingInstruction");
     c_b_node = rb_path2class("Leptris::XML::Node");
+    c_b_result_text = rb_path2class("Leptris::XML::ResultText");
+    c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
     c_ffi_pointer = rb_path2class("FFI::Pointer");
     id_ptr_new = rb_intern("new");
 
     m_native = rb_define_module_under(m_xml, "Native");
+    m_native_sentinel = m_native;
     rb_define_module_function(m_native, "fast_name", nf_name, 1);
     rb_define_module_function(m_native, "fast_element_text", nf_element_text, 1);
     rb_define_module_function(m_native, "fast_attribute", nf_attribute, 2);
@@ -543,4 +658,5 @@ void Init_native(void)
     rb_define_module_function(m_native, "bulk_children", nf_bulk_children, 2);
     rb_define_module_function(m_native, "bulk_element_children",
                               nf_bulk_element_children, 2);
+    rb_define_module_function(m_native, "bulk_xpath", nf_bulk_xpath, 2);
 }
