@@ -5,6 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.4] - 2026-09-15
+
+### Fixed
+
+- **`NativeNode#document`** (moxml #213): the TypedData struct
+  always held the owning Document but never exposed it — adapters
+  routing `native.document` (the Node#document contract) hit
+  NoMethodError. Returns the binding Document for the node and
+  every descendant.
+
 ## [1.9.163.3] - 2026-09-15
 
 ### Fixed

@@ -129,3 +129,12 @@ RSpec.describe "bulk paths never truncate (#202)" do
     expect(doc.xpath("//e").size).to eq(800)
   end
 end
+
+RSpec.describe "NativeNode#document (moxml #213)" do
+  it "returns the owning binding Document for self and descendants" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/></r>})
+    root = doc.native_node
+    expect(root.document).to equal(doc)
+    expect(root.element_children.first.document).to equal(doc)
+  end
+end
