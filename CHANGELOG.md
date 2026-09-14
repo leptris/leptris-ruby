@@ -5,7 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.2] - 2026-09-14
+## [1.9.162.3] - 2026-09-14
+
+### Fixed
+
+- **Native layer bundle linkage**: the 1.9.162.2 platform gems'
+  native.bundle linked the BUILDING runner's libruby by absolute
+  path and targeted the runner's macOS — failing to load on user
+  machines. The ext now links with -undefined dynamic_lookup
+  (Ruby symbols resolve from the loading interpreter, the standard
+  C-extension convention) and a conservative deployment target;
+  the bundle references only libSystem.
+\n## [1.9.162.2] - 2026-09-14
 
 ### Added
 
