@@ -93,3 +93,21 @@ RSpec.describe "Native builder factories (#149)" do
     expect(doc.native_node.name).to eq("r")
   end
 end
+
+RSpec.describe "NativeNode surface completion (TODO.perf/05)" do
+  it "reads the attribute hash in one C walk (string values)" do
+    doc = Leptris::XML::Document.parse(%q{<rec id="7" sku="S7">x</rec>})
+    rec = doc.native_node
+    expect(rec.attributes).to eq("id" => "7", "sku" => "S7")
+    expect(rec.attributes.keys).to eq(%w[id sku])
+  end
+
+  it "reads line and byte_offset with binding parity" do
+    doc = Leptris::XML::Document.parse(%q{<r><rec id="7">x</rec></r>})
+    native_rec = doc.native_node.element_children.first
+    binding_rec = doc.root.element_children.first
+    expect(native_rec.line).to eq(binding_rec.line)
+    expect(native_rec.byte_offset).to eq(binding_rec.byte_offset)
+    expect(native_rec.byte_offset).to be > 0
+  end
+end

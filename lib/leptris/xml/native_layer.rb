@@ -14,6 +14,8 @@
 # installs without the compiled bundle (ruby-platform gem) raise
 # a clear LoadError from the require.
 
+require "ffi" unless defined?(::FFI::Library)
+
 begin
   # The compiled bundle (feature "leptris/xml/native" resolves
   # native.bundle). A sanctioned require exception: a .bundle
