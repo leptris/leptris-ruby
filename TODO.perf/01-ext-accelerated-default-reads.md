@@ -7,7 +7,10 @@ cannot see it (memos serve after first touch) — the gate is the
 COLD one-shot pass (fresh doc, one read per node): 13-25% on the
 #187 shape. UTF-8 encoding via rb_utf8_str_new_cstr (suite specs
 run both paths in one process: native_layer_spec sets the flag
-mid-suite). Remaining: children bulk for binding classes.
+mid-suite). COMPLETE (1.9.163.0): bulk children + bulk element_children for
+binding wrappers (one C pass: class dispatch + ivars + identity
+cache) — cold one-shot walk 9.2->1.2ms (7.8x, element_children +
+name/[]/content). Both TODO items done.
 
 The default binding's hot reads each pay FFI per-call marshaling
 (:string returns allocate through FFI, args marshal through the

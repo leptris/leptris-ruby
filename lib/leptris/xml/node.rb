@@ -52,7 +52,12 @@ class Leptris::XML::Node
       cache = document.wrapper_cache
       address = c_ptr.address
       if (cached = cache[address])
-        return cached
+        # The shared cache also holds NativeNodes (opt-in layer).
+        # Only return a hit when it is a binding Node subclass —
+        # otherwise fall through and construct the binding wrapper
+        # (both views of the same C node can coexist; the native
+        # entry stays under its own key-path via NativeNode.from).
+        return cached if cached.is_a?(Leptris::XML::Node)
       end
     end
 
@@ -124,6 +129,13 @@ class Leptris::XML::Node
   alias_method :node_type, :type
 
   def element?;  type == Leptris::XML::FFI::NODE_ELEMENT;  end
+
+  # The ext bulk path applies to document-owned trees only:
+  # scope-owned (iterparse) elements ride the IterationScope seam.
+  def native_fast_children?
+    defined?(Leptris::XML::NATIVE_FAST) &&
+      !@document.is_a?(Leptris::XML::IterationScope)
+  end
 
   # Content-defined 64-bit Merkle digest of this subtree
   # (libleptris 1.9.99, #869): element name/prefix/resolved
@@ -228,6 +240,18 @@ class Leptris::XML::Node
     # (leptris_node_children_ex), so no per-child get_type.
     return @children if memo_hit?(@children_version)
     ensure_alive!
+    if native_fast_children?
+      # TODO.perf/01 tail: one C pass constructs every binding
+      # wrapper (class dispatch + ivars + identity cache) — the
+      # per-child Ruby wrap frames disappear.
+      nodes = Leptris::XML::Native.bulk_children(@document, @c_ptr.address)
+      result = Leptris::XML::NodeSet.new(@document, nodes)
+      if @document
+        @children = result
+        @children_version = @document.version
+      end
+      return result
+    end
     parent = as_element_or_self
     pointers, kinds = Leptris::XML::FFI.fetch_children(@c_ptr)
     nodes = Array.new(pointers.size) do |i|
@@ -303,7 +327,9 @@ class Leptris::XML::Node
     # children are never wrapped (nor their get_type paid — the
     # ELEMENT hint rides along). Other nodes keep the filter.
     result =
-      if is_a?(Leptris::XML::Element)
+      if native_fast_children?
+        Leptris::XML::Native.bulk_element_children(@document, @c_ptr.address)
+      elsif is_a?(Leptris::XML::Element)
         parent = as_element_or_self
         Leptris::XML::FFI.fetch_element_children(@c_ptr).map do |ptr|
           Leptris::XML::Node.wrap(ptr, @document, parent: parent,

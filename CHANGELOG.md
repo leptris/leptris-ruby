@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.0] - 2026-09-14
+
+### Performance
+
+- **TODO.perf/01 complete — bulk children for binding wrappers**:
+  with the native layer auto-loaded (1.9.162.9's TODO.perf/02),
+  `Node#children` and `#element_children` construct every binding
+  wrapper in ONE C pass (class dispatch, ivars, identity-cache
+  check/store — the per-child Ruby wrap frames disappear). Cold
+  one-shot walk (fresh doc, element_children + name/[]/content
+  per node): **9.2 -> 1.2 ms (~8x)**. Warm paths unchanged
+  (memoized); scope-owned iterparse elements stay on the FFI path.
+
 ## [1.9.162.9] - 2026-09-14
 
 ### Performance
