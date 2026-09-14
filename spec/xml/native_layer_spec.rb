@@ -60,3 +60,36 @@ RSpec.describe "Leptris::XML::NativeNode (opt-in native read layer, #185)" do
     expect(native_root.element_children.first.content).to include("rec 1")
   end
 end
+
+RSpec.describe "Native builder factories (#149)" do
+  it "creates elements and text without the wrap_fresh path" do
+    doc = Leptris::XML::Document.create
+    root = doc.native_create_element("r")
+    doc.native_root = root
+    child = doc.native_create_element("field")
+    text = doc.native_create_text("value")
+    child.add_child(text)
+    root.add_child(child)
+    expect(root.element_children.map(&:name)).to eq(%w[field])
+    expect(root.element_children.first.content).to eq("value")
+  end
+
+  it "create_child fuses create+append" do
+    doc = Leptris::XML::Document.create
+    root = doc.native_create_element("r")
+    doc.native_root = root
+    a = root.create_child("a")
+    b = root.create_child("b")
+    expect(root.element_children.map(&:name)).to eq(%w[a b])
+    expect(a.parent.equal?(root)).to be(true)
+  end
+
+  it "keeps binding Document#root working after native_root=" do
+    doc = Leptris::XML::Document.create
+    root = doc.native_create_element("r")
+    doc.native_root = root
+    expect(doc.root).to be_a(Leptris::XML::Element)
+    expect(doc.root.name).to eq("r")
+    expect(doc.native_node.name).to eq("r")
+  end
+end

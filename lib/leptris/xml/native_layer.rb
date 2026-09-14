@@ -54,9 +54,29 @@ resolved = candidates.any? do |path|
 end
 
 class Leptris::XML::Document
-  # The native-node view of the document root (opt-in read layer).
+  # Separate identity cache for NativeNodes so binding Node.wrap
+  # and the native layer never overwrite each other.
+  def native_cache
+    @native_cache ||= {}
+  end
+
   def native_node
-    root or raise Leptris::XML::Error, "document has no root element"
-    Leptris::XML::NativeNode.from(self, root.c_ptr)
+    r = root or raise Leptris::XML::Error, "document has no root element"
+    Leptris::XML::NativeNode.from(self, r.c_ptr)
+  end
+
+  # Builder factories that return NativeNodes (#149): one C call
+  # and a TypedData wrap — no FFI::Pointer, no wrap_fresh path.
+  def native_create_element(name)
+    Leptris::XML::NativeNode.create_element(self, name.to_s)
+  end
+
+  def native_create_text(content)
+    Leptris::XML::NativeNode.create_text(self, content.to_s)
+  end
+
+  def native_root=(element)
+    Leptris::XML::NativeNode.set_root(self, element)
+    element
   end
 end
