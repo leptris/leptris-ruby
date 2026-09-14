@@ -37,6 +37,10 @@ module Leptris::XML::Native
   end
 end
 
+# TODO.perf/01: accelerate the DEFAULT binding classes while the
+# bundle is loaded (name/content/prefix/[] hot reads).
+Leptris::XML::NATIVE_FAST = true
+
 candidates = Leptris::XML::Native.lib_candidates
 resolved = candidates.any? do |path|
   begin

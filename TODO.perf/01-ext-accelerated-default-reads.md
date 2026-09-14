@@ -1,6 +1,13 @@
 # 01 — Ext-accelerated default reads (no FFI marshaling on hot paths)
 
-Status: TODO
+Status: SHIPPED (1.9.162.9) — name/content/prefix/[]-cold-path ride
+the ext when the bundle is loaded. Per-read 276->84ns (3.3x,
+pre-address) / attr 373->199ns. HONEST GATE FINDING: warm loops
+cannot see it (memos serve after first touch) — the gate is the
+COLD one-shot pass (fresh doc, one read per node): 13-25% on the
+#187 shape. UTF-8 encoding via rb_utf8_str_new_cstr (suite specs
+run both paths in one process: native_layer_spec sets the flag
+mid-suite). Remaining: children bulk for binding classes.
 
 The default binding's hot reads each pay FFI per-call marshaling
 (:string returns allocate through FFI, args marshal through the

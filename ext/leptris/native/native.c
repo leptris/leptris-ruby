@@ -21,6 +21,7 @@ typedef int (*children_ex_fn)(void *, void **, int *, int);
 typedef int (*node_type_fn)(void *);
 typedef void *(*next_sibling_fn)(void *);
 typedef void *(*parent_fn)(void *);
+typedef const char *(*elem_prefix_fn)(void *);
 typedef const char *(*element_text_fn)(void *);
 typedef void *(*doc_create_fn)(void);
 typedef void *(*elem_create_fn)(void *, const char *);
@@ -37,6 +38,7 @@ static children_ex_fn f_children_ex;
 static node_type_fn f_node_type;
 static next_sibling_fn f_next_sibling;
 static parent_fn f_parent;
+static elem_prefix_fn f_elem_prefix;
 static element_text_fn f_element_text;
 static doc_create_fn f_doc_create;
 static elem_create_fn f_elem_create;
@@ -94,6 +96,7 @@ static void resolve_symbols(const char *lib_path)
     f_node_type = (node_type_fn)lib_sym(h, "leptris_node_get_type");
     f_next_sibling = (next_sibling_fn)lib_sym(h, "leptris_node_next_sibling");
     f_parent = (parent_fn)lib_sym(h, "leptris_node_parent");
+    f_elem_prefix = (elem_prefix_fn)lib_sym(h, "leptris_element_prefix");
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     f_doc_create = (doc_create_fn)lib_sym(h, "leptris_document_create");
     f_elem_create = (elem_create_fn)lib_sym(h, "leptris_element_create");
@@ -105,7 +108,8 @@ static void resolve_symbols(const char *lib_path)
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
-        !f_create_child || !f_append_child || !f_set_root || !f_doc_free)
+        !f_create_child || !f_append_child || !f_set_root || !f_doc_free ||
+        !f_elem_prefix)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
 }
 
@@ -115,7 +119,7 @@ static VALUE nn_name(VALUE self)
     const char *s;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     s = f_elem_name(n->ptr);
-    return s ? rb_str_new_cstr(s) : Qnil;
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
 static VALUE nn_content(VALUE self)
@@ -127,7 +131,7 @@ static VALUE nn_content(VALUE self)
      * nodes carry it directly. */
     s = f_node_type(n->ptr) == 0 ? f_element_text(n->ptr)
                                  : f_text_content(n->ptr);
-    return s ? rb_str_new_cstr(s) : Qnil;
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
 static VALUE nn_attribute(VALUE self, VALUE name)
@@ -136,7 +140,7 @@ static VALUE nn_attribute(VALUE self, VALUE name)
     const char *s;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     s = f_attr(n->ptr, StringValueCStr(name));
-    return s ? rb_str_new_cstr(s) : Qnil;
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
 static VALUE nn_allocate(VALUE klass)
@@ -355,6 +359,43 @@ static VALUE nn_address(VALUE self)
     return ULL2NUM((uint64_t)(uintptr_t)n->ptr);
 }
 
+/* ---- Address-based fast readers (TODO.perf/01) -----------------
+ * The DEFAULT binding classes call these when the bundle is
+ * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
+ * marshaling. Addresses come from FFI::Pointer#address (a Ruby
+ * ivar read on the ffi gem's Pointer). */
+static VALUE nf_name(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_elem_name((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_element_text(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_element_text((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_attribute(VALUE self, VALUE addr, VALUE name)
+{
+    const char *s;
+    (void)self;
+    s = f_attr((void *)(uintptr_t)NUM2ULL(addr), StringValueCStr(name));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_prefix(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_elem_prefix((void *)(uintptr_t)NUM2ULL(addr));
+    return (s && *s) ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
 static VALUE nn_from(VALUE klass, VALUE document, VALUE element)
 {
     /* Element address comes through the binding's #c_ptr address;
@@ -383,7 +424,7 @@ static VALUE leptris_native_resolve_rb(VALUE self, VALUE lib_path)
 
 void Init_native(void)
 {
-    VALUE m_leptris, m_xml;
+    VALUE m_leptris, m_xml, m_native;
 
     m_leptris = rb_define_module("Leptris");
     m_xml = rb_define_module_under(m_leptris, "XML");
@@ -411,4 +452,10 @@ void Init_native(void)
     rb_define_method(c_native_node, "node_type", nn_type_sym, 0);
     rb_define_singleton_method(c_native_node, "resolve!",
                                leptris_native_resolve_rb, 1);
+
+    m_native = rb_define_module_under(m_xml, "Native");
+    rb_define_module_function(m_native, "fast_name", nf_name, 1);
+    rb_define_module_function(m_native, "fast_element_text", nf_element_text, 1);
+    rb_define_module_function(m_native, "fast_attribute", nf_attribute, 2);
+    rb_define_module_function(m_native, "fast_prefix", nf_prefix, 1);
 }
