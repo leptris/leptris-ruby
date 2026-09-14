@@ -111,3 +111,21 @@ RSpec.describe "NativeNode surface completion (TODO.perf/05)" do
     expect(native_rec.byte_offset).to be > 0
   end
 end
+
+RSpec.describe "bulk paths never truncate (#202)" do
+  it "returns every child past the 512 batch floor" do
+    [511, 512, 513, 600, 1000].each do |n|
+      doc = Leptris::XML::Document.parse(
+        "<r>" + (1..n).map { |i| i.even? ? "<c/>" : "t" }.join + "</r>")
+      expect(doc.native_node.children.size).to eq(n)
+      expect(doc.root.children.size).to eq(n)
+      expect(doc.native_node.element_children.size)
+        .to eq((1..n).count(&:even?))
+    end
+  end
+
+  it "materializes xpath results past the floor" do
+    doc = Leptris::XML::Document.parse("<r>" + ("<e/>" * 800) + "</r>")
+    expect(doc.xpath("//e").size).to eq(800)
+  end
+end
