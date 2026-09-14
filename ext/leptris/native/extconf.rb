@@ -26,7 +26,12 @@ if RUBY_PLATFORM =~ /darwin/
   # bundle, unresolvable on user machines. A Ruby extension
   # resolves Ruby symbols from the loading interpreter; never
   # link libruby.
+  # BOTH maps: mkmf's Makefile interpolates from MAKEFILE_CONFIG,
+  # not CONFIG — clearing only CONFIG is a silent no-op (caught via
+  # the build-log otool on the runner).
   RbConfig::CONFIG["LIBRUBYARG_SHARED"] = ""
   RbConfig::CONFIG["LIBRUBYARG_STATIC"] = ""
+  RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_SHARED"] = ""
+  RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_STATIC"] = ""
 end
 create_makefile("leptris/xml/native")
