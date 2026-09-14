@@ -27,6 +27,7 @@ typedef int (*xp_nodes_ex_fn)(void *, void **, int *, int);
 typedef int (*xp_node_kind_fn)(void *, int);
 typedef const char *(*xp_node_name_fn)(void *, int);
 typedef const char *(*xp_node_value_fn)(void *, int);
+typedef size_t (*serialize_into_fn)(void *, char *, size_t, void *, void *);
 typedef const char *(*element_text_fn)(void *);
 typedef void *(*doc_create_fn)(void);
 typedef void *(*elem_create_fn)(void *, const char *);
@@ -49,6 +50,7 @@ static xp_nodes_ex_fn f_xp_nodes_ex;
 static xp_node_kind_fn f_xp_node_kind;
 static xp_node_name_fn f_xp_node_name;
 static xp_node_value_fn f_xp_node_value;
+static serialize_into_fn f_doc_serialize, f_elem_serialize;
 static element_text_fn f_element_text;
 static doc_create_fn f_doc_create;
 static elem_create_fn f_elem_create;
@@ -113,6 +115,8 @@ static void resolve_symbols(const char *lib_path)
     f_xp_node_kind = (xp_node_kind_fn)lib_sym(h, "leptris_xpath_result_node_kind");
     f_xp_node_name = (xp_node_name_fn)lib_sym(h, "leptris_xpath_result_node_name");
     f_xp_node_value = (xp_node_value_fn)lib_sym(h, "leptris_xpath_result_node_value");
+    f_doc_serialize = (serialize_into_fn)lib_sym(h, "leptris_document_serialize_into");
+    f_elem_serialize = (serialize_into_fn)lib_sym(h, "leptris_element_serialize_into");
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     f_doc_create = (doc_create_fn)lib_sym(h, "leptris_document_create");
     f_elem_create = (elem_create_fn)lib_sym(h, "leptris_element_create");
@@ -126,7 +130,8 @@ static void resolve_symbols(const char *lib_path)
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
         !f_create_child || !f_append_child || !f_set_root || !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
-        !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value)
+        !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
+        !f_doc_serialize || !f_elem_serialize)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
 }
 
@@ -543,6 +548,78 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
     return out;
 }
 
+/* ---- Ext-bound serialization (TODO.perf/04) ---------------------
+ * The whole sized-buffer cycle in C: build SerializeOptions on
+ * the stack, call (buf, cap, NULL status, opts), grow if needed,
+ * return a UTF-8 String. No FFI marshaling, no Ruby buffer
+ * management per to_xml call. */
+struct serialize_opts {
+    int indent;
+    int xml_declaration;
+    const char *encoding;
+};
+
+/* Grow-only scratch for large serializations. Safe under the GVL:
+ * synchronous C calls hold it, so no two Ruby threads run this
+ * concurrently. */
+static char *ser_buf;
+static size_t ser_cap;
+
+static VALUE fast_serialize(serialize_into_fn fn, void *node,
+                            int indent, int xml_declaration)
+{
+    struct serialize_opts opts;
+    char stack_buf[4096];
+    size_t needed;
+
+    char *probe;
+    size_t probe_cap;
+
+    opts.indent = indent;
+    opts.xml_declaration = xml_declaration;
+    opts.encoding = NULL;
+    /* Probe the largest buffer we own: a big scratch from a prior
+     * call usually fits (single serialization); cold calls start
+     * on the stack buffer. */
+    if (ser_cap > sizeof(stack_buf)) {
+        probe = ser_buf;
+        probe_cap = ser_cap;
+    } else {
+        probe = stack_buf;
+        probe_cap = sizeof(stack_buf);
+    }
+    needed = fn(node, probe, probe_cap, NULL, &opts);
+    if (needed == 0)
+        return rb_utf8_str_new_cstr("");
+    if (needed <= probe_cap)
+        return rb_utf8_str_new(probe, needed - 1);
+    if (needed > ser_cap) {
+        ser_buf = ruby_xrealloc(ser_buf, needed);
+        ser_cap = needed;
+    }
+    needed = fn(node, ser_buf, ser_cap, NULL, &opts);
+    return needed > 0 ? rb_utf8_str_new(ser_buf, needed - 1)
+                      : rb_utf8_str_new_cstr("");
+}
+
+static VALUE nf_fast_document_xml(VALUE self, VALUE addr,
+                                  VALUE indent, VALUE decl)
+{
+    (void)self;
+    return fast_serialize(f_doc_serialize,
+                          (void *)(uintptr_t)NUM2ULL(addr),
+                          NUM2INT(indent), RTEST(decl) ? 1 : 0);
+}
+
+static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
+                                 VALUE indent, VALUE decl)
+{
+    (void)self;
+    return fast_serialize(f_elem_serialize,
+                          (void *)(uintptr_t)NUM2ULL(addr),
+                          NUM2INT(indent), RTEST(decl) ? 1 : 0);
+}
+
 /* ---- Address-based fast readers (TODO.perf/01) -----------------
  * The DEFAULT binding classes call these when the bundle is
  * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
@@ -659,4 +736,8 @@ void Init_native(void)
     rb_define_module_function(m_native, "bulk_element_children",
                               nf_bulk_element_children, 2);
     rb_define_module_function(m_native, "bulk_xpath", nf_bulk_xpath, 2);
+    rb_define_module_function(m_native, "fast_document_xml",
+                              nf_fast_document_xml, 3);
+    rb_define_module_function(m_native, "fast_element_xml",
+                              nf_fast_element_xml, 3);
 }

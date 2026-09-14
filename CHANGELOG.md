@@ -5,6 +5,17 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.1] - 2026-09-14
+
+### Performance
+
+- **TODO.perf/04 — ext-bound serialization**: `to_xml`/`inner_html`
+  run the whole sized-buffer cycle in C (options on the stack, probe
+  the largest owned buffer first so large documents serialize once,
+  grow-only scratch under the GVL). inner_html per-call batch
+  **84 -> 50 ms (1.7x)**; document serialization at parity (single
+  call both paths); `encoding:` keeps the FFI options path.
+
 ## [1.9.163.0] - 2026-09-14
 
 ### Performance
