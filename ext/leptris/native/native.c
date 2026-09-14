@@ -17,13 +17,13 @@
 typedef const char *(*elem_name_fn)(void *);
 typedef const char *(*text_content_fn)(void *);
 typedef const char *(*attr_fn)(void *, const char *);
-typedef int (*children_ex_fn)(void *, void **, int *, int);
+typedef size_t (*children_ex_fn)(void *, void **, int *, size_t);
 typedef int (*node_type_fn)(void *);
 typedef void *(*next_sibling_fn)(void *);
 typedef void *(*parent_fn)(void *);
 typedef const char *(*elem_prefix_fn)(void *);
-typedef int (*xp_count_fn)(void *);
-typedef int (*xp_nodes_ex_fn)(void *, void **, int *, int);
+typedef size_t (*xp_count_fn)(void *);
+typedef size_t (*xp_nodes_ex_fn)(void *, void **, int *, size_t);
 typedef int (*xp_node_kind_fn)(void *, int);
 typedef const char *(*xp_node_name_fn)(void *, int);
 typedef const char *(*xp_node_value_fn)(void *, int);
@@ -194,18 +194,47 @@ static VALUE nn_allocate(VALUE klass)
 /* Bulk children: one native pass; cache check/store inline; the
  * document's wrapper_cache (a Ruby Hash keyed by address) provides
  * identity for nodes seen through other paths. */
+/* Two-call children fetch (#202): children_ex copies
+ * min(total, cap); a saturated fill means the list may be longer —
+ * query the true count (buf NULL) and refetch grown. */
+static int fetch_children_two_call(void *node, void ***buf_out,
+                                   int **kinds_out)
+{
+    size_t cap = 512;
+    void *b = ruby_xmalloc(cap * sizeof(void *));
+    int *k = ruby_xmalloc((int)cap * sizeof(int));
+    size_t count = f_children_ex(node, b, k, cap);
+    if (count == cap) {
+        size_t total = f_children_ex(node, NULL, NULL, 0);
+        if (total > cap) {
+            ruby_xfree(b);
+            ruby_xfree(k);
+            cap = total;
+            b = ruby_xmalloc(cap * sizeof(void *));
+            k = ruby_xmalloc((int)cap * sizeof(int));
+            count = f_children_ex(node, b, k, cap);
+        }
+    }
+    *buf_out = b;
+    *kinds_out = k;
+    return (int)count;
+}
+
 static VALUE nn_children(VALUE self)
 {
     struct native_node *n;
-    void *buf[512];
-    int kinds[512];
+    void **buf;
+    int *kinds;
     int count, i;
     VALUE cache, out;
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
-    count = f_children_ex(n->ptr, buf, kinds, 512);
-    if (count <= 0)
+    count = fetch_children_two_call(n->ptr, &buf, &kinds);
+    if (count <= 0) {
+        ruby_xfree(buf);
+        ruby_xfree(kinds);
         return rb_ary_new2(0);
+    }
 
     cache = rb_funcall(n->document, id_wrapper_cache, 0);
     out = rb_ary_new2(count);
@@ -223,6 +252,8 @@ static VALUE nn_children(VALUE self)
         }
         rb_ary_push(out, child);
     }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
     return out;
 }
 
@@ -245,15 +276,18 @@ static VALUE nn_type_sym(VALUE self)
 static VALUE nn_element_children(VALUE self)
 {
     struct native_node *n;
-    void *buf[512];
-    int kinds[512];
+    void **buf;
+    int *kinds;
     int count, i;
     VALUE cache, out;
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
-    count = f_children_ex(n->ptr, buf, kinds, 512);
-    if (count <= 0)
+    count = fetch_children_two_call(n->ptr, &buf, &kinds);
+    if (count <= 0) {
+        ruby_xfree(buf);
+        ruby_xfree(kinds);
         return rb_ary_new2(0);
+    }
 
     cache = rb_funcall(n->document, id_wrapper_cache, 0);
     out = rb_ary_new();
@@ -272,6 +306,8 @@ static VALUE nn_element_children(VALUE self)
         }
         rb_ary_push(out, child);
     }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
     return out;
 }
 
@@ -493,15 +529,18 @@ static VALUE binding_klass_for(int kind)
 static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
                                 int elements_only)
 {
-    void *buf[512];
-    int kinds[512];
+    void **buf;
+    int *kinds;
     int count, i;
     VALUE cache, out;
 
-    count = f_children_ex((void *)(uintptr_t)NUM2ULL(parent_addr),
-                          buf, kinds, 512);
-    if (count <= 0)
+    count = fetch_children_two_call((void *)(uintptr_t)NUM2ULL(parent_addr),
+                                    &buf, &kinds);
+    if (count <= 0) {
+        ruby_xfree(buf);
+        ruby_xfree(kinds);
         return rb_ary_new2(0);
+    }
 
     cache = rb_funcall(document, id_binding_cache, 0);
     out = rb_ary_new2(elements_only ? 8 : count);
@@ -522,6 +561,8 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
         }
         rb_ary_push(out, node);
     }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
     return out;
 }
 
@@ -551,20 +592,26 @@ static VALUE m_native_sentinel; /* module object = fallback marker */
 static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
 {
     void *result = (void *)(uintptr_t)NUM2ULL(result_ptr_val);
-    void *buf[512];
-    int kinds[512];
+    void **buf;
+    int *kinds;
     int count, i;
     VALUE cache, out;
 
     (void)self;
     resolve_binding_classes();
-    count = f_xp_count(result);
-    if (count <= 0)
+    size_t scount = f_xp_count(result);
+    if (scount == 0)
         return rb_ary_new2(0);
-    if (count > 512)
-        count = 512;  /* remainder handled by the Ruby fallback */
 
-    count = f_xp_nodes_ex(result, buf, kinds, count);
+    buf = ruby_xmalloc(scount * sizeof(void *));
+    kinds = ruby_xmalloc(scount * sizeof(int));
+    scount = f_xp_nodes_ex(result, buf, kinds, scount);
+    count = (int)scount;
+    if (count <= 0) {
+        ruby_xfree(buf);
+        ruby_xfree(kinds);
+        return rb_ary_new2(0);
+    }
     cache = rb_funcall(document, id_binding_cache, 0);
     out = rb_ary_new2(count);
     for (i = 0; i < count; i++) {
@@ -633,6 +680,8 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
         }
         rb_ary_push(out, node);
     }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
     return out;
 }
 
