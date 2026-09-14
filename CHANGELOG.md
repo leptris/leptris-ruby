@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.162.7] - 2026-09-14
+
+### Added
+
+- **Native builder factories (#149)**: with the opt-in native
+  layer loaded, `Document#native_create_element` /
+  `#native_create_text` / `#native_root=` and
+  `NativeNode#create_child` / `#add_child` create TypedData nodes
+  in one C call — no FFI::Pointer, no wrap_fresh path. Measured
+  create_text 746->324ns (2.3x binding), 1052-node build 1948->273µs
+  (**2.3x faster than Nokogiri**). Separate `native_cache` keeps
+  binding Node.wrap identity intact.
+
 ## [1.9.162.6] - 2026-09-14
 
 ### Fixed
