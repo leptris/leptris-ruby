@@ -5,7 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.5] - 2026-09-14
+## [1.9.162.6] - 2026-09-14
+
+### Fixed
+
+- **Native layer linkage, resolved**: setup-ruby's custom rubies
+  link libruby by absolute runner path through mkmf no matter
+  which RbConfig entries are cleared (and a post-link
+  install_name_tool rewrite rebinds every Ruby symbol to the
+  replacement — 1.9.162.5's "Symbol not found: rb_cObject"). The
+  darwin bundle is now linked directly in the Rakefile: compile
+  via the Makefile, link with pure -undefined dynamic_lookup and
+  -mmacosx-version-min=11.0 — no libruby LC_LOAD_DYLIB can exist.
+  Build log prints otool -L as the standing contract check.
+\n## [1.9.162.5] - 2026-09-14
 
 ### Fixed
 

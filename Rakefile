@@ -92,26 +92,26 @@ task :compile do
   ext_dir = "ext/leptris/native"
   Dir.chdir(ext_dir) do
     sh "ruby extconf.rb"
-    sh "make"
+    if RUBY_PLATFORM =~ /darwin/
+      # Link the bundle ourselves: setup-ruby's custom rubies make
+      # mkmf link libruby by absolute runner path no matter which
+      # RbConfig entries are cleared, and any libruby
+      # LC_LOAD_DYLIB is unresolvable on user machines. Compile
+      # via the Makefile, link with pure -undefined dynamic_lookup
+      # (Ruby symbols resolve from the loading interpreter) and a
+      # conservative deployment target.
+      sh "make native.o"
+      sh "cc -dynamic -bundle -undefined dynamic_lookup " \
+         "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
+         "-o native.bundle native.o"
+    else
+      sh "make"
+    end
   end
   bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
   raise "native layer bundle not found after build" unless bundle
   if RUBY_PLATFORM =~ /darwin/
-    # The linkage contract is libSystem-only. setup-ruby's custom
-    # rubies make mkmf link libruby by absolute runner path
-    # (unresolvable on user machines) regardless of cleared
-    # RbConfig entries — rewrite that dependency post-link: Ruby
-    # symbols resolve from the loading interpreter via
-    # -undefined dynamic_lookup, so the libruby LC_LOAD_DYLIB is
-    # dead weight; point it at libSystem and re-sign (arm64
-    # requires a valid signature after any rewrite).
-    `otool -L #{bundle}`.lines.each do |line|
-      if (libruby = line[/\S*libruby[\d.]*\.dylib/])
-        sh "install_name_tool -change #{libruby} /usr/lib/libSystem.B.dylib #{bundle}"
-      end
-    end
-    sh "codesign --force -s - #{bundle}" if RUBY_PLATFORM =~ /arm64/
-    # Build-log proof of the contract.
+    # Build-log proof of the linkage contract: libSystem only.
     puts `otool -L #{bundle}`
   end
   cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
