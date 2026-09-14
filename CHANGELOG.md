@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.3] - 2026-09-15
+
+### Fixed
+
+- **Adoption prunes redundant own declarations (moxml #208
+  lineage, libxml2 reparent parity)**: an element carrying its
+  own `xmlns` declaration that the attach target already resolves
+  identically no longer re-declares it after a move —
+  `<r xmlns:p="urn:p"><p:c xmlns:p="urn:p"/></r>` becomes
+  `<r xmlns:p="urn:p"><p:c/></r>`. Shadowing declarations (same
+  prefix, different URI) are preserved, and standalone detached
+  elements keep their declarations. Matches libxml2's
+  drop-redundant-namespace-on-reparent behavior, making the
+  binding tolerant of both builder call orders.
+
 ## [1.9.163.2] - 2026-09-14
 
 ### Added
