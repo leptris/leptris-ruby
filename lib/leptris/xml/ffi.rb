@@ -66,6 +66,8 @@ module Leptris
       typedef :pointer, :leptris_xquery
       typedef :pointer, :leptris_schematron
       typedef :pointer, :leptris_diff
+      typedef :pointer, :leptris_plan
+      typedef :pointer, :leptris_plan_result
       typedef :pointer, :leptris_sax_recorder
       typedef :pointer, :leptris_pull_parser
       typedef :pointer, :leptris_iterparse
@@ -152,6 +154,97 @@ module Leptris
           :text, :pointer,
           :text_len, :size_t
       end
+
+      # Tree-shaped schema-descriptor materialization (1.9.162,
+      # upstream #1039): hosts compile a plan tree once, then
+      # leptris_plan_walk materializes a whole subtree in one
+      # native pass. The plan/result structs mirror descriptor.h
+      # — POD, ABI-frozen at v1 (leptris_plan_abi_version).
+      class AttrPlan < ::FFI::Struct
+        layout :wire_name, :pointer,
+               :kind, :uint8,
+               :type_tag, :uint8
+      end
+      class ChildPlan < ::FFI::Struct
+        layout :wire_name, :pointer,
+               :kind, :uint8,
+               :type_tag, :uint8,
+               :child_plan_index, :int32
+      end
+      class ElementPlan < ::FFI::Struct
+        layout :element_name, :pointer,
+               :ns_form, :uint8,
+               :pad0, :uint8,
+               :ns_uri, :pointer,
+               :attribute_count, :uint32,
+               :child_count, :uint32,
+               :attribute_plans, :pointer,
+               :child_plans, :pointer,
+               :flags, :uint16,
+               :pad1, :uint16
+      end
+      class PlanSpec < ::FFI::Struct
+        layout :abi_version, :uint32,
+               :plan_count, :uint32,
+               :plans, :pointer
+      end
+
+      PLAN_ABI_VERSION = 1
+
+      PLAN_KIND_SCALAR = 1
+      PLAN_KIND_COLLECTION = 2
+      PLAN_KIND_NESTED = 3
+      PLAN_KIND_RAW = 4
+      PLAN_KIND_CONTENT = 5
+      PLAN_KIND_CALLBACK = 6
+
+      PLAN_FLAG_MIXED_CONTENT = 0x1
+      PLAN_FLAG_ORDERED = 0x2
+      PLAN_FLAG_CDATA = 0x4
+      PLAN_FLAG_NS_LENIENT = 0x8
+
+      PLAN_NS_NONE = 0
+      PLAN_NS_EXACT = 1
+      PLAN_NS_ANY = 2
+
+      PLAN_VALUE_ELEMENT = 0
+      PLAN_VALUE_SCALAR = 1
+      PLAN_VALUE_COLLECTION = 2
+      PLAN_VALUE_RAW = 3
+      PLAN_VALUE_CALLBACK = 4
+
+      # Byte offset of parse-created nodes (1.9.162, #1039): the
+      # position descriptor CALLBACK rows echo; 0 when unknown.
+      attach_function :leptris_node_byte_offset,
+        [:leptris_node_ref], :size_t
+
+      attach_function :leptris_plan_abi_version, [], :uint32
+      attach_function :leptris_plan_build,
+        [:pointer, :pointer], :leptris_plan
+      attach_function :leptris_plan_free, [:leptris_plan], :void
+      attach_function :leptris_plan_walk,
+        [:leptris_document, :leptris_element, :leptris_plan, :pointer],
+        :leptris_plan_result
+      attach_function :leptris_plan_result_free,
+        [:leptris_plan_result], :void
+      attach_function :leptris_plan_value_kind,
+        [:leptris_plan_result], :int
+      attach_function :leptris_plan_value_name,
+        [:leptris_plan_result], :string
+      attach_function :leptris_plan_value_type_tag,
+        [:leptris_plan_result], :uint8
+      attach_function :leptris_plan_value_string,
+        [:leptris_plan_result], :string
+      attach_function :leptris_plan_value_length,
+        [:leptris_plan_result], :size_t
+      attach_function :leptris_plan_value_position,
+        [:leptris_plan_result], :size_t
+      attach_function :leptris_plan_value_count,
+        [:leptris_plan_result], :size_t
+      attach_function :leptris_plan_value_at,
+        [:leptris_plan_result, :size_t], :leptris_plan_result
+      attach_function :leptris_plan_value_attribute,
+        [:leptris_plan_result, :string], :string
 
       attach_function :leptris_version, [], :string
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void

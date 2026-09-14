@@ -25,6 +25,8 @@ module Leptris
     autoload :EvaluationContext, "leptris/xml/evaluation_context"
     autoload :Schematron, "leptris/xml/schematron"
     autoload :Diff, "leptris/xml/diff"
+    autoload :Descriptor, "leptris/xml/descriptor"
+    autoload :PlanValue, "leptris/xml/plan_value"
     autoload :IterationScope, "leptris/xml/iteration_scope"
     autoload :ResultText, "leptris/xml/result_text"
     autoload :ResultAttr, "leptris/xml/result_attr"
