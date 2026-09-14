@@ -99,6 +99,8 @@ task :compile do
   if RUBY_PLATFORM =~ /darwin/
     # Build-log diagnostics: the linkage contract is libSystem-only.
     puts `otool -L #{bundle}`
+    puts File.readlines("#{ext_dir}/Makefile")
+      .grep(/^\w*(LIBS|LOCAL_LIBS|DLDFLAGS|LIBRUBY|LIBPATH|ldflags|dldflags)\w*\s*=/)
   end
   cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
   puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
