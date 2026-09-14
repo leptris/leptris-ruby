@@ -1,6 +1,11 @@
 # 03 — Bulk XPath result materialization
 
-Status: TODO
+Status: SHIPPED (1.9.163.0) — one C pass (kind dispatch incl.
+synthetic text/attr value capture, node-type consult for real
+Text/CDATA under XPATH text, identity cache). HONEST FINDING: the
+xpath one-shot is parse-dominated; the materialization slice gains
+~1.4x. >512-entry results and rare kinds fall back to the per-index
+path. No warm-path change.
 
 NodeSet#fetch materializes results per node (wrap per item +
 ResultText/ResultAttr captures). The #185 profile counted
