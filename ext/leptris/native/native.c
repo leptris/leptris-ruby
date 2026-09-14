@@ -14,12 +14,18 @@ typedef const char *(*text_content_fn)(void *);
 typedef const char *(*attr_fn)(void *, const char *);
 typedef int (*children_ex_fn)(void *, void **, int *, int);
 typedef int (*node_type_fn)(void *);
+typedef void *(*next_sibling_fn)(void *);
+typedef void *(*parent_fn)(void *);
+typedef const char *(*element_text_fn)(void *);
 
 static elem_name_fn f_elem_name;
 static text_content_fn f_text_content;
 static attr_fn f_attr;
 static children_ex_fn f_children_ex;
 static node_type_fn f_node_type;
+static next_sibling_fn f_next_sibling;
+static parent_fn f_parent;
+static element_text_fn f_element_text;
 
 static VALUE c_native_node;
 static ID id_wrapper_cache;
@@ -56,8 +62,12 @@ static void resolve_symbols(const char *lib_path)
     f_attr = (attr_fn)dlsym(h, "leptris_element_attribute");
     f_children_ex = (children_ex_fn)dlsym(h, "leptris_node_children_ex");
     f_node_type = (node_type_fn)dlsym(h, "leptris_node_get_type");
+    f_next_sibling = (next_sibling_fn)dlsym(h, "leptris_node_next_sibling");
+    f_parent = (parent_fn)dlsym(h, "leptris_node_parent");
+    f_element_text = (element_text_fn)dlsym(h, "leptris_element_text");
     if (!f_elem_name || !f_text_content || !f_attr ||
-        !f_children_ex || !f_node_type)
+        !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
+        !f_element_text)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
 }
 
@@ -75,7 +85,10 @@ static VALUE nn_content(VALUE self)
     struct native_node *n;
     const char *s;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
-    s = f_text_content(n->ptr);
+    /* elements aggregate their text (leptris_element_text); text
+     * nodes carry it directly. */
+    s = f_node_type(n->ptr) == 0 ? f_element_text(n->ptr)
+                                 : f_text_content(n->ptr);
     return s ? rb_str_new_cstr(s) : Qnil;
 }
 
@@ -129,14 +142,105 @@ static VALUE nn_children(VALUE self)
     return out;
 }
 
+static VALUE nn_type_sym(VALUE self)
+{
+    struct native_node *n;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    switch (f_node_type(n->ptr)) {
+    case 0: return ID2SYM(rb_intern("element"));
+    case 1: return ID2SYM(rb_intern("text"));
+    case 2: return ID2SYM(rb_intern("comment"));
+    case 3: return ID2SYM(rb_intern("cdata"));
+    case 4: return ID2SYM(rb_intern("pi"));
+    default: return ID2SYM(rb_intern("node"));
+    }
+}
+
+/* Bulk children filtered to elements — the walk shape consumers
+ * actually iterate (#185's element_children parity). */
+static VALUE nn_element_children(VALUE self)
+{
+    struct native_node *n;
+    void *buf[512];
+    int kinds[512];
+    int count, i;
+    VALUE cache, out;
+
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    count = f_children_ex(n->ptr, buf, kinds, 512);
+    if (count <= 0)
+        return rb_ary_new2(0);
+
+    cache = rb_funcall(n->document, id_wrapper_cache, 0);
+    out = rb_ary_new();
+    for (i = 0; i < count; i++) {
+        if (kinds[i] != NT_ELEMENT)
+            continue;
+        VALUE key = ULL2NUM((uint64_t)(uintptr_t)buf[i]);
+        VALUE child = rb_hash_aref(cache, key);
+        if (NIL_P(child)) {
+            struct native_node *cn;
+            child = nn_allocate(c_native_node);
+            TypedData_Get_Struct(child, struct native_node, &nn_type, cn);
+            cn->ptr = buf[i];
+            cn->document = n->document;
+            rb_hash_aset(cache, key, child);
+        }
+        rb_ary_push(out, child);
+    }
+    return out;
+}
+
+static VALUE wrap_cached(struct native_node *owner, void *ptr)
+{
+    VALUE cache, key, node;
+    struct native_node *n;
+
+    cache = rb_funcall(owner->document, id_wrapper_cache, 0);
+    key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    node = rb_hash_aref(cache, key);
+    if (!NIL_P(node))
+        return node;
+    node = nn_allocate(c_native_node);
+    TypedData_Get_Struct(node, struct native_node, &nn_type, n);
+    n->ptr = ptr;
+    n->document = owner->document;
+    rb_hash_aset(cache, key, node);
+    return node;
+}
+
+static VALUE nn_next_sibling(VALUE self)
+{
+    struct native_node *n;
+    void *sib;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    sib = f_next_sibling(n->ptr);
+    return sib ? wrap_cached(n, sib) : Qnil;
+}
+
+static VALUE nn_parent(VALUE self)
+{
+    struct native_node *n;
+    void *par;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    par = f_parent(n->ptr);
+    return par ? wrap_cached(n, par) : Qnil;
+}
+
 static VALUE nn_from(VALUE klass, VALUE document, VALUE element)
 {
-    /* Element address comes through the binding's #c_ptr address */
+    /* Element address comes through the binding's #c_ptr address;
+     * registered in the shared identity cache so parent/sibling
+     * round-trips return the same object. */
     struct native_node *n;
     VALUE node = nn_allocate(klass);
+    void *ptr = (void *)(uintptr_t)NUM2ULL(
+        rb_funcall(element, rb_intern("address"), 0));
     TypedData_Get_Struct(node, struct native_node, &nn_type, n);
-    n->ptr = (void *)(uintptr_t)NUM2ULL(rb_funcall(element, rb_intern("address"), 0));
+    n->ptr = ptr;
     n->document = document;
+    rb_hash_aset(rb_funcall(document, id_wrapper_cache, 0),
+                 ULL2NUM((uint64_t)(uintptr_t)ptr), node);
     return node;
 }
 
@@ -166,6 +270,10 @@ void Init_native(void)
     rb_define_method(c_native_node, "attribute", nn_attribute, 1);
     rb_define_alias(c_native_node, "[]", "attribute");
     rb_define_method(c_native_node, "children", nn_children, 0);
+    rb_define_method(c_native_node, "element_children", nn_element_children, 0);
+    rb_define_method(c_native_node, "next_sibling", nn_next_sibling, 0);
+    rb_define_method(c_native_node, "parent", nn_parent, 0);
+    rb_define_method(c_native_node, "node_type", nn_type_sym, 0);
     rb_define_singleton_method(c_native_node, "resolve!",
                                leptris_native_resolve_rb, 1);
 }

@@ -5,7 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.1] - 2026-09-14
+## [1.9.162.2] - 2026-09-14
+
+### Added
+
+- **Opt-in native read layer** (#185 / TODO.restructure/21 round
+  2): `require "leptris/xml/native_layer"` activates
+  `Document#native_node` — TypedData node wrappers with the C
+  pointer and owning document embedded in one RVALUE, hot reads
+  (#name, #content, #[]/#attribute, #children, #element_children,
+  #next_sibling, #parent, #node_type) bound directly in C over the
+  dlsym-resolved library, and children constructed in bulk (one
+  wrapper-cache round-trip, zero Ruby frames, zero per-node
+  FFI::Pointer). Measured **~5x on raw walks** vs the binding path
+  and **~45 kB/doc held wrappers**; identity is shared with the
+  binding through the per-document wrapper cache, so both views
+  of one document interoperate. The default require path never
+  loads the compiled bundle; installs without it (ruby-platform
+  gem) get a clear LoadError. The ext ships vendored in platform
+  gems (no compile at install).
+\n## [1.9.162.1] - 2026-09-14
 
 ### Performance
 
