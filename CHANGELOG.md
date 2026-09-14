@@ -5,7 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.4] - 2026-09-14
+## [1.9.162.5] - 2026-09-14
+
+### Fixed
+
+- **Native layer linkage, third round**: the runner-side
+  libruby reference came from setup-ruby's LIBRUBYARG_SHARED
+  (an absolute runner path recorded as LC_LOAD_DYLIB —
+  unresolvable on user machines), not from the link flags. The
+  extconf now clears the libruby link args for the bundle target
+  (Ruby symbols resolve from the loading interpreter); the
+  Rakefile prints otool -L into the build log as the standing
+  linkage contract check.
+\n## [1.9.162.4] - 2026-09-14
 
 ### Fixed
 

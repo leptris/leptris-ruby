@@ -96,6 +96,10 @@ task :compile do
   end
   bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
   raise "native layer bundle not found after build" unless bundle
+  if RUBY_PLATFORM =~ /darwin/
+    # Build-log diagnostics: the linkage contract is libSystem-only.
+    puts `otool -L #{bundle}`
+  end
   cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
   puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
 end

@@ -21,5 +21,12 @@ if RUBY_PLATFORM =~ /darwin/
   [$LDFLAGS, $DLDFLAGS].each do |var|
     var << lookup unless var.include?("dynamic_lookup")
   end
+  # setup-ruby builds carry the RUNNER's absolute libruby path in
+  # LIBRUBYARG_SHARED — recorded as an LC_LOAD_DYLIB in the
+  # bundle, unresolvable on user machines. A Ruby extension
+  # resolves Ruby symbols from the loading interpreter; never
+  # link libruby.
+  RbConfig::CONFIG["LIBRUBYARG_SHARED"] = ""
+  RbConfig::CONFIG["LIBRUBYARG_STATIC"] = ""
 end
 create_makefile("leptris/xml/native")
