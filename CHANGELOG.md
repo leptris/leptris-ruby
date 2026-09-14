@@ -5,7 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.0] - 2026-09-14
+## [1.9.162.1] - 2026-09-14
+
+### Performance
+
+- **#187 (small-document parse)**: the default `Document.parse`
+  path (no options, no recover) no longer allocates a ParseOptions
+  just to discover flags==0 — measured 10.2 -> 6.5 us on a ~80-byte
+  document (-36%); the profile's ParseOptions/Class#new shares drop
+  out. Options/recover paths unchanged.
+\n## [1.9.162.0] - 2026-09-14
 
 ### Added
 

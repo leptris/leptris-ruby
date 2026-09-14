@@ -62,6 +62,18 @@ class Leptris::XML::Document
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
     end
+    # The default path (no options, no recover) allocates nothing:
+    # ParseOptions.new here would only discover flags==0 (#187 —
+    # per-call overhead is most of a small-document parse).
+    if options.nil? && !recover
+      raw = Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, nil)
+      if raw.null?
+        raise Leptris::XML::ParseError,
+          "leptris_parse_string failed: " +
+          Leptris::XML::FFI.leptris_last_error.to_s
+      end
+      return wrap(raw).tap { |doc| doc.readonly! if readonly }
+    end
     if options.nil?
       options = Leptris::XML::ParseOptions.new(recover: recover)
     elsif recover && !options.recover?
