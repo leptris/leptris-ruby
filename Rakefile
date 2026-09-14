@@ -85,6 +85,19 @@ task :compile do
   raise "utf8proc shared library not found after build" unless u8_lib
   cp(u8_lib, "lib/#{File.basename(u8_lib)}")
   puts "Vendored #{File.basename(lib)} + #{File.basename(u8_lib)} into lib/"
+
+  # Opt-in native read layer ext (#185): built and vendored beside
+  # the library — no compile at install; resolves libleptris at
+  # require time via dlsym.
+  ext_dir = "ext/leptris/native"
+  Dir.chdir(ext_dir) do
+    sh "ruby extconf.rb"
+    sh "make"
+  end
+  bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
+  raise "native layer bundle not found after build" unless bundle
+  cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
+  puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
 end
 
 task spec: :compile unless ENV.key?("LEPTRIS_LIB_PATH")
@@ -189,6 +202,7 @@ platforms.each do |platform|
     spec.platform = Gem::Platform.new(platform)
     spec.files += Dir.glob("lib/libleptris.{dll,so,dylib}")
     spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
+    spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
     task = Gem::PackageTask.new(spec)
     task.define
   end
