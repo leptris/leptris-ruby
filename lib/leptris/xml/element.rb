@@ -4,10 +4,18 @@ class Leptris::XML::Element < Leptris::XML::Node
   # TODO.perf/01: with the native bundle loaded, hot reads go
   # through the ext (one C-API dispatch + rb_str_new_cstr — no FFI
   # marshaling; ~3x per read). defined? is near-free when absent.
+  # Scope-owned (iterparse-yield) elements stay on the FFI path:
+  # their pool addresses recycle across yields and their lifetime
+  # rules ride the IterationScope seam — the ext fast path is for
+  # document-owned trees.
+  def native_fast?
+    defined?(Leptris::XML::NATIVE_FAST) && !scope_owned?
+  end
+
   def name
     return @name if @name
     ensure_alive!
-    @name = if defined?(Leptris::XML::NATIVE_FAST)
+    @name = if native_fast?
               Leptris::XML::Native.fast_name(@c_ptr.address)
             else
               Leptris::XML::FFI.leptris_element_name(@c_ptr)
@@ -26,7 +34,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def content
     return @content if memo_hit?(@content_version)
     ensure_alive!
-    result = if defined?(Leptris::XML::NATIVE_FAST)
+    result = if native_fast?
                Leptris::XML::Native.fast_element_text(@c_ptr.address)
              else
                Leptris::XML::FFI.leptris_element_text(@c_ptr)
@@ -71,7 +79,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         # engine call resolves it, then the name is cached.
         return v if !v.nil? || @attributes
         ensure_alive!
-        v = if defined?(Leptris::XML::NATIVE_FAST)
+        v = if native_fast?
                  Leptris::XML::Native.fast_attribute(@c_ptr.address, name)
                else
                  Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
@@ -218,7 +226,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # or nil when the element has none.
   def prefix
     ensure_alive!
-    if defined?(Leptris::XML::NATIVE_FAST)
+    if native_fast?
       Leptris::XML::Native.fast_prefix(@c_ptr.address)
     else
       result = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
