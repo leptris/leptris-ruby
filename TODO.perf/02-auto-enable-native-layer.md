@@ -1,6 +1,10 @@
 # 02 — Auto-enable the native layer when the bundle is present
 
-Status: TODO
+Status: SHIPPED (1.9.162.9) — require "leptris" quietly
+probes for the native bundle and activates when present.
+LEPTRIS_NO_NATIVE=1 forces the FFI path (suite exercises both).
+The explicit native_layer require remains the parallel-API entry
+for NativeNode builders.
 
 Today `require "leptris/xml/native_layer"` is opt-in. End-state:
 `require "leptris"` quietly probes for the vendored native.bundle
