@@ -266,6 +266,16 @@ class Leptris::XML::Element < Leptris::XML::Node
       prefix = key.start_with?("xmlns:") ? key.delete_prefix("xmlns:") : nil
       node.add_namespace_definition(prefix, uri)
     end
+    # libxml2 reparent parity (moxml #208 lineage): an OWN
+    # declaration the attach target already resolves identically
+    # is redundant — prune it so serialized output does not
+    # re-declare (libxml2 drops these on reparent). Shadowing
+    # declarations (same prefix, different URI) are preserved.
+    node.namespace_definitions.each do |ns|
+      key = ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns"
+      next unless target_scope[key] == ns.href
+      node.remove_namespace_definition(ns.prefix)
+    end
     nil
   end
 

@@ -229,3 +229,32 @@ RSpec.describe "namespace adoption on attach (#178)" do
     expect(dst.to_xml).to include('xmlns:p="urn:p"', "<p:c", "<p:d")
   end
 end
+
+RSpec.describe "adoption prunes redundant own declarations (moxml #208 lineage)" do
+  it "drops an own declaration the attach target resolves identically" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"/>})
+    el = doc.create_element("c")
+    el.add_namespace_definition("p", "urn:p")
+    el.name = "p:c"
+    doc.root.add_child(el)
+    expect(doc.to_xml).to include(%q{<p:c/>})
+    expect(doc.to_xml.scan("xmlns:p=").size).to eq(1)
+  end
+
+  it "preserves shadowing declarations (same prefix, different URI)" do
+    doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"/>})
+    el = doc.create_element("c")
+    el.add_namespace_definition("p", "urn:other")
+    el.name = "p:c"
+    doc.root.add_child(el)
+    expect(doc.to_xml).to include(%q{<p:c xmlns:p="urn:other"/>})
+  end
+
+  it "keeps standalone detached elements well-formed" do
+    doc = Leptris::XML::Document.create
+    el = doc.create_element("c")
+    el.add_namespace_definition("p", "urn:p")
+    el.name = "p:c"
+    expect(el.to_xml).to eq(%q{<p:c xmlns:p="urn:p"/>})
+  end
+end
