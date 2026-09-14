@@ -467,6 +467,15 @@ static VALUE nn_byte_offset(VALUE self)
     return ULL2NUM((uint64_t)f_node_offset(n->ptr));
 }
 
+/* The owning binding Document (moxml #213: adapters route
+ * native.document exactly like Node#document). */
+static VALUE nn_document(VALUE self)
+{
+    struct native_node *n;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    return n->document;
+}
+
 static VALUE nn_address(VALUE self)
 {
     struct native_node *n;
@@ -840,6 +849,7 @@ void Init_native(void)
     rb_define_method(c_native_node, "append_child", nn_append_child, 1);
     rb_define_method(c_native_node, "add_child", nn_append_child, 1);
     rb_define_method(c_native_node, "address", nn_address, 0);
+    rb_define_method(c_native_node, "document", nn_document, 0);
     rb_define_method(c_native_node, "attributes", nn_attributes, 0);
     rb_define_method(c_native_node, "line", nn_line, 0);
     rb_define_method(c_native_node, "byte_offset", nn_byte_offset, 0);

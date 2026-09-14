@@ -28,25 +28,63 @@ CMAKE_FLAGS = %w[
   -DLEPTRIS_ENABLE_ICONV=OFF
 ].freeze
 
+require "tmpdir"
+
 desc "Build libleptris #{LIBLEPTRIS_VERSION} (+ utf8proc) from release tarballs into lib/"
 task :compile do
+  # GitHub tarball downloads intermittently return a non-gzip body
+  # (rate-limit/redirect HTML) — the piped curl|tar form then fails
+  # with "not in gzip format" and takes the leg down. Download to a
+  # file with retries, validate the gzip magic, extract from the
+  # file.
+  # Whole-cycle retry: a truncated body can still start with the
+  # gzip magic (Windows runners) and only fail at tar EOF — refetch
+  # on any failure in the chain rather than trusting curl's exit
+  # code alone.
+  fetch_tarball = lambda do |url, dest_dir|
+    attempts = 0
+    begin
+      attempts += 1
+      tgz = File.join(Dir.tmpdir, "leptris-#{Time.now.to_i}-#{rand(1e9)}.tgz")
+      begin
+        sh "curl -sfL --retry 4 --retry-delay 2 --retry-all-errors -o #{tgz} #{url}"
+        magic = File.binread(tgz, 2)
+        unless magic.bytes == [0x1f, 0x8b]
+          raise "downloaded #{url} is not gzip (got #{magic.bytes.inspect})"
+        end
+        # GNU tar (Git-bundled, Windows) parses D:/... as a
+        # REMOTE host spec ("Cannot connect to D:") — the piped
+        # form never had a file argument, so this only surfaces
+        # with -o. --force-local is GNU tar; bsdtar (macOS) and
+        # plain GNU tar (linux) don't need it but tolerate being
+        # skipped.
+        local_flag = Gem.win_platform? ? " --force-local" : ""
+        sh "tar#{local_flag} -xzf #{tgz} -C #{dest_dir} --strip-components=1"
+      ensure
+        File.delete(tgz) if File.exist?(tgz)
+      end
+    rescue StandardError => e
+      raise if attempts >= 3
+      warn "tarball fetch attempt #{attempts} failed (#{e.message}); retrying"
+      retry
+    end
+  end
+
   version = ENV.fetch("LIBLEPTRIS_VERSION", LIBLEPTRIS_VERSION)
   build = File.expand_path("tmp/libleptris-#{version}", __dir__)
   rm_rf(build)
   mkdir_p(build)
-  url = "https://api.github.com/repos/leptris/leptris/tarball/v#{version}"
-  sh "curl -sL #{url} | tar xz -C #{build} --strip-components=1"
+  fetch_tarball.call(
+    "https://api.github.com/repos/leptris/leptris/tarball/v#{version}", build)
 
   # utf8proc: shared build only, @rpath install name, local prefix.
   u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)
   u8_prefix = File.join(u8_dir, "prefix")
   rm_rf(u8_dir)
   mkdir_p(u8_dir)
-  u8_url = "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz"
-  # The piped form is the shape the libleptris fetch already uses —
-  # the -o file form produced a non-gzip artifact on the Windows
-  # runners (tar child status 128).
-  sh "curl -sL #{u8_url} | tar xz -C #{u8_dir} --strip-components=1"
+  fetch_tarball.call(
+    "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz",
+    u8_dir)
   sh "cmake -B #{u8_dir}/build -S #{u8_dir} -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DUTF8PROC_ENABLE_TESTING=OFF"
   sh "cmake --build #{u8_dir}/build --config Release -j 4"
   sh "cmake --install #{u8_dir}/build --prefix #{u8_prefix}"
