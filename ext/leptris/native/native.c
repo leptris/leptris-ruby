@@ -5,9 +5,14 @@
  * bulk — one cache round-trip, zero Ruby frames, zero FFI
  * marshaling per node. */
 #include <ruby.h>
-#include <dlfcn.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 typedef const char *(*elem_name_fn)(void *);
 typedef const char *(*text_content_fn)(void *);
@@ -52,19 +57,30 @@ static const rb_data_type_t nn_type = {
     0, 0, RUBY_TYPED_FREE_IMMEDIATELY
 };
 
+#ifdef _WIN32
+static void *lib_open(const char *path) { return (void *)LoadLibraryA(path); }
+static void *lib_sym(void *h, const char *name)
+{
+    return (void *)GetProcAddress((HMODULE)h, name);
+}
+#else
+static void *lib_open(const char *path) { return dlopen(path, RTLD_NOW); }
+static void *lib_sym(void *h, const char *name) { return dlsym(h, name); }
+#endif
+
 static void resolve_symbols(const char *lib_path)
 {
-    void *h = dlopen(lib_path, RTLD_NOW);
+    void *h = lib_open(lib_path);
     if (!h)
-        rb_raise(rb_eRuntimeError, "dlopen %s: %s", lib_path, dlerror());
-    f_elem_name = (elem_name_fn)dlsym(h, "leptris_element_name");
-    f_text_content = (text_content_fn)dlsym(h, "leptris_text_node_get_content");
-    f_attr = (attr_fn)dlsym(h, "leptris_element_attribute");
-    f_children_ex = (children_ex_fn)dlsym(h, "leptris_node_children_ex");
-    f_node_type = (node_type_fn)dlsym(h, "leptris_node_get_type");
-    f_next_sibling = (next_sibling_fn)dlsym(h, "leptris_node_next_sibling");
-    f_parent = (parent_fn)dlsym(h, "leptris_node_parent");
-    f_element_text = (element_text_fn)dlsym(h, "leptris_element_text");
+        rb_raise(rb_eRuntimeError, "cannot load library %s", lib_path);
+    f_elem_name = (elem_name_fn)lib_sym(h, "leptris_element_name");
+    f_text_content = (text_content_fn)lib_sym(h, "leptris_text_node_get_content");
+    f_attr = (attr_fn)lib_sym(h, "leptris_element_attribute");
+    f_children_ex = (children_ex_fn)lib_sym(h, "leptris_node_children_ex");
+    f_node_type = (node_type_fn)lib_sym(h, "leptris_node_get_type");
+    f_next_sibling = (next_sibling_fn)lib_sym(h, "leptris_node_next_sibling");
+    f_parent = (parent_fn)lib_sym(h, "leptris_node_parent");
+    f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text)
