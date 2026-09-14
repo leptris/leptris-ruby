@@ -5,7 +5,17 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.162.3] - 2026-09-14
+## [1.9.162.4] - 2026-09-14
+
+### Fixed
+
+- **Native layer linkage, second round**: 1.9.162.3's
+  -undefined dynamic_lookup rode $LDFLAGS, which the release
+  runner's Ruby 3.3 mkmf drops from the bundle link line. The
+  extconf now pins BOTH $LDFLAGS and $DLDFLAGS (plus
+  -mmacosx-version-min in the compile flags) — verified locally:
+  minos 11.0, libSystem-only linkage.
+\n## [1.9.162.3] - 2026-09-14
 
 ### Fixed
 
