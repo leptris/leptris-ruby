@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.2] - 2026-09-15
+
+### Changed
+
+- **The native layer returns to Windows, one DLL per Ruby minor
+  (#227)**: a PE DLL must bind its build Ruby's runtime, so the
+  Windows platform gems now ship `native-3.3.so` / `native-3.4.so`
+  / `native-4.0.so` and the loader picks by `RUBY_VERSION` at
+  require. The release workflow compiles each minor's artifact on
+  the Windows legs (a minor unavailable on a runner degrades to
+  the loud FFI fallback for that cell); local `rake compile` on
+  Windows builds the current minor's DLL. Windows test legs now
+  exercise the full native suite instead of FFI-only.
+
 ## [1.9.174.1] - 2026-09-15
 
 ### Fixed

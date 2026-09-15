@@ -115,6 +115,49 @@ jobs:
         with:
           ref: ${{ needs.bump.outputs.sha || github.ref }}
 
+      # #227: Windows native layer as one DLL per Ruby minor. A PE
+      # DLL must bind its build Ruby's runtime, so each supported
+      # minor compiles its own artifact before packaging. A minor
+      # unavailable on a runner (arm) degrades to the loud FFI
+      # fallback for that cell only.
+      - uses: ruby/setup-ruby@master
+        if: contains(matrix.platform, 'mingw')
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+      - run: ruby ext/build_windows_native.rb
+        if: contains(matrix.platform, 'mingw')
+        shell: bash
+        continue-on-error: true
+      - uses: ruby/setup-ruby@master
+        if: contains(matrix.platform, 'mingw')
+        with:
+          ruby-version: '3.4'
+          bundler-cache: false
+      - run: ruby ext/build_windows_native.rb
+        if: contains(matrix.platform, 'mingw')
+        shell: bash
+        continue-on-error: true
+      - uses: ruby/setup-ruby@master
+        if: contains(matrix.platform, 'mingw')
+        with:
+          ruby-version: '4.0'
+          bundler-cache: false
+      - run: ruby ext/build_windows_native.rb
+        if: contains(matrix.platform, 'mingw')
+        shell: bash
+        continue-on-error: true
+      - name: Verify at least one Windows native DLL built
+        if: contains(matrix.platform, 'mingw')
+        shell: bash
+        run: |
+          count=$(ls lib/leptris/xml/native-*.so 2>/dev/null | wc -l)
+          if [ "$count" -lt 1 ]; then
+            echo "ERROR: no native-<minor>.so built for ${{ matrix.platform }}"
+            exit 1
+          fi
+          echo "Windows native DLLs: $count"
+
       - uses: ruby/setup-ruby@master
         with:
           ruby-version: ${{ matrix.ruby-version || '3.3' }}

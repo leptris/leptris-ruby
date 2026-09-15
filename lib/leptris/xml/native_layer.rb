@@ -17,11 +17,17 @@
 require "ffi" unless defined?(::FFI::Library)
 
 begin
-  # The compiled bundle (feature "leptris/xml/native" resolves
-  # native.bundle). A sanctioned require exception: a .bundle
-  # cannot go through autoload. Missing in installs that do not
-  # vendor it (ruby-platform gem).
-  require "leptris/xml/native"
+  # The compiled bundle. A sanctioned require exception: a
+  # .bundle/.so cannot go through autoload. Missing in installs
+  # that do not vendor it (ruby-platform gem). Windows names the
+  # artifact per Ruby minor (#207/#227): a PE DLL must bind its
+  # build Ruby's runtime, so one DLL per supported minor ships
+  # and RUBY_VERSION selects.
+  if Gem.win_platform?
+    require "leptris/xml/native-#{RUBY_VERSION[/\A\d+\.\d+/]}"
+  else
+    require "leptris/xml/native"
+  end
 rescue LoadError => e
   raise LoadError, <<~MSG
     leptris: the compiled native read layer is not available in

@@ -128,12 +128,14 @@ task :compile do
   # the library — no compile at install; resolves libleptris at
   # require time via dlsym.
   if Gem.win_platform?
-    # #207: a PE DLL cannot leave Ruby imports unresolved — the
-    # bundle would bind to the build Ruby's x64-ucrt-rubyNNN.dll
-    # and fail on every other minor. No bundle ships for
-    # Windows; the FFI surface is the Windows contract (the
-    # auto-enable warns and falls back).
-    puts "Windows: native read layer not built — FFI is the Windows surface (#207)"
+    # #207: a PE DLL cannot leave Ruby imports unresolved — it
+    # binds the build Ruby's x64-ucrt-rubyNNN.dll. The Windows
+    # gems therefore ship one DLL per supported Ruby minor
+    # (native-<minor>.so), and native_layer picks by RUBY_VERSION
+    # (#227). Local compile builds just the current minor's DLL;
+    # the release workflow runs the build script under 3.3/3.4/
+    # 4.0 to produce the full set.
+    sh "#{RbConfig.ruby} ext/build_windows_native.rb"
   else
     ext_dir = "ext/leptris/native"
     Dir.chdir(ext_dir) do
@@ -283,9 +285,10 @@ platforms.each do |platform|
     spec.platform = Gem::Platform.new(platform)
     spec.files += Dir.glob("lib/libleptris.{dll,so,dylib}")
     spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
-    # #207: no native bundle in Windows gems (PE cannot resolve
-    # Ruby imports without binding the build Ruby's DLL).
-    unless platform.include?("mingw")
+    if platform.include?("mingw")
+      # #207/#227: per-Ruby-minor DLLs (PE must bind its Ruby).
+      spec.files += Dir.glob("lib/leptris/xml/native-*.so")
+    else
       spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
     end
     task = Gem::PackageTask.new(spec)
