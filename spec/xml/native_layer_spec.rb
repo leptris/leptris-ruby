@@ -138,3 +138,99 @@ RSpec.describe "NativeNode#document (moxml #213)" do
     expect(root.element_children.first.document).to equal(doc)
   end
 end
+
+RSpec.describe "C-bound mutation and read floors (TODO.perf/07-10, #204)" do
+  it "add_child through the C face keeps binding memos coherent" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    before = doc.root.children.to_a
+    doc.root.add_child(doc.create_element("made"))
+    after = doc.root.children.to_a
+    expect(after.map(&:name)).to eq(%w[made])
+    expect(after).not_to equal(before)
+  end
+
+  it "add_child still lifts namespaces for namespaced children (Qnil fallback)" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    src = Leptris::XML::Document.parse(
+      %q{<a:o xmlns:a="urn:a"><a:i/></a:o>})
+    inner = src.root.element_children.first
+    doc.root.add_child(inner)
+    expect(doc.root.to_xml)
+      .to eq(%q{<r><a:i xmlns:a="urn:a"/></r>})
+  end
+
+  it "add_child appends text children without materializing namespaces" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.root.add_child(doc.create_text_node("t"))
+    expect(doc.root.content).to eq("t")
+  end
+
+  it "add_child raises ReadOnlyError and UseAfterFreeError through the C face" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.readonly!
+    expect { doc.root.add_child(doc.create_element("x")) }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+
+    freed = Leptris::XML::Document.parse(%q{<r/>})
+    handle = freed.root
+    freed.free
+    expect { handle.add_child(Leptris::XML::Document.create.create_element("x")) }
+      .to raise_error(Leptris::XML::UseAfterFreeError)
+  end
+
+  it "[]= goes through the C face and drops attribute memos on both surfaces" do
+    doc = Leptris::XML::Document.parse(%q{<r a="1"/>})
+    native = doc.native_node
+    expect(native["a"]).to eq("1")
+    doc.root["a"] = "2"
+    doc.root["b"] = "3"
+    expect(native["a"]).to eq("2")
+    expect(native["b"]).to eq("3")
+    expect(doc.root["a"]).to eq("2")
+  end
+
+  it "[]= raises ReadOnlyError through the C face" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.readonly!
+    expect { doc.root["a"] = "1" }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "NativeNode attribute reads memoize and invalidate on mutation" do
+    doc = Leptris::XML::Document.parse(%q{<r sku="S7"/>})
+    node = doc.native_node
+    first = node["sku"]
+    expect(node["sku"]).to equal(first)
+    doc.root["sku"] = "CHANGED"
+    expect(node["sku"]).to eq("CHANGED")
+  end
+
+  it "NativeNode content memoizes and invalidates on native mutation" do
+    doc = Leptris::XML::Document.parse(%q{<r><e>old</e></r>})
+    root = doc.native_node
+    expect(root.content).to eq("old")
+    root.append_child(Leptris::XML::NativeNode.create_text(doc, "+new"))
+    expect(root.content).to eq("old+new")
+    expect(doc.root.content).to eq("old+new")
+  end
+
+  it "Element.skip_adoption_lift? answers provable no-ops exactly" do
+    plain = Leptris::XML::Document.parse(%q{<r><e/></r>})
+    expect(Leptris::XML::Element.skip_adoption_lift?(
+             plain.root.element_children.first)).to be(true)
+
+    pfx = Leptris::XML::Document.parse(
+      %q{<a:o xmlns:a="urn:a"><a:i/></a:o>})
+    expect(Leptris::XML::Element.skip_adoption_lift?(
+             pfx.root.element_children.first)).to be(false)
+
+    default_ns = Leptris::XML::Document.parse(
+      %q{<o xmlns="urn:d"><i/></o>})
+    expect(Leptris::XML::Element.skip_adoption_lift?(
+             default_ns.root.element_children.first)).to be(false)
+
+    text = Leptris::XML::Document.parse(%q{<r>t</r>})
+    expect(Leptris::XML::Element.skip_adoption_lift?(
+             text.root.children.first)).to be(true)
+  end
+end

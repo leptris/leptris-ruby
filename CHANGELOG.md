@@ -5,6 +5,49 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.5] - 2026-09-15
+
+### Changed
+
+- **C-bound mutations for the programmatic-build path (#204 asks
+  2-3)**: `Element#add_child` and `Element#[]=` dispatch to the
+  native layer when auto-enabled — one C entry runs the
+  readonly/liveness gates, the provable no-op namespace-lift
+  predicate, the version bump, and the engine write. Children
+  that DO need a namespace lift (resolved or declared namespaces)
+  fall back to the full Ruby path unchanged. Measured (shared
+  host, load 12-19): binding add_child on a fresh parent
+  1678ns -> 506ns; the ask-3 shape (create x2 + attach x2) went
+  from the 4.1us baseline to ~1.2-1.3us — at or past the raw
+  Nokogiri row (~1.5-1.6us).
+- **Native read floors (#204 ask 1)**: `NativeNode#[]` and
+  `NativeNode#content` now keep version-stamped memos (the same
+  invalidation discipline as binding memos, ADR 0003) — repeat
+  reads are two ivar reads and a compare, no C call, no string
+  mint; mutations through either surface drop them via the shared
+  document version.
+- **Adoption-lift guard ordering (#204 ask 3)**: the provable
+  no-op check moved ahead of the target's in-scope namespace
+  materialization at every mutation site (`add_child`,
+  `prepend_child`, sibling inserts, `root=`) — a fresh parent no
+  longer pays the namespace collection FFI round-trips per
+  attach. Non-element children skip the lift outright.
+- **Ivar-based document state in the native layer**: the C faces
+  read `@c_address`, `@wrapper_cache`/`@native_cache`, `@version`,
+  `@readonly` directly instead of rb_funcall dispatching
+  (`Document` maintains `@c_address` as the Integer twin of
+  `@c_ptr`, nil'ed on free); document create/mutate faces shed
+  ~300ns of method-dispatch overhead each.
+
+### Added
+
+- `Leptris::XML::Native.append_binding_child` /
+  `set_binding_attribute` module faces and
+  `Element.skip_adoption_lift?` (the provable no-op predicate,
+  public so specs can pin its exact semantics).
+- moxml gap-table rows (per-operation binding floors, build row)
+  in `benchmark/native_vs_binding.rb` (TODO.perf/11).
+
 ## [1.9.163.4] - 2026-09-15
 
 ### Fixed
