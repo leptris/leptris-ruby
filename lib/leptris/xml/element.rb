@@ -114,6 +114,15 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :get_attribute, :[]
 
   def []=(key, value)
+    # C-bound write (TODO.perf/11): gates + version bump + engine
+    # set in one dispatch; the bump drops the version-stamped
+    # attribute memos on both surfaces.
+    if native_fast_children?
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.set_binding_attribute(
+          @document, @c_ptr.address, key.to_s, value.to_s))
+      return value
+    end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s))
@@ -198,6 +207,17 @@ class Leptris::XML::Element < Leptris::XML::Node
     # Require the full Attr-hash face — a cold [] may have set the
     # version with only a partial @attr_values (ruby#150).
     return @attributes if @attributes && memo_hit?(@attributes_version)
+    if native_fast?
+      # TODO.perf/10: both memo faces in one C walk.
+      result, values = Leptris::XML::Native.bulk_attr_faces(
+        @c_ptr.address, self)
+      if @document
+        @attributes = result
+        @attr_values = values
+        @attributes_version = @document.version
+      end
+      return result
+    end
     result = {}
     values = {}
     each_attribute do |attr|
@@ -253,6 +273,21 @@ class Leptris::XML::Element < Leptris::XML::Node
   # adopted subtree. Call BEFORE attaching: the source scope is
   # read through the node's current ancestors. Identical scopes
   # (the common same-document move) add nothing.
+  # TODO.perf/09: one dispatch answers whether ANY lift work can
+  # apply (no resolved namespace, no own declarations = provable
+  # no-op — the common programmatic-build shape). Checked at the
+  # mutation sites so the target's in-scope namespaces are never
+  # materialized when the answer is no.
+  def self.skip_adoption_lift?(node)
+    # Non-elements can never need a lift (lift's own first line
+    # no-ops them) — skipping also avoids materializing the
+    # target's namespaces for the text/comment children every
+    # build appends.
+    return true unless node.is_a?(Leptris::XML::Element)
+    return false unless defined?(Leptris::XML::NATIVE_FAST)
+    !Leptris::XML::Native.ns_lift_needed?(node.c_ptr.address)
+  end
+
   def self.lift_namespaces_for_adoption(node, target_scope)
     return unless node.is_a?(Leptris::XML::Element)
     # Declarations the node already carries (its own definitions —
@@ -281,7 +316,9 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def prepend_child(node)
     ensure_writable!
-    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    unless Leptris::XML::Element.skip_adoption_lift?(node)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
     node
@@ -289,7 +326,9 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def add_next_sibling(node)
     ensure_writable!
-    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    unless Leptris::XML::Element.skip_adoption_lift?(node)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
     node
@@ -297,7 +336,9 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def add_previous_sibling(node)
     ensure_writable!
-    Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    unless Leptris::XML::Element.skip_adoption_lift?(node)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
     node
@@ -386,7 +427,22 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
-      Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
+      # C-bound append (TODO.perf/08-09): one dispatch runs the
+      # readonly/liveness gates, the provable no-op lift
+      # predicate, the version bump, and the engine append. Qnil
+      # means the child needs the namespace lift — fall through
+      # to the full path.
+      if native_fast_children?
+        st = Leptris::XML::Native.append_binding_child(
+          @document, @c_ptr.address, node_or_markup.c_ptr.address)
+        unless st.nil?
+          Leptris::XML::FFI.check_status(st)
+          return node_or_markup
+        end
+      end
+      unless Leptris::XML::Element.skip_adoption_lift?(node_or_markup)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
+      end
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr))
       node_or_markup

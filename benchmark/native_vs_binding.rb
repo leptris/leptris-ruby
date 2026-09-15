@@ -68,3 +68,43 @@ rows.each do |label, work|
   t = best_of { work.call }
   puts format("%-26s %10.2f ms", label, t * 1000)
 end
+
+# ---- moxml gap rows (TODO.perf/11, #204) --------------------------
+# Per-operation binding floors on ONE node, interleaved best-of —
+# the shapes of the 2x-Nokogiri mandate table. Budgets per the
+# issue: [] <= 70ns, content <= 58ns (native faces, repeat reads);
+# create+attach at parity with raw Nokogiri.
+N = 200_000
+one = doc.root.element_children.first
+one_native = native.element_children.first
+one["sku"]; one.content
+one_native["sku"]; one_native.content
+
+gap_rows = {
+  "[] repeat (binding)" => -> { one["sku"] },
+  "[] repeat (native)" => -> { one_native["sku"] },
+  "content repeat (binding)" => -> { one.content },
+  "content repeat (native)" => -> { one_native.content },
+  "name repeat (binding)" => -> { one.name },
+  "set_attribute (binding)" => -> { one["sku"] = "SKU-1" },
+}
+
+puts ""
+puts format("%-26s %14s", "gap row", "best-of-5")
+gap_rows.each do |label, work|
+  t = best_of { N.times { work.call } }
+  puts format("%-26s %11.0f ns", label, t / N * 1e9)
+end
+
+M = 20_000
+def build_pair
+  doc = Leptris::XML::Document.create
+  root = doc.create_element("r")
+  doc.root = root
+  e = doc.create_element("field")
+  e.add_child(doc.create_text_node("value"))
+  root.add_child(e)
+end
+
+t = best_of { M.times { build_pair } }
+puts format("%-26s %11.0f ns", "build create×2+attach", t / M * 1e9)

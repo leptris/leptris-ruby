@@ -32,6 +32,10 @@ class Leptris::XML::Document
 
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
+    # Plain-Integer address twin of @c_ptr: the native layer reads
+    # this ivar directly (no method dispatch), nil'ed exactly when
+    # @c_ptr is.
+    @c_address = c_ptr&.address
     @freed = freed
     @readonly = false
     @version = 0
@@ -258,7 +262,9 @@ class Leptris::XML::Document
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     # A document root has no in-scope declarations of its own —
     # lift everything the element's source scope carried (#178).
-    Leptris::XML::Element.lift_namespaces_for_adoption(element, {})
+    unless Leptris::XML::Element.skip_adoption_lift?(element)
+      Leptris::XML::Element.lift_namespaces_for_adoption(element, {})
+    end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
     @version += 1
@@ -266,12 +272,24 @@ class Leptris::XML::Document
   end
 
   def create_element(name)
+    # TODO.perf/09: one C call creates + wraps when the ext is
+    # loaded — no FFI marshaling, no wrap_fresh frames.
+    if defined?(Leptris::XML::NATIVE_FAST)
+      node = Leptris::XML::Native.create_binding_element(self, name.to_s)
+      raise Leptris::XML::Error, "leptris_element_create failed" if node.nil?
+      return node
+    end
     ptr = Leptris::XML::FFI.leptris_element_create(@c_ptr, name)
     raise Leptris::XML::Error, "leptris_element_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_ELEMENT)
   end
 
   def create_text_node(content)
+    if defined?(Leptris::XML::NATIVE_FAST)
+      node = Leptris::XML::Native.create_binding_text(self, content.to_s)
+      raise Leptris::XML::Error, "leptris_text_node_create failed" if node.nil?
+      return node
+    end
     ptr = Leptris::XML::FFI.leptris_text_node_create(@c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_text_node_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_TEXT)
@@ -371,6 +389,7 @@ class Leptris::XML::Document
     @freed.state = :freed
     Leptris::XML::FFI.leptris_document_free(@c_ptr) unless @c_ptr.nil?
     @c_ptr = nil
+    @c_address = nil
     @wrapper_cache&.clear
   end
 

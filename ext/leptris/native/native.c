@@ -22,12 +22,14 @@ typedef int (*node_type_fn)(void *);
 typedef void *(*next_sibling_fn)(void *);
 typedef void *(*parent_fn)(void *);
 typedef const char *(*elem_prefix_fn)(void *);
+typedef const char *(*elem_ns_fn)(void *);
 typedef size_t (*xp_count_fn)(void *);
 typedef size_t (*xp_nodes_ex_fn)(void *, void **, int *, size_t);
 typedef int (*xp_node_kind_fn)(void *, int);
 typedef const char *(*xp_node_name_fn)(void *, int);
 typedef const char *(*xp_node_value_fn)(void *, int);
 typedef size_t (*serialize_into_fn)(void *, char *, size_t, void *, void *);
+typedef int (*ns_count_fn)(void *);
 typedef void *(*attr_first_fn)(void *);
 typedef void *(*attr_next_fn)(void *);
 typedef const char *(*attr_name_fn)(void *);
@@ -40,6 +42,7 @@ typedef void *(*elem_create_fn)(void *, const char *);
 typedef void *(*text_create_fn)(void *, const char *);
 typedef void *(*create_child_fn)(void *, const char *);
 typedef int (*append_child_fn)(void *, void *);
+typedef int (*set_attr_fn)(void *, const char *, const char *);
 typedef int (*set_root_fn)(void *, void *);
 typedef void (*doc_free_fn)(void *);
 
@@ -51,12 +54,14 @@ static node_type_fn f_node_type;
 static next_sibling_fn f_next_sibling;
 static parent_fn f_parent;
 static elem_prefix_fn f_elem_prefix;
+static elem_ns_fn f_elem_ns;
 static xp_count_fn f_xp_count;
 static xp_nodes_ex_fn f_xp_nodes_ex;
 static xp_node_kind_fn f_xp_node_kind;
 static xp_node_name_fn f_xp_node_name;
 static xp_node_value_fn f_xp_node_value;
 static serialize_into_fn f_doc_serialize, f_elem_serialize;
+static ns_count_fn f_elem_ns_count;
 static attr_first_fn f_attr_first;
 static attr_next_fn f_attr_next;
 static attr_name_fn f_attr_name;
@@ -69,18 +74,35 @@ static elem_create_fn f_elem_create;
 static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
+static set_attr_fn f_set_attr;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
 static VALUE c_native_node;
-static ID id_wrapper_cache;   /* native_cache: NativeNode identity */
-static ID id_binding_cache;   /* wrapper_cache: binding Node identity */
+/* Ivar reads (TODO.perf/07 tail): the binding Document keeps the
+ * C address and the caches in plain ivars, so the hot C faces skip
+ * rb_funcall dispatch entirely. */
+static ID id_iv_c_address, id_iv_native_cache, id_iv_binding_cache;
+static ID id_iv_version, id_iv_readonly, id_address;
+static ID id_iv_nn_content, id_iv_nn_content_ver;
+static ID id_iv_nn_attrs, id_iv_nn_attrs_ver;
+static VALUE c_use_after_free_error;
+
+static VALUE native_cache_of(VALUE document);
+static void resolve_binding_classes(void);
+static VALUE binding_cache_of(VALUE document);
 
 #define NT_ELEMENT 0
 
 struct native_node {
     void *ptr;
     VALUE document;
+    /* Single-slot read memos (#204 ask 1): the last attribute
+     * query and the last content, stamped with the document's
+     * mutation version (a Fixnum immediate — pointer compare).
+     * Slot beats the hash memo on repeat reads of one name. */
+    VALUE attr_key, attr_val, attr_ver;
+    VALUE content_val, content_ver;
 };
 
 static void nn_mark(void *p)
@@ -88,6 +110,12 @@ static void nn_mark(void *p)
     struct native_node *n = p;
     if (n->document != Qnil)
         rb_gc_mark(n->document);
+    if (n->attr_key != Qnil)
+        rb_gc_mark(n->attr_key);
+    if (n->attr_val != Qnil)
+        rb_gc_mark(n->attr_val);
+    if (n->content_val != Qnil)
+        rb_gc_mark(n->content_val);
 }
 
 static size_t nn_size(const void *p) { (void)p; return sizeof(struct native_node); }
@@ -122,6 +150,8 @@ static void resolve_symbols(const char *lib_path)
     f_next_sibling = (next_sibling_fn)lib_sym(h, "leptris_node_next_sibling");
     f_parent = (parent_fn)lib_sym(h, "leptris_node_parent");
     f_elem_prefix = (elem_prefix_fn)lib_sym(h, "leptris_element_prefix");
+    f_elem_ns_count = (ns_count_fn)lib_sym(h, "leptris_element_namespace_count");
+    f_elem_ns = (elem_ns_fn)lib_sym(h, "leptris_element_namespace");
     f_xp_count = (xp_count_fn)lib_sym(h, "leptris_xpath_result_count");
     f_xp_nodes_ex = (xp_nodes_ex_fn)lib_sym(h, "leptris_xpath_result_get_nodes_ex");
     f_xp_node_kind = (xp_node_kind_fn)lib_sym(h, "leptris_xpath_result_node_kind");
@@ -141,15 +171,18 @@ static void resolve_symbols(const char *lib_path)
     f_text_create = (text_create_fn)lib_sym(h, "leptris_text_node_create");
     f_create_child = (create_child_fn)lib_sym(h, "leptris_element_create_child");
     f_append_child = (append_child_fn)lib_sym(h, "leptris_element_append_child");
+    f_set_attr = (set_attr_fn)lib_sym(h, "leptris_element_set_attribute");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
-        !f_create_child || !f_append_child || !f_set_root || !f_doc_free ||
+        !f_create_child || !f_append_child || !f_set_attr || !f_set_root ||
+        !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
         !f_doc_serialize || !f_elem_serialize || !f_attr_first ||
+        !f_elem_ns_count || !f_elem_ns ||
         !f_attr_next || !f_attr_name || !f_attr_value ||
         !f_node_line || !f_node_offset)
         rb_raise(rb_eRuntimeError, "libleptris symbols missing");
@@ -168,21 +201,92 @@ static VALUE nn_content(VALUE self)
 {
     struct native_node *n;
     const char *s;
+    VALUE doc, cached;
+
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    /* Version-stamped content memo (the binding Document's
+     * mutation version — the same invalidation discipline as
+     * binding memos, ADR 0003): repeat reads are two struct
+     * reads and a pointer compare. nil results never cache
+     * (empty elements recompute — rare in hot walks). */
+    doc = n->document;
+    if (doc != Qnil && n->content_ver != Qnil &&
+        n->content_ver == rb_ivar_get(doc, id_iv_version))
+        return n->content_val;
     /* elements aggregate their text (leptris_element_text); text
      * nodes carry it directly. */
     s = f_node_type(n->ptr) == 0 ? f_element_text(n->ptr)
                                  : f_text_content(n->ptr);
+    cached = s ? rb_utf8_str_new_cstr(s) : Qnil;
+    if (doc != Qnil && cached != Qnil) {
+        n->content_val = cached;
+        n->content_ver = rb_ivar_get(doc, id_iv_version);
+    }
+    return cached;
+}
+
+static VALUE nf_fast_attribute2(VALUE self, VALUE addr, VALUE name)
+{
+    const char *s;
+    (void)self;
+    s = f_attr((void *)(uintptr_t)NUM2ULL(addr),
+               RSTRING_PTR(StringValue(name)));
     return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
+/* 07 (#204 ask 1): StringValueCStr runs a memchr over the name
+ * checking for embedded NULs — attribute names cannot contain
+ * NULs, so StringValue + RSTRING_PTR skips the scan. */
 static VALUE nn_attribute(VALUE self, VALUE name)
 {
     struct native_node *n;
+    VALUE doc, cache, v;
     const char *s;
+
+    /* String-normalized once, used as both the C argument and the
+     * cache key. */
+    if (!RB_TYPE_P(name, T_STRING))
+        name = rb_obj_as_string(name);
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
-    s = f_attr(n->ptr, StringValueCStr(name));
-    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+    doc = n->document;
+    /* Single-slot memo first: the last-queried name by VALUE
+     * (callers may mint a fresh String per call) against the same
+     * version. Then the hash memo for other repeat names; both
+     * stamp with the document version, so any mutation through
+     * either surface drops them. Absent names never cache (no
+     * negative-cache staleness). */
+    if (doc != Qnil && n->attr_ver == rb_ivar_get(doc, id_iv_version) &&
+        n->attr_key != Qnil && rb_str_equal(n->attr_key, name))
+        return n->attr_val;
+    cache = Qnil;
+    if (doc != Qnil) {
+        cache = rb_ivar_get(self, id_iv_nn_attrs);
+        if (cache != Qnil &&
+            rb_ivar_get(self, id_iv_nn_attrs_ver) ==
+                rb_ivar_get(doc, id_iv_version)) {
+            v = rb_hash_aref(cache, name);
+            if (v != Qnil) {
+                n->attr_key = name;
+                n->attr_val = v;
+                n->attr_ver = rb_ivar_get(doc, id_iv_version);
+                return v;
+            }
+        }
+    }
+    s = f_attr(n->ptr, RSTRING_PTR(name));
+    v = s ? rb_utf8_str_new_cstr(s) : Qnil;
+    if (doc != Qnil && v != Qnil) {
+        if (cache == Qnil)
+            cache = rb_hash_new();
+        rb_hash_aset(cache, name, v);
+        rb_ivar_set(self, id_iv_nn_attrs, cache);
+        rb_ivar_set(self, id_iv_nn_attrs_ver,
+                    rb_ivar_get(doc, id_iv_version));
+        n->attr_key = name;
+        n->attr_val = v;
+        n->attr_ver = rb_ivar_get(doc, id_iv_version);
+    }
+    return v;
 }
 
 static VALUE nn_allocate(VALUE klass)
@@ -236,7 +340,7 @@ static VALUE nn_children(VALUE self)
         return rb_ary_new2(0);
     }
 
-    cache = rb_funcall(n->document, id_wrapper_cache, 0);
+    cache = native_cache_of(n->document);
     out = rb_ary_new2(count);
     for (i = 0; i < count; i++) {
         uint64_t addr = (uint64_t)(uintptr_t)buf[i];
@@ -289,7 +393,7 @@ static VALUE nn_element_children(VALUE self)
         return rb_ary_new2(0);
     }
 
-    cache = rb_funcall(n->document, id_wrapper_cache, 0);
+    cache = native_cache_of(n->document);
     out = rb_ary_new();
     for (i = 0; i < count; i++) {
         if (kinds[i] != NT_ELEMENT)
@@ -316,7 +420,7 @@ static VALUE wrap_cached(struct native_node *owner, void *ptr)
     VALUE cache, key, node;
     struct native_node *n;
 
-    cache = rb_funcall(owner->document, id_wrapper_cache, 0);
+    cache = native_cache_of(owner->document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
     node = rb_hash_aref(cache, key);
     if (!NIL_P(node))
@@ -358,19 +462,144 @@ static VALUE wrap_new(VALUE document, void *ptr)
     TypedData_Get_Struct(node, struct native_node, &nn_type, n);
     n->ptr = ptr;
     n->document = document;
-    cache = rb_funcall(document, id_wrapper_cache, 0);
+    cache = native_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
     rb_hash_aset(cache, key, node);
     return node;
 }
 
-/* Document address from the binding Document's #c_ptr. */
+/* Document address from the binding Document's @c_address ivar
+ * (nil once freed) — one ivar read, no method dispatch. */
 static void *doc_ptr_of(VALUE document)
 {
-    VALUE c_ptr = rb_funcall(document, rb_intern("c_ptr"), 0);
-    if (NIL_P(c_ptr))
+    VALUE addr = rb_ivar_get(document, id_iv_c_address);
+    if (NIL_P(addr))
         rb_raise(rb_eRuntimeError, "document has been freed");
-    return (void *)(uintptr_t)NUM2ULL(rb_funcall(c_ptr, rb_intern("address"), 0));
+    return (void *)(uintptr_t)NUM2ULL(addr);
+}
+
+/* Per-document identity caches. Both are lazily allocated on the
+ * Ruby side (@x ||= {}), so replicate that here: ivar read, create
+ * and store when unset. */
+static VALUE native_cache_of(VALUE document)
+{
+    VALUE cache = rb_ivar_get(document, id_iv_native_cache);
+    if (NIL_P(cache)) {
+        cache = rb_hash_new();
+        rb_ivar_set(document, id_iv_native_cache, cache);
+    }
+    return cache;
+}
+
+static VALUE binding_cache_of(VALUE document)
+{
+    VALUE cache = rb_ivar_get(document, id_iv_binding_cache);
+    if (NIL_P(cache)) {
+        cache = rb_hash_new();
+        rb_ivar_set(document, id_iv_binding_cache, cache);
+    }
+    return cache;
+}
+
+
+/* TODO.perf/08 (#204 ask 2): native mutations must advance the
+ * binding Document's mutation version so binding memos invalidate
+ * exactly as they do through the FFI write path — and respect the
+ * readonly gate. Two ivar reads per mutation (the version is
+ * always a Fixnum, readonly is Qfalse/Qtrue). */
+static VALUE c_readonly_error;
+
+static void document_advance_version(VALUE document)
+{
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — native mutation attempted");
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+}
+
+static VALUE nf_ns_lift_needed(VALUE self, VALUE addr)
+{
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    const char *uri;
+    (void)self;
+    /* Exact semantics in two C calls: an element with NO resolved
+     * namespace and NO own declarations cannot lose anything in a
+     * move — bare name, no prefix binding, no default-ns
+     * dependency, nothing to prune. Everything else takes the full
+     * lift path (carries in-scope declarations, prunes redundant
+     * own ones). */
+    if (f_elem_ns_count(node) > 0)
+        return Qtrue;
+    uri = f_elem_ns(node);
+    return (uri && *uri) ? Qtrue : Qfalse;
+}
+
+/* ---- C-bound append (TODO.perf/08-09, #204 ask 3) --------------
+ * One dispatch for the common programmatic-build adoption: the
+ * readonly + liveness gates, the provable no-op namespace-lift
+ * predicate, the version bump, and the engine append. Returns
+ * the engine status int; Qnil means the child DOES need the
+ * namespace lift — the caller falls back to the Ruby path. */
+static VALUE nf_append_binding_child(VALUE self, VALUE document,
+                                     VALUE parent_addr, VALUE child_addr)
+{
+    void *parent, *child;
+    const char *uri;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    parent = (void *)(uintptr_t)NUM2ULL(parent_addr);
+    child = (void *)(uintptr_t)NUM2ULL(child_addr);
+    /* Same provable no-op as Element.skip_adoption_lift?: an
+     * element with no resolved namespace and no own declarations
+     * cannot lose anything in a move; non-elements can never need
+     * a lift. */
+    if (f_node_type(child) == NT_ELEMENT) {
+        if (f_elem_ns_count(child) > 0)
+            return Qnil;
+        uri = f_elem_ns(child);
+        if (uri && *uri)
+            return Qnil;
+    }
+    /* Bump before the call, mirroring ensure_writable!: a failed
+     * mutation merely discards memos. */
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_append_child(parent, child);
+    return INT2FIX(st);
+}
+
+/* C-bound set_attribute (TODO.perf/11, #204 gap row 0.25x): the
+ * gates, the version bump (which drops the version-stamped
+ * attribute memos on both surfaces), and the engine write in one
+ * dispatch. */
+static VALUE nf_set_binding_attribute(VALUE self, VALUE document,
+                                      VALUE addr, VALUE name, VALUE value)
+{
+    void *node;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    node = (void *)(uintptr_t)NUM2ULL(addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_set_attr(node, StringValueCStr(name), StringValueCStr(value));
+    return INT2FIX(st);
 }
 
 /* Builder factories (#149): create in C, wrap as NativeNode — no
@@ -399,11 +628,14 @@ static VALUE nn_create_child(VALUE self, VALUE name)
 {
     struct native_node *n;
     void *ptr;
+    VALUE out;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    document_advance_version(n->document);
     ptr = f_create_child(n->ptr, StringValueCStr(name));
     if (!ptr)
         rb_raise(rb_eRuntimeError, "leptris_element_create_child failed");
-    return wrap_new(n->document, ptr);
+    out = wrap_new(n->document, ptr);
+    return out;
 }
 
 static VALUE nn_append_child(VALUE self, VALUE child)
@@ -412,6 +644,7 @@ static VALUE nn_append_child(VALUE self, VALUE child)
     int rc;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     TypedData_Get_Struct(child, struct native_node, &nn_type, c);
+    document_advance_version(n->document);
     rc = f_append_child(n->ptr, c->ptr);
     if (rc != 0)
         rb_raise(rb_eRuntimeError, "leptris_element_append_child failed (%d)", rc);
@@ -424,6 +657,7 @@ static VALUE nn_set_root(VALUE klass, VALUE document, VALUE element)
     int rc;
     (void)klass;
     TypedData_Get_Struct(element, struct native_node, &nn_type, n);
+    document_advance_version(document);
     rc = f_set_root(doc_ptr_of(document), n->ptr);
     if (rc != 0)
         rb_raise(rb_eRuntimeError, "leptris_document_set_root failed (%d)", rc);
@@ -492,7 +726,7 @@ static VALUE nn_address(VALUE self)
  * disappear. */
 static VALUE c_b_element = Qundef, c_b_text, c_b_comment, c_b_cdata,
              c_b_pi, c_b_node, c_b_result_text, c_b_result_attr,
-             c_ffi_pointer;
+             c_b_attr, c_ffi_pointer;
 static ID id_ptr_new;
 
 /* Binding classes resolve LAZILY: Init_native can run before the
@@ -511,6 +745,7 @@ static void resolve_binding_classes(void)
     c_b_result_text = rb_path2class("Leptris::XML::ResultText");
     c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
     c_ffi_pointer = rb_path2class("FFI::Pointer");
+    c_b_attr = rb_path2class("Leptris::XML::Attr");
     id_ptr_new = rb_intern("new");
     rb_gc_register_mark_object(c_b_element);
     rb_gc_register_mark_object(c_b_text);
@@ -521,6 +756,7 @@ static void resolve_binding_classes(void)
     rb_gc_register_mark_object(c_b_result_text);
     rb_gc_register_mark_object(c_b_result_attr);
     rb_gc_register_mark_object(c_ffi_pointer);
+    rb_gc_register_mark_object(c_b_attr);
 }
 
 static VALUE binding_klass_for(int kind)
@@ -551,7 +787,7 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
         return rb_ary_new2(0);
     }
 
-    cache = rb_funcall(document, id_binding_cache, 0);
+    cache = binding_cache_of(document);
     out = rb_ary_new2(elements_only ? 8 : count);
     for (i = 0; i < count; i++) {
         VALUE key, node;
@@ -621,7 +857,7 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
         ruby_xfree(kinds);
         return rb_ary_new2(0);
     }
-    cache = rb_funcall(document, id_binding_cache, 0);
+    cache = binding_cache_of(document);
     out = rb_ary_new2(count);
     for (i = 0; i < count; i++) {
         VALUE node, key;
@@ -692,6 +928,111 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
     ruby_xfree(buf);
     ruby_xfree(kinds);
     return out;
+}
+
+/* ---- Bulk attribute materialization (TODO.perf/10) ---------------
+ * Element#attributes / #keys / #values walk the attribute list
+ * one FFI call per row (name + value). One C pass builds the
+ * {name => value} hash for the binding. */
+static VALUE nf_bulk_attributes(VALUE self, VALUE addr)
+{
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    VALUE hash = rb_hash_new();
+    void *attr = f_attr_first(node);
+
+    (void)self;
+    while (attr) {
+        const char *name = f_attr_name(attr);
+        const char *value = f_attr_value(node, attr);
+        rb_hash_aset(hash,
+                     name ? rb_utf8_str_new_cstr(name) : Qnil,
+                     value ? rb_utf8_str_new_cstr(value) : Qnil);
+        attr = f_attr_next(attr);
+    }
+    return hash;
+}
+
+/* ---- Binding create via C (TODO.perf/09): one call creates the
+ * node AND constructs the binding wrapper (class dispatch, ivars,
+ * identity-cache store) — no FFI marshaling, no wrap_fresh path. */
+static VALUE nf_create_binding_element(VALUE self, VALUE document,
+                                       VALUE name)
+{
+    void *doc = doc_ptr_of(document);
+    void *ptr = f_elem_create(doc, RSTRING_PTR(StringValue(name)));
+    VALUE node, cache, key;
+
+    (void)self;
+    resolve_binding_classes();
+    if (!ptr)
+        return Qnil; /* caller raises with the error channel */
+    node = rb_obj_alloc(c_b_element);
+    rb_iv_set(node, "@c_ptr",
+              rb_funcall(c_ffi_pointer, id_ptr_new, 1,
+                         ULL2NUM((uint64_t)(uintptr_t)ptr)));
+    rb_iv_set(node, "@document", document);
+    rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@node_type", INT2FIX(0));
+    cache = binding_cache_of(document);
+    key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    rb_hash_aset(cache, key, node);
+    return node;
+}
+
+static VALUE nf_create_binding_text(VALUE self, VALUE document,
+                                    VALUE content)
+{
+    void *doc = doc_ptr_of(document);
+    void *ptr = f_text_create(doc, RSTRING_PTR(StringValue(content)));
+    VALUE node, cache, key;
+
+    (void)self;
+    resolve_binding_classes();
+    if (!ptr)
+        return Qnil;
+    node = rb_obj_alloc(c_b_text);
+    rb_iv_set(node, "@c_ptr",
+              rb_funcall(c_ffi_pointer, id_ptr_new, 1,
+                         ULL2NUM((uint64_t)(uintptr_t)ptr)));
+    rb_iv_set(node, "@document", document);
+    rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@node_type", INT2FIX(1));
+    cache = binding_cache_of(document);
+    key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    rb_hash_aset(cache, key, node);
+    return node;
+}
+
+/* ---- Bulk attribute FACES (TODO.perf/10): {name => Attr} with
+ * the values hash beside it — the exact shapes Element#attributes
+ * memoizes, built in one walk. Attr is a value object
+ * (name/value/element ivars; c_handle optional). */
+
+static ID id_iv_name, id_iv_value, id_iv_element;
+
+static VALUE nf_bulk_attr_faces(VALUE self, VALUE addr, VALUE element)
+{
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    VALUE faces = rb_hash_new();
+    VALUE values = rb_hash_new();
+    void *attr = f_attr_first(node);
+
+    (void)self;
+    resolve_binding_classes();
+    while (attr) {
+        const char *name = f_attr_name(attr);
+        const char *value = f_attr_value(node, attr);
+        VALUE k = name ? rb_utf8_str_new_cstr(name) : Qnil;
+        VALUE v = value ? rb_utf8_str_new_cstr(value) : Qnil;
+        VALUE a = rb_obj_alloc(c_b_attr);
+        rb_iv_set(a, "@name", k);
+        rb_iv_set(a, "@value", v);
+        rb_iv_set(a, "@element", element);
+        rb_hash_aset(faces, k, a);
+        rb_hash_aset(values, k, v);
+        attr = f_attr_next(attr);
+    }
+    return rb_assoc_new(faces, values);
 }
 
 /* ---- Ext-bound serialization (TODO.perf/04) ---------------------
@@ -766,6 +1107,12 @@ static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
                           NUM2INT(indent), RTEST(decl) ? 1 : 0);
 }
 
+/* ---- Adoption-lift predicate (TODO.perf/09, #204 ask 3) ---------
+ * The #178/#208 namespace lift + pruning runs on EVERY attach and
+ * costs several FFI round-trips even when provably a no-op. This
+ * predicate answers in ONE dispatch: false when the node carries
+ * no namespace declarations AND its name has no prefix — the
+ * common programmatic-build shape (bare names, no namespaces). */
 /* ---- Address-based fast readers (TODO.perf/01) -----------------
  * The DEFAULT binding classes call these when the bundle is
  * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
@@ -811,11 +1158,11 @@ static VALUE nn_from(VALUE klass, VALUE document, VALUE element)
     struct native_node *n;
     VALUE node = nn_allocate(klass);
     void *ptr = (void *)(uintptr_t)NUM2ULL(
-        rb_funcall(element, rb_intern("address"), 0));
+        rb_funcall(element, id_address, 0));
     TypedData_Get_Struct(node, struct native_node, &nn_type, n);
     n->ptr = ptr;
     n->document = document;
-    rb_hash_aset(rb_funcall(document, id_wrapper_cache, 0),
+    rb_hash_aset(native_cache_of(document),
                  ULL2NUM((uint64_t)(uintptr_t)ptr), node);
     return node;
 }
@@ -838,8 +1185,24 @@ void Init_native(void)
     c_native_node = rb_define_class_under(m_xml, "NativeNode", rb_cObject);
     rb_undef_alloc_func(c_native_node);
 
-    id_wrapper_cache = rb_intern("native_cache");
-    id_binding_cache = rb_intern("wrapper_cache");
+    id_iv_name = rb_intern("@name");
+    id_iv_value = rb_intern("@value");
+    id_iv_element = rb_intern("@element");
+    id_iv_c_address = rb_intern("@c_address");
+    id_iv_native_cache = rb_intern("@native_cache");
+    id_iv_binding_cache = rb_intern("@wrapper_cache");
+    id_iv_version = rb_intern("@version");
+    id_iv_readonly = rb_intern("@readonly");
+    id_address = rb_intern("address");
+    id_iv_nn_content = rb_intern("@nn_content");
+    id_iv_nn_content_ver = rb_intern("@nn_content_ver");
+    id_iv_nn_attrs = rb_intern("@nn_attrs");
+    id_iv_nn_attrs_ver = rb_intern("@nn_attrs_ver");
+    c_readonly_error = rb_path2class("Leptris::XML::ReadOnlyError");
+    c_use_after_free_error =
+        rb_path2class("Leptris::XML::UseAfterFreeError");
+    rb_gc_register_mark_object(c_readonly_error);
+    rb_gc_register_mark_object(c_use_after_free_error);
 
     rb_define_singleton_method(c_native_node, "from", nn_from, 2);
     rb_define_singleton_method(c_native_node, "create_element", nn_create_element, 2);
@@ -871,6 +1234,19 @@ void Init_native(void)
     rb_define_module_function(m_native, "fast_element_text", nf_element_text, 1);
     rb_define_module_function(m_native, "fast_attribute", nf_attribute, 2);
     rb_define_module_function(m_native, "fast_prefix", nf_prefix, 1);
+    rb_define_module_function(m_native, "fast_attribute2", nf_fast_attribute2, 2);
+    rb_define_module_function(m_native, "ns_lift_needed?", nf_ns_lift_needed, 1);
+    rb_define_module_function(m_native, "append_binding_child",
+                              nf_append_binding_child, 3);
+    rb_define_module_function(m_native, "set_binding_attribute",
+                              nf_set_binding_attribute, 4);
+    rb_define_module_function(m_native, "bulk_attributes", nf_bulk_attributes, 1);
+    rb_define_module_function(m_native, "bulk_attr_faces",
+                              nf_bulk_attr_faces, 2);
+    rb_define_module_function(m_native, "create_binding_element",
+                              nf_create_binding_element, 2);
+    rb_define_module_function(m_native, "create_binding_text",
+                              nf_create_binding_text, 2);
     rb_define_module_function(m_native, "bulk_children", nf_bulk_children, 2);
     rb_define_module_function(m_native, "bulk_element_children",
                               nf_bulk_element_children, 2);
