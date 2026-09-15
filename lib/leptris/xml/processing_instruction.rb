@@ -4,7 +4,11 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def name
     return @name if memo_hit?(@name_version)
     ensure_alive!
-    result = Leptris::XML::FFI.leptris_pi_node_get_target(c_ptr)
+    result = if @addr_reads_fast
+               Leptris::XML::Native.fast_pi_target(@c_address)
+             else
+               Leptris::XML::FFI.leptris_pi_node_get_target(c_ptr)
+             end
     if @document
       @name = result
       @name_version = @document.version
@@ -16,8 +20,12 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
   def content
     return @content if memo_hit?(@content_version)
     ensure_alive!
-    result = Leptris::XML::FFI.read_pi_data(
-      Leptris::XML::FFI.leptris_pi_node_get_data(c_ptr)).to_s
+    raw = if @addr_reads_fast
+            Leptris::XML::Native.fast_pi_data(@c_address)
+          else
+            Leptris::XML::FFI.leptris_pi_node_get_data(c_ptr)
+          end
+    result = Leptris::XML::FFI.read_pi_data(raw).to_s
     if @document
       @content = result
       @content_version = @document.version
