@@ -81,7 +81,11 @@ jobs:
         run: |
           git push origin "HEAD:${{ github.event.repository.default_branch }}"
           git tag "v${NEW_VERSION}" HEAD
-          git push origin "v${NEW_VERSION}"
+          # A failed release run can leave its tag behind while the
+          # gems never published; re-dispatching the same version
+          # must not die on it (the publish loop is idempotent).
+          git push origin "v${NEW_VERSION}" || \
+            echo "::warning::tag v${NEW_VERSION} already exists — continuing"
 
   build:
     needs: bump
