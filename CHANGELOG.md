@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.7] - 2026-09-16
+
+### Changed
+
+- **Namespace-bound xpath on the compiled path (TODO.perf/29)**:
+  the ns branch rides the compiled-expression cache (the handle
+  is ns-independent) plus the cached ns set through
+  `XPath#eval_ns_ptrs`, then the eager materializer — measured
+  (load ~16): repeat ns-xpath 7.9µs → 3.1µs (2.5x).
+- **dup + element-child faces (TODO.perf/30)**: `Element#dup`
+  runs engine create + handle + element_copy + rooted wrap in
+  one C dispatch (the namespace-lift decision stays in Ruby) —
+  ns-bearing dup 37.0µs → 9.6µs (3.9x); `first/last_element_child`
+  answer in one C walk each (the FFI paths paid O(N) scans).
+
 ## [1.9.174.6] - 2026-09-15
 
 ### Changed
