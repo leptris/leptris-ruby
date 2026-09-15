@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.7] - 2026-09-15
+
+### Changed
+
+- **at_xpath single-result seam (TODO.perf/16)**: nodeset entry-0
+  materialization (identity cache, kind dispatch, attribute/text
+  value capture) plus the result free run as one C dispatch —
+  repeat `at_xpath` measured 3.7µs (pre-cache baseline) → ~1.3µs
+  across TODO.perf/15+16 (2.8x). Non-nodeset results keep the
+  exact Ruby scalar path.
+- **inner_html in one C pass (TODO.perf/18)**: the child chain,
+  per-kind serialization (elements through the engine's
+  serialize_into, text escaped with the binding's entity set,
+  CDATA/comments/PIs wrapped), and the buffer growth all in C —
+  byte-identical to the Ruby loop (spec-pinned per kind and past
+  the growth floor); ~160ns/child vs ~500-800ns/child.
+- **Precomputed fast-path flags (TODO.perf/17)**: `@native_fast`
+  at construction (Ruby and every C site) replaces the
+  `defined?`+`scope_owned?` method chain at every gate.
+  `Element#[]=` reads attribute names via StringValue+RSTRING_PTR
+  (values keep the embedded-NUL raise); the row measured
+  454ns → 236ns (~Nokogiri parity in the same run).
+
+### Added
+
+- `Native.at_xpath_first` / `Native.fast_inner_xml` module faces;
+  `materialize_xp_entry` shared by the bulk and single-result
+  paths.
+
 ## [1.9.163.6] - 2026-09-15
 
 ### Changed

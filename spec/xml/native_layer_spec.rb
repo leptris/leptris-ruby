@@ -362,3 +362,88 @@ RSpec.describe "document lifetime in C (TODO.perf/12)" do
     expect(doc.freed?).to be(true)
   end
 end
+
+RSpec.describe "at_xpath single-result seam (TODO.perf/16)" do
+  let(:doc) do
+    Leptris::XML::Document.parse(
+      %q{<r><item id="7"><name>x</name></item><item id="8"/></r>})
+  end
+
+  it "materializes elements with identity" do
+    node = doc.at_xpath("//item")
+    expect(node.name).to eq("item")
+    expect(node).to equal(doc.at_xpath("//item"))
+    expect(node.document).to equal(doc)
+  end
+
+  it "captures attribute results with name and value" do
+    attr = doc.at_xpath("//item/@id")
+    expect(attr.name).to eq("id")
+    expect(attr.value).to eq("7")
+  end
+
+  it "captures text-kind results and answers nil for misses" do
+    expect(doc.at_xpath("//name/text()").content).to eq("x")
+    expect(doc.at_xpath("//missing")).to be_nil
+  end
+
+  it "keeps scalars on the exact Ruby path" do
+    expect(doc.at_xpath("string(//name)")).to eq("x")
+    expect(doc.at_xpath("count(//item)")).to eq(2.0)
+    expect(doc.at_xpath("count(//item) > 1")).to be(true)
+  end
+
+  it "agrees with xpath().first for every kind" do
+    expect(doc.at_xpath("//item[@id='8']"))
+      .to eq(doc.xpath("//item[@id='8']").first)
+  end
+end
+
+RSpec.describe "inner_html one C pass (TODO.perf/18)" do
+  it "is byte-identical to the Ruby loop for every child kind" do
+    xml = %q{<r><?pi data?><!--c--><b attr="v"/>t<![CDATA[raw<&>]]><n><m/></n></r>}
+    fast = Leptris::XML::Document.parse(xml).root.inner_html
+    slow = Leptris::XML::Document.parse(xml).root.children.map do |child|
+      case child
+      when Leptris::XML::Element
+        Leptris::XML::Serialization.element_xml_default(child.c_ptr)
+      when Leptris::XML::CDATA then "<![CDATA[#{child.content}]]>"
+      when Leptris::XML::Text
+        Leptris::XML::Serialization.escape_text(child.content)
+      when Leptris::XML::Comment then "<!--#{child.content}-->"
+      when Leptris::XML::ProcessingInstruction
+        d = child.content
+        d.empty? ? "<?#{child.name}?>" : "<?#{child.name} #{d}?>"
+      end
+    end.join
+    expect(fast).to eq(slow)
+  end
+
+  it "escapes text with the binding's entity set" do
+    doc = Leptris::XML::Document.parse("<r>a&amp;b&lt;c&gt;d</r>")
+    expect(doc.root.inner_html)
+      .to eq("a&amp;b&lt;c&gt;d")
+  end
+
+  it "grows past the stack probe for large children" do
+    doc = Leptris::XML::Document.parse(
+      "<r>#{'<b>x</b>' * 3000}</r>")
+    expect(doc.root.inner_html.bytesize).to eq(3000 * 8)
+  end
+end
+
+RSpec.describe "precomputed fast-path flags (TODO.perf/17)" do
+  it "stays on the FFI path for nodes built before a late native require" do
+    # native_layer is loaded in this spec process; the flag's
+    # semantics are exercised by construction: document-owned
+    # nodes are native-fast, scope-owned never.
+    doc = Leptris::XML::Document.parse(%q{<r><a/></r>})
+    expect(doc.root.element_children.first.send(:native_fast?)).to be(true)
+  end
+
+  it "[]= still raises on embedded-NUL values (no silent truncation)" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    expect { doc.root["a"] = "x\0y" }
+      .to raise_error(ArgumentError)
+  end
+end

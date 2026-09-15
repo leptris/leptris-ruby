@@ -9,7 +9,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # rules ride the IterationScope seam — the ext fast path is for
   # document-owned trees.
   def native_fast?
-    defined?(Leptris::XML::NATIVE_FAST) && !scope_owned?
+    @native_fast
   end
 
   def name
@@ -609,6 +609,11 @@ class Leptris::XML::Element < Leptris::XML::Node
   # of #inner_text, which returns the unescaped text content.
   def inner_html
     ensure_alive!
+    # One C pass (TODO.perf/18): the child chain, per-kind
+    # serialization, and the escape set all in one dispatch —
+    # byte-identical to the Ruby loop below.
+    return Leptris::XML::Native.fast_inner_xml(@c_ptr.address) if
+      @native_fast
     children.map do |child|
       case child
       when Leptris::XML::Element

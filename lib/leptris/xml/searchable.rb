@@ -236,6 +236,14 @@ module Leptris::XML::Searchable
   # AutoPointer, one fewer FFI than xpath().first; scalars keep the
   # full-wrapper semantics.
   def self.wrap_xpath_first_result(document, result_ptr)
+    # C seam (TODO.perf/16): nodesets materialize entry 0, free
+    # the handle, and return in one dispatch. The module object
+    # back means non-nodeset — the scalar path below owns it.
+    if defined?(Leptris::XML::NATIVE_FAST)
+      first = Leptris::XML::Native.at_xpath_first(
+        document, result_ptr.address)
+      return first unless first.equal?(Leptris::XML::Native)
+    end
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     if type == Leptris::XML::FFI::XPATH_NODESET
       ptr = Leptris::XML::FFI.leptris_xpath_result_get_node(result_ptr, 0)

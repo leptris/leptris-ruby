@@ -27,6 +27,11 @@ class Leptris::XML::Node
     # keeps the memo-hit path free of method dispatch.
     @structure_memoizable =
       !document.nil? && !document.is_a?(Leptris::XML::IterationScope)
+    # NATIVE_FAST availability is fixed at load time before any
+    # node exists, so the conjunction with document-ownership is
+    # construct-time constant — the hot gates read one ivar.
+    @native_fast = @structure_memoizable &&
+                   defined?(Leptris::XML::NATIVE_FAST) ? true : false
     # wrap() already calls leptris_node_get_type for dispatch; reusing
     # the result makes every predicate and #type call FFI-free.
     @node_type = node_type
@@ -145,9 +150,9 @@ class Leptris::XML::Node
 
   # The ext bulk path applies to document-owned trees only:
   # scope-owned (iterparse) elements ride the IterationScope seam.
+  # Precomputed at construction (TODO.perf/17) — one ivar read.
   def native_fast_children?
-    defined?(Leptris::XML::NATIVE_FAST) &&
-      !@document.is_a?(Leptris::XML::IterationScope)
+    @native_fast
   end
 
   # Content-defined 64-bit Merkle digest of this subtree
