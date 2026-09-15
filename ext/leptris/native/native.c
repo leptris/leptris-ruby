@@ -93,12 +93,14 @@ typedef void (*visit_cb_fn)(void *, void *, int, int);
 typedef void (*visit_fn)(void *, visit_cb_fn, void *);
 typedef void (*free_str_fn)(void *);
 typedef const char *(*node_xpath_fn)(void *);
+typedef void *(*elem_copy_fn)(void *, void *);
 static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
 static traverse_fn f_node_traverse;
 static visit_fn f_node_visit;
 static free_str_fn f_free_str;
 static node_xpath_fn f_node_xpath;
+static elem_copy_fn f_elem_copy;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -117,6 +119,8 @@ static void resolve_binding_classes(void);
 static VALUE binding_cache_of(VALUE document);
 static VALUE binding_klass_for(int kind);
 static VALUE c_iteration_scope;
+static VALUE c_b_document, c_b_freed, c_ffi_pointer;
+static ID id_ptr_new, id_freed_new, id_alive;
 
 #define NT_ELEMENT 0
 
@@ -216,6 +220,7 @@ static void resolve_symbols(const char *lib_path)
     f_node_visit = (visit_fn)lib_sym(h, "leptris_node_visit");
     f_free_str = (free_str_fn)lib_sym(h, "leptris_free_string");
     f_node_xpath = (node_xpath_fn)lib_sym(h, "leptris_node_get_xpath");
+    f_elem_copy = (elem_copy_fn)lib_sym(h, "leptris_element_copy");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -228,7 +233,7 @@ static void resolve_symbols(const char *lib_path)
         !f_pi_data || !f_elem_set_name || !f_elem_set_text ||
         !f_text_set_content || !f_node_unlink ||
         !f_node_traverse || !f_node_visit || !f_free_str ||
-        !f_node_xpath ||
+        !f_node_xpath || !f_elem_copy ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -913,6 +918,72 @@ static VALUE nf_fast_pi_data(VALUE self, VALUE addr)
     (void)self;
     s = f_pi_data((void *)(uintptr_t)NUM2ULL(addr));
     return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+/* Shared construction for address-walk faces (TODO.perf/30):
+ * cache lookup + kind-dispatched binding wrapper. */
+static VALUE wrap_addr_node(VALUE document, void *ptr)
+{
+    VALUE cache, key, node;
+    int kind;
+
+    kind = f_node_type(ptr);
+    cache = binding_cache_of(document);
+    key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    node = rb_hash_aref(cache, key);
+    if (NIL_P(node)) {
+        node = rb_obj_alloc(binding_klass_for(kind));
+        rb_iv_set(node, "@c_address", key);
+        rb_iv_set(node, "@document", document);
+        rb_iv_set(node, "@parent", Qnil);
+        if (rb_obj_class(document) == c_iteration_scope) {
+            rb_iv_set(node, "@structure_memoizable", Qfalse);
+            rb_iv_set(node, "@native_fast", Qfalse);
+            rb_iv_set(node, "@pub_document", Qnil);
+        } else {
+            rb_iv_set(node, "@structure_memoizable", Qtrue);
+            rb_iv_set(node, "@native_fast", Qtrue);
+            rb_iv_set(node, "@pub_document", document);
+        }
+        rb_iv_set(node, "@addr_reads_fast", Qtrue);
+        rb_iv_set(node, "@node_type", INT2FIX(kind));
+        rb_hash_aset(cache, key, node);
+    }
+    return node;
+}
+
+/* First element child in one C walk (text-heavy parents paid two
+ * FFI calls per skipped sibling). */
+static VALUE nf_first_element_child(VALUE self, VALUE document,
+                                    VALUE addr)
+{
+    void *p;
+
+    (void)self;
+    resolve_binding_classes();
+    for (p = f_first_child((void *)(uintptr_t)NUM2ULL(addr));
+         p != NULL; p = f_next_sibling(p)) {
+        if (f_node_type(p) == NT_ELEMENT)
+            return wrap_addr_node(document, p);
+    }
+    return Qnil;
+}
+
+/* Last element child in one C walk (the batch fetch materialized
+ * every child to keep one). */
+static VALUE nf_last_element_child(VALUE self, VALUE document,
+                                   VALUE addr)
+{
+    void *p, *last = NULL;
+
+    (void)self;
+    resolve_binding_classes();
+    for (p = f_first_child((void *)(uintptr_t)NUM2ULL(addr));
+         p != NULL; p = f_next_sibling(p)) {
+        if (f_node_type(p) == NT_ELEMENT)
+            last = p;
+    }
+    return last ? wrap_addr_node(document, last) : Qnil;
 }
 
 /* Owned string: copy + free through the engine's seam (the
@@ -1737,6 +1808,48 @@ static const rb_data_type_t dh_type = {
 static VALUE c_doc_handle;
 static ID id_iv_doc_handle, id_freed_new, id_alive;
 
+/* Node#dup in one dispatch (TODO.perf/30): engine create +
+ * lifetime handle + document wrapper + element_copy + the copy
+ * wrapped-and-rooted (memo-seeded). The namespace lift stays a
+ * Ruby decision (skip_adoption_lift? — the copy_of seam's
+ * semantics, #696/#721/#812). */
+static VALUE nf_copy_binding_element(VALUE self, VALUE document,
+                                     VALUE addr)
+{
+    void *doc, *copy;
+    VALUE new_doc, doc_addr, handle, freed, root;
+    struct doc_handle *h;
+
+    (void)self;
+    resolve_binding_classes();
+    doc = f_doc_create();
+    if (!doc)
+        return Qnil;
+    doc_addr = ULL2NUM((uint64_t)(uintptr_t)doc);
+    new_doc = rb_obj_alloc(c_b_document);
+    rb_iv_set(new_doc, "@c_ptr",
+              rb_funcall(c_ffi_pointer, id_ptr_new, 1, doc_addr));
+    rb_iv_set(new_doc, "@c_address", doc_addr);
+    freed = rb_funcall(c_b_freed, id_freed_new, 1, ID2SYM(id_alive));
+    rb_iv_set(new_doc, "@freed", freed);
+    rb_iv_set(new_doc, "@readonly", Qfalse);
+    rb_iv_set(new_doc, "@version", INT2FIX(0));
+    handle = TypedData_Make_Struct(c_doc_handle, struct doc_handle,
+                                   &dh_type, h);
+    h->doc = doc;
+    rb_ivar_set(new_doc, id_iv_doc_handle, handle);
+
+    copy = f_elem_copy((void *)(uintptr_t)NUM2ULL(addr), doc);
+    if (!copy) {
+        h->doc = NULL; /* the handle releases the empty doc */
+        return Qnil;
+    }
+    root = wrap_addr_node(new_doc, copy);
+    rb_ivar_set(new_doc, rb_intern("@root"), root);
+    rb_ivar_set(new_doc, rb_intern("@root_version"), INT2FIX(0));
+    return new_doc;
+}
+
 static VALUE nf_doc_handle_attach(VALUE self, VALUE document)
 {
     struct doc_handle *h;
@@ -1952,6 +2065,12 @@ void Init_native(void)
                               nf_fast_pi_data, 1);
     rb_define_module_function(m_native, "fast_path",
                               nf_fast_path, 1);
+    rb_define_module_function(m_native, "first_element_child",
+                              nf_first_element_child, 2);
+    rb_define_module_function(m_native, "last_element_child",
+                              nf_last_element_child, 2);
+    rb_define_module_function(m_native, "copy_binding_element",
+                              nf_copy_binding_element, 2);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",

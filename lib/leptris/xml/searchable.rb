@@ -69,7 +69,16 @@ module Leptris::XML::Searchable
           doc_ptr, context_ptr, expr,
           Leptris::XML::Searchable.xpath_version_code(version), nil)
       elsif ns && !ns.empty?
-        xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+        # TODO.perf/29: the compiled handle is ns-independent —
+        # ride the cache and the cached ns set instead of the
+        # engine's string parse per call.
+        if (compiled = Leptris::XML::Searchable.compiled_expression(expr))
+          Leptris::XML::FFI.with_ns_set(ns) do |set|
+            compiled.eval_ns_ptrs(doc_ptr, context_ptr, set)
+          end
+        else
+          xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+        end
       elsif (compiled = Leptris::XML::Searchable.compiled_expression(expr))
         compiled.eval_ptrs(doc_ptr, context_ptr)
       else
@@ -105,7 +114,16 @@ module Leptris::XML::Searchable
           doc_ptr, context_ptr, expr,
           Leptris::XML::Searchable.xpath_version_code(version), nil)
       elsif ns && !ns.empty?
-        xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+        # TODO.perf/29: the compiled handle is ns-independent —
+        # ride the cache and the cached ns set instead of the
+        # engine's string parse per call.
+        if (compiled = Leptris::XML::Searchable.compiled_expression(expr))
+          Leptris::XML::FFI.with_ns_set(ns) do |set|
+            compiled.eval_ns_ptrs(doc_ptr, context_ptr, set)
+          end
+        else
+          xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+        end
       elsif (compiled = Leptris::XML::Searchable.compiled_expression(expr))
         compiled.eval_ptrs(doc_ptr, context_ptr)
       else

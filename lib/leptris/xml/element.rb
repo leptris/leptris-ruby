@@ -497,9 +497,21 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   # Deep copy in a NEW document via Document.copy_of (the single
   # copy seam — every child kind and namespace survives,
-  # #696/#721/#812).
+  # #696/#721/#812). TODO.perf/30: one C dispatch when the ext
+  # is loaded — the namespace-lift decision stays here.
   def dup
     ensure_alive!
+    if @addr_reads_fast
+      doc = Leptris::XML::Native.copy_binding_element(
+        @document, @c_address)
+      unless doc.nil?
+        copied = doc.root
+        unless Leptris::XML::Element.skip_adoption_lift?(copied)
+          Leptris::XML::Element.lift_namespaces_for_adoption(copied, {})
+        end
+        return copied
+      end
+    end
     Leptris::XML::Document.copy_of(self)
   end
   alias_method :clone, :dup

@@ -40,6 +40,14 @@ class Leptris::XML::XPath
       @handle, doc_ptr, context_ptr)
   end
 
+  # Namespace-bound evaluation against the compiled handle
+  # (TODO.perf/29): the handle is ns-independent — compile once,
+  # bind per call through the cached ns set.
+  def eval_ns_ptrs(doc_ptr, context_ptr, ns_set_ptr)
+    Leptris::XML::FFI.leptris_xpath_compiled_eval_ns(
+      @handle, doc_ptr, context_ptr, ns_set_ptr)
+  end
+
   def initialize(expression, handle, version_code = nil)
     @expression = expression
     @handle = handle

@@ -390,6 +390,17 @@ class Leptris::XML::Node
   def first_element_child
     return @first_element_child if memo_hit?(@first_element_child_version)
     ensure_alive!
+    # TODO.perf/30: one C walk (the FFI scan paid two calls per
+    # skipped non-element sibling).
+    if @addr_reads_fast
+      result = Leptris::XML::Native.first_element_child(
+        @document, @c_address)
+      if @document
+        @first_element_child = result
+        @first_element_child_version = @document.version
+      end
+      return result
+    end
     # Raw pointer scan: non-element siblings are typed with one C
     # call each — never wrapped, never cached — and the found
     # element carries the ELEMENT hint into the wrap.
@@ -413,8 +424,12 @@ class Leptris::XML::Node
   end
 
   def last_element_child
-    # Element receivers: the element-only batch fetches pointers
-    # without wrapping any text child; only the last is wrapped.
+    # TODO.perf/30: one C walk — the batch fetch materialized
+    # every child pointer to keep one.
+    if @addr_reads_fast
+      return Leptris::XML::Native.last_element_child(
+        @document, @c_address)
+    end
     if is_a?(Leptris::XML::Element)
       kids = Leptris::XML::FFI.fetch_element_children(c_ptr)
       return nil if kids.empty?
@@ -600,6 +615,23 @@ class Leptris::XML::Node
   # non-element kinds rebuild by value — #161).
   def dup
     ensure_alive!
+    # TODO.perf/30: elements copy in one C dispatch (engine
+    # create + handle + element_copy + rooted wrap). The
+    # namespace lift stays a Ruby decision — the copy_of seam's
+    # semantics (#696/#721/#812) run below when needed.
+    if element? && @addr_reads_fast
+      doc = Leptris::XML::Native.copy_binding_element(
+        @document, @c_address)
+      unless doc.nil?
+        # copy_of's contract returns the copied ROOT (the last
+        # expression of the root= assignment), not the document.
+        copied = doc.root
+        unless Leptris::XML::Element.skip_adoption_lift?(copied)
+          Leptris::XML::Element.lift_namespaces_for_adoption(copied, {})
+        end
+        return copied
+      end
+    end
     Leptris::XML::Document.copy_of(self)
   end
   alias_method :clone, :dup
