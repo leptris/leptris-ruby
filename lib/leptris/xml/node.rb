@@ -14,6 +14,19 @@ class Leptris::XML::Node
     @c_ptr = c_ptr
     @document = document
     @parent = parent
+    # Structural-memo stamp (TODO.perf/13): a constructor-seeded
+    # @parent is true AS OF the document's current version; any
+    # mutation advances the version and forces re-derivation. A
+    # NIL constructor parent means UNKNOWN, not "no parent" — the
+    # engine may attach during creation (create_child), so an
+    # unstamped memo must derive rather than trust nil.
+    @parent_version = parent ? document&.version : nil
+    # Computed once: structural stamps apply to document-owned
+    # nodes only (scope-owned iterparse elements move without
+    # their scope's version advancing — see #parent). An ivar
+    # keeps the memo-hit path free of method dispatch.
+    @structure_memoizable =
+      !document.nil? && !document.is_a?(Leptris::XML::IterationScope)
     # wrap() already calls leptris_node_get_type for dispatch; reusing
     # the result makes every predicate and #type call FFI-free.
     @node_type = node_type
@@ -157,12 +170,60 @@ class Leptris::XML::Node
   end
   alias_method :pi?, :processing_instruction?
 
+  # Version-stamped structural memo (TODO.perf/13): derive once,
+  # re-derive after any mutation that advances the owning
+  # document's version. Fixes the stale seeded @parent after a
+  # move (FFI children walks seed it; the move never cleared it).
+  # Scope-owned (iterparse) elements never memoize: a scope element
+  # adopted into a document moves without its scope's version
+  # advancing, so a stamp would lie.
   def parent
-    return @parent if @parent
+    if @structure_memoizable && @parent_version == @document.version
+      return @parent
+    end
     ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
-    return nil if ptr.null?
-    Leptris::XML::Node.wrap(ptr, @document)
+    result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document)
+    if @document
+      @parent = result
+      @parent_version = @document.version
+    end
+    result
+  end
+
+  # Derive the parent WITHOUT stamping the structural memo. The
+  # adoption lift reads the child's source scope BETWEEN the
+  # mutation gate's version bump and the engine move — a stamped
+  # #parent there would record post-bump versions carrying
+  # pre-move truth. Ancestor walks that run inside mutations use
+  # this; #namespaces itself is memoized, so stable trees pay the
+  # unstamped derivation at most once per version.
+  def unstamped_parent
+    ensure_alive!
+    ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
+    ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document)
+  end
+
+  # Mutation sites move nodes ACROSS documents: the moved node's
+  # stamps reference the source document's version, which the move
+  # does not advance. Clear them and advance the source version
+  # (its other nodes hold parent/sibling stamps the move invalidates).
+  def invalidate_structural_stamps!
+    @parent_version = nil
+    @next_sibling_version = nil
+    @previous_sibling_version = nil
+  end
+
+  # Mutation-site helper: when +node+ moves into +target_document+
+  # from a different one, the move invalidates the node's own
+  # structural stamps (stamped against the SOURCE version) and the
+  # source document's sibling/parent stamps. Scope-owned nodes
+  # answer nil from #document and never memoize — nothing to do.
+  def self.invalidate_cross_document!(node, target_document)
+    source = node.document
+    return if source.nil? || source.equal?(target_document)
+    node.invalidate_structural_stamps!
+    source.advance_version
   end
 
   # Borrowed-handle lifetime: every c_ptr dereference is valid only
@@ -267,18 +328,32 @@ class Leptris::XML::Node
   end
 
   def next_sibling
+    if @structure_memoizable && @next_sibling_version == @document.version
+      return @next_sibling
+    end
     ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_next_sibling(@c_ptr)
-    return nil if ptr.null?
-    Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
+    result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
+    if @document
+      @next_sibling = result
+      @next_sibling_version = @document.version
+    end
+    result
   end
   alias_method :next, :next_sibling
 
   def previous_sibling
+    if @structure_memoizable && @previous_sibling_version == @document.version
+      return @previous_sibling
+    end
     ensure_alive!
     ptr = Leptris::XML::FFI.leptris_node_previous_sibling(@c_ptr)
-    return nil if ptr.null?
-    Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
+    result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
+    if @document
+      @previous_sibling = result
+      @previous_sibling_version = @document.version
+    end
+    result
   end
   alias_method :previous, :previous_sibling
 

@@ -5,6 +5,46 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.163.6] - 2026-09-15
+
+### Changed
+
+- **Document lifetime in C (TODO.perf/12)**: a TypedData DocHandle
+  (dfree -> leptris_document_free) replaces the ObjectSpace
+  finalizer whenever the native layer is enabled — no Ruby
+  finalizer invocation, no FFI dispatch from finalizer context,
+  for every parsed and created document. `Document.create` runs
+  as one C dispatch (engine create + ivar-seeded wrapper +
+  handle). The proc finalizer remains for `LEPTRIS_NO_NATIVE`.
+- **Structural memos (TODO.perf/13)**: `Document#root`,
+  `Node#parent`, `#next_sibling`, `#previous_sibling` keep
+  version-stamped memos (~72-82ns hits vs ~300-500ns deriving,
+  measured under host load 17). Fixes a real FFI-mode bug: the
+  children walk seeded `@parent`, and a later move left the stale
+  parent answering. Cross-document moves clear the moved node's
+  stamps and advance the source document's version; the
+  adoption-lift ancestor walk derives unstamped (a stamped
+  derive between the version bump and the engine move would
+  record post-bump versions carrying pre-move truth); scope-owned
+  iterparse elements never memoize.
+- **C-bound insert family (TODO.perf/14)**: `prepend_child`,
+  `add_next_sibling`, `add_previous_sibling` dispatch through
+  `Native.insert_binding_child` (gates + predicate + version bump
+  + engine insert in one call; lift fallback preserved). The
+  cold `Element#[]` first-touch fill rides the native face.
+- **Compiled-expression cache (TODO.perf/15)**: plain
+  `xpath`/`at_xpath` evaluate a bounded LRU (64) of compiled
+  handles — repeat expressions measured 3.7µs -> ~1.9µs (~2x);
+  CSS rides it automatically. Failed compiles never cache;
+  version-pinned and namespace-bound entries unchanged.
+
+### Added
+
+- `Leptris::XML::DocHandle` (internal), `Native.doc_handle_attach/
+  release/create_binding_document/insert_binding_child`,
+  `XPath#eval_ptrs`, `Searchable.compiled_expression`, and
+  `Node#unstamped_parent` (protected ancestor-walk seam).
+
 ## [1.9.163.5] - 2026-09-15
 
 ### Changed

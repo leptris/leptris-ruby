@@ -129,6 +129,15 @@ class Leptris::XML::Document
   # pool. Elements for the tree are created against it via
   # #create_element and friends, then attached with #root=.
   def self.create
+    # One C dispatch (TODO.perf/12): engine create + wrapper
+    # (ivar-seeded) + lifetime handle. The FFI+wrap shape stays
+    # for LEPTRIS_NO_NATIVE.
+    if defined?(Leptris::XML::NATIVE_FAST)
+      doc = Leptris::XML::Native.create_binding_document
+      raise Leptris::XML::Error,
+        "leptris_document_create failed" if doc.nil?
+      return doc
+    end
     raw = Leptris::XML::FFI.leptris_document_create
     raise Leptris::XML::Error,
       "leptris_document_create failed" if raw.null?
@@ -178,7 +187,14 @@ class Leptris::XML::Document
     ptr = ::FFI::Pointer.new(addr)
     freed = Freed.new(:alive)
     doc = new(ptr, freed)
-    ObjectSpace.define_finalizer(doc, finalizer(addr, freed))
+    if defined?(Leptris::XML::NATIVE_FAST)
+      # TypedData dfree owns the release at GC (TODO.perf/12): no
+      # Ruby finalizer, no FFI dispatch from finalizer context.
+      # Freed stays the shared free-state for #freed?/#free.
+      Leptris::XML::Native.doc_handle_attach(doc)
+    else
+      ObjectSpace.define_finalizer(doc, finalizer(addr, freed))
+    end
     doc
   end
 
@@ -194,9 +210,16 @@ class Leptris::XML::Document
   def root
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     return nil if @c_ptr.nil?
+    # Version-stamped memo (TODO.perf/13): root changes only
+    # through mutations that advance @version (root=, unlink) or
+    # #free (which nils @c_ptr above) — the entry point of every
+    # pipeline stops paying FFI + wrap per call.
+    return @root if @root_version == @version
     ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
-    return nil if ptr.null?
-    Leptris::XML::Node.wrap(ptr, self)
+    result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, self)
+    @root = result
+    @root_version = @version
+    result
   end
 
   # The document node — navigation head over the whole tree chain
@@ -268,6 +291,12 @@ class Leptris::XML::Document
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
     @version += 1
+    # Seed the root memo through wrap: a cross-document element
+    # must enter THIS document's identity cache with @document
+    # pointing here, not ride its source-document wrapper.
+    @root = Leptris::XML::Node.wrap(element.c_ptr, self)
+    @root_version = @version
+    Leptris::XML::Node.invalidate_cross_document!(element, self)
     element
   end
 
@@ -391,6 +420,9 @@ class Leptris::XML::Document
     @c_ptr = nil
     @c_address = nil
     @wrapper_cache&.clear
+    # Detach the lifetime handle (TODO.perf/12): the memory is
+    # already released above — the GC-pass dfree must no-op.
+    Leptris::XML::Native.doc_handle_release(self) if defined?(Leptris::XML::NATIVE_FAST)
   end
 
   # Enable the first-party EXSLT-style extension pack on this

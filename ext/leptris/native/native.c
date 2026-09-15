@@ -74,6 +74,7 @@ static elem_create_fn f_elem_create;
 static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
+static append_child_fn f_prepend_child, f_insert_after, f_insert_before;
 static set_attr_fn f_set_attr;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
@@ -171,13 +172,17 @@ static void resolve_symbols(const char *lib_path)
     f_text_create = (text_create_fn)lib_sym(h, "leptris_text_node_create");
     f_create_child = (create_child_fn)lib_sym(h, "leptris_element_create_child");
     f_append_child = (append_child_fn)lib_sym(h, "leptris_element_append_child");
+    f_prepend_child = (append_child_fn)lib_sym(h, "leptris_element_prepend_child");
+    f_insert_after = (append_child_fn)lib_sym(h, "leptris_element_insert_after");
+    f_insert_before = (append_child_fn)lib_sym(h, "leptris_element_insert_before");
     f_set_attr = (set_attr_fn)lib_sym(h, "leptris_element_set_attribute");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
-        !f_create_child || !f_append_child || !f_set_attr || !f_set_root ||
+        !f_create_child || !f_append_child || !f_prepend_child ||
+        !f_insert_after || !f_insert_before || !f_set_attr || !f_set_root ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -602,6 +607,48 @@ static VALUE nf_set_binding_attribute(VALUE self, VALUE document,
     return INT2FIX(st);
 }
 
+/* C-bound insert family (TODO.perf/14): prepend / insert-after /
+ * insert-before share append's gates + predicate + bump shape.
+ * mode: 1 prepend, 2 after, 3 before (anchor = receiver). */
+static VALUE nf_insert_binding_child(VALUE self, VALUE document,
+                                     VALUE anchor_addr, VALUE child_addr,
+                                     VALUE mode)
+{
+    void *anchor, *child;
+    const char *uri;
+    int st, m;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    anchor = (void *)(uintptr_t)NUM2ULL(anchor_addr);
+    child = (void *)(uintptr_t)NUM2ULL(child_addr);
+    m = FIX2INT(mode);
+    if (f_node_type(child) == NT_ELEMENT) {
+        if (f_elem_ns_count(child) > 0)
+            return Qnil;
+        uri = f_elem_ns(child);
+        if (uri && *uri)
+            return Qnil;
+    }
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    switch (m) {
+    case 1:  st = f_prepend_child(anchor, child); break;
+    case 2:  st = f_insert_after(anchor, child);  break;
+    case 3:  st = f_insert_before(anchor, child); break;
+    default:
+        rb_raise(rb_eArgError, "invalid insert mode %d", m);
+        return Qnil;
+    }
+    return INT2FIX(st);
+}
+
 /* Builder factories (#149): create in C, wrap as NativeNode — no
  * FFI::Pointer, no Ruby wrap_fresh path. */
 static VALUE nn_create_element(VALUE klass, VALUE document, VALUE name)
@@ -726,7 +773,7 @@ static VALUE nn_address(VALUE self)
  * disappear. */
 static VALUE c_b_element = Qundef, c_b_text, c_b_comment, c_b_cdata,
              c_b_pi, c_b_node, c_b_result_text, c_b_result_attr,
-             c_b_attr, c_ffi_pointer;
+             c_b_attr, c_ffi_pointer, c_b_document, c_b_freed;
 static ID id_ptr_new;
 
 /* Binding classes resolve LAZILY: Init_native can run before the
@@ -746,6 +793,8 @@ static void resolve_binding_classes(void)
     c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
     c_ffi_pointer = rb_path2class("FFI::Pointer");
     c_b_attr = rb_path2class("Leptris::XML::Attr");
+    c_b_document = rb_path2class("Leptris::XML::Document");
+    c_b_freed = rb_path2class("Leptris::XML::Document::Freed");
     id_ptr_new = rb_intern("new");
     rb_gc_register_mark_object(c_b_element);
     rb_gc_register_mark_object(c_b_text);
@@ -757,6 +806,8 @@ static void resolve_binding_classes(void)
     rb_gc_register_mark_object(c_b_result_attr);
     rb_gc_register_mark_object(c_ffi_pointer);
     rb_gc_register_mark_object(c_b_attr);
+    rb_gc_register_mark_object(c_b_document);
+    rb_gc_register_mark_object(c_b_freed);
 }
 
 static VALUE binding_klass_for(int kind)
@@ -801,6 +852,7 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
             rb_iv_set(node, "@c_ptr", ptr);
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@parent", Qnil);
+            rb_iv_set(node, "@structure_memoizable", Qtrue);
             rb_iv_set(node, "@node_type", INT2FIX(kinds[i]));
             rb_hash_aset(cache, key, node);
         }
@@ -874,6 +926,7 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
                 rb_iv_set(node, "@c_ptr", ptr);
                 rb_iv_set(node, "@document", document);
                 rb_iv_set(node, "@parent", Qnil);
+                rb_iv_set(node, "@structure_memoizable", Qtrue);
                 rb_iv_set(node, "@node_type", INT2FIX(0));
                 rb_hash_aset(cache, key, node);
             }
@@ -913,6 +966,7 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
                         rb_iv_set(node, "@c_ptr", ptr);
                         rb_iv_set(node, "@document", document);
                         rb_iv_set(node, "@parent", Qnil);
+                        rb_iv_set(node, "@structure_memoizable", Qtrue);
                         rb_iv_set(node, "@node_type", INT2FIX(nt));
                         rb_hash_aset(cache, key, node);
                     }
@@ -972,6 +1026,7 @@ static VALUE nf_create_binding_element(VALUE self, VALUE document,
                          ULL2NUM((uint64_t)(uintptr_t)ptr)));
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@structure_memoizable", Qtrue);
     rb_iv_set(node, "@node_type", INT2FIX(0));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -996,6 +1051,7 @@ static VALUE nf_create_binding_text(VALUE self, VALUE document,
                          ULL2NUM((uint64_t)(uintptr_t)ptr)));
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@structure_memoizable", Qtrue);
     rb_iv_set(node, "@node_type", INT2FIX(1));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -1113,6 +1169,99 @@ static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
  * predicate answers in ONE dispatch: false when the node carries
  * no namespace declarations AND its name has no prefix — the
  * common programmatic-build shape (bare names, no namespaces). */
+/* ---- Document lifetime in C (TODO.perf/12) ----------------------
+ * A TypedData handle holding the C document pointer, referenced
+ * only by the binding Document's @doc_handle ivar — its lifetime
+ * IS the document's. dfree releases the C document directly: no
+ * Ruby finalizer, no FFI dispatch from finalizer context.
+ * Document#free releases the pointer first, so dfree no-ops —
+ * the same double-free protocol the Freed struct enforces on the
+ * Ruby-finalizer path (which stays for LEPTRIS_NO_NATIVE). */
+struct doc_handle {
+    void *doc;
+};
+
+static void dh_free(void *p)
+{
+    struct doc_handle *h = p;
+    if (h->doc) {
+        f_doc_free(h->doc);
+        h->doc = NULL;
+    }
+}
+
+static size_t dh_size(const void *p)
+{
+    (void)p;
+    return sizeof(struct doc_handle);
+}
+
+static const rb_data_type_t dh_type = {
+    "Leptris/XML/DocHandle",
+    { 0, dh_free, dh_size, },
+    0, 0, RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+static VALUE c_doc_handle;
+static ID id_iv_doc_handle, id_freed_new, id_alive;
+
+static VALUE nf_doc_handle_attach(VALUE self, VALUE document)
+{
+    struct doc_handle *h;
+    VALUE handle;
+
+    (void)self;
+    handle = TypedData_Make_Struct(c_doc_handle, struct doc_handle,
+                                   &dh_type, h);
+    h->doc = doc_ptr_of(document);
+    rb_ivar_set(document, id_iv_doc_handle, handle);
+    return handle;
+}
+
+/* Document#free already released the C memory through the FFI
+ * seam; detach so the GC-pass dfree no-ops. */
+static VALUE nf_doc_handle_release(VALUE self, VALUE document)
+{
+    VALUE handle = rb_ivar_get(document, id_iv_doc_handle);
+    (void)self;
+    if (handle != Qnil) {
+        struct doc_handle *h;
+        TypedData_Get_Struct(handle, struct doc_handle, &dh_type, h);
+        h->doc = NULL;
+    }
+    return Qnil;
+}
+
+/* The full Document.create in one dispatch: engine create,
+ * binding wrapper (ivar-seeded, bypassing initialize), and the
+ * lifetime handle. Returns Qnil when the engine refuses. */
+static VALUE nf_create_binding_document(VALUE self)
+{
+    void *doc;
+    VALUE document, addr, handle, freed;
+    struct doc_handle *h;
+
+    (void)self;
+    resolve_binding_classes();
+    doc = f_doc_create();
+    if (!doc)
+        return Qnil;
+    addr = ULL2NUM((uint64_t)(uintptr_t)doc);
+    document = rb_obj_alloc(c_b_document);
+    rb_iv_set(document, "@c_ptr",
+              rb_funcall(c_ffi_pointer, id_ptr_new, 1, addr));
+    rb_iv_set(document, "@c_address", addr);
+    freed = rb_funcall(c_b_freed, id_freed_new, 1, ID2SYM(id_alive));
+    rb_iv_set(document, "@freed", freed);
+    rb_iv_set(document, "@readonly", Qfalse);
+    rb_iv_set(document, "@version", INT2FIX(0));
+    handle = TypedData_Make_Struct(c_doc_handle, struct doc_handle,
+                                   &dh_type, h);
+    h->doc = doc;
+    rb_ivar_set(document, id_iv_doc_handle, handle);
+    return document;
+}
+
 /* ---- Address-based fast readers (TODO.perf/01) -----------------
  * The DEFAULT binding classes call these when the bundle is
  * loaded: one C-API dispatch + rb_utf8_str_new_cstr — no FFI
@@ -1198,6 +1347,9 @@ void Init_native(void)
     id_iv_nn_content_ver = rb_intern("@nn_content_ver");
     id_iv_nn_attrs = rb_intern("@nn_attrs");
     id_iv_nn_attrs_ver = rb_intern("@nn_attrs_ver");
+    id_iv_doc_handle = rb_intern("@doc_handle");
+    id_freed_new = rb_intern("new");
+    id_alive = rb_intern("alive");
     c_readonly_error = rb_path2class("Leptris::XML::ReadOnlyError");
     c_use_after_free_error =
         rb_path2class("Leptris::XML::UseAfterFreeError");
@@ -1240,6 +1392,16 @@ void Init_native(void)
                               nf_append_binding_child, 3);
     rb_define_module_function(m_native, "set_binding_attribute",
                               nf_set_binding_attribute, 4);
+    rb_define_module_function(m_native, "insert_binding_child",
+                              nf_insert_binding_child, 4);
+    rb_define_module_function(m_native, "doc_handle_attach",
+                              nf_doc_handle_attach, 1);
+    rb_define_module_function(m_native, "doc_handle_release",
+                              nf_doc_handle_release, 1);
+    rb_define_module_function(m_native, "create_binding_document",
+                              nf_create_binding_document, 0);
+    c_doc_handle = rb_define_class_under(m_xml, "DocHandle", rb_cObject);
+    rb_undef_alloc_func(c_doc_handle);
     rb_define_module_function(m_native, "bulk_attributes", nf_bulk_attributes, 1);
     rb_define_module_function(m_native, "bulk_attr_faces",
                               nf_bulk_attr_faces, 2);
