@@ -85,6 +85,10 @@ static xp_free_fn f_xp_free;
 static first_child_fn f_first_child;
 static node_str_fn f_comment_content, f_cdata_content, f_pi_target,
                    f_pi_data;
+typedef int (*set_str_fn)(void *, const char *);
+typedef int (*node_unlink_fn)(void *);
+static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
+static node_unlink_fn f_node_unlink;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -192,6 +196,10 @@ static void resolve_symbols(const char *lib_path)
     f_cdata_content = (node_str_fn)lib_sym(h, "leptris_cdata_node_get_content");
     f_pi_target = (node_str_fn)lib_sym(h, "leptris_pi_node_get_target");
     f_pi_data = (node_str_fn)lib_sym(h, "leptris_pi_node_get_data");
+    f_elem_set_name = (set_str_fn)lib_sym(h, "leptris_element_set_name");
+    f_elem_set_text = (set_str_fn)lib_sym(h, "leptris_element_set_text");
+    f_text_set_content = (set_str_fn)lib_sym(h, "leptris_text_node_set_content");
+    f_node_unlink = (node_unlink_fn)lib_sym(h, "leptris_node_unlink");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -201,7 +209,8 @@ static void resolve_symbols(const char *lib_path)
         !f_insert_after || !f_insert_before || !f_set_attr || !f_set_root ||
         !f_xp_type || !f_xp_free || !f_first_child ||
         !f_comment_content || !f_cdata_content || !f_pi_target ||
-        !f_pi_data ||
+        !f_pi_data || !f_elem_set_name || !f_elem_set_text ||
+        !f_text_set_content || !f_node_unlink ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -630,6 +639,74 @@ static VALUE nf_set_binding_attribute(VALUE self, VALUE document,
     return INT2FIX(st);
 }
 
+/* C-bound value mutations (TODO.perf/23): the same gates + bump
+ * + engine write shape as set_binding_attribute. */
+static VALUE nf_set_binding_name(VALUE self, VALUE document,
+                                 VALUE addr, VALUE name)
+{
+    void *node;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    node = (void *)(uintptr_t)NUM2ULL(addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_elem_set_name(node, StringValueCStr(name));
+    return INT2FIX(st);
+}
+
+/* Element text or text-node content — kind-dispatched in C. */
+static VALUE nf_set_binding_text(VALUE self, VALUE document,
+                                 VALUE addr, VALUE content)
+{
+    void *node;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    node = (void *)(uintptr_t)NUM2ULL(addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_node_type(node) == NT_ELEMENT
+             ? f_elem_set_text(node, StringValueCStr(content))
+             : f_text_set_content(node, StringValueCStr(content));
+    return INT2FIX(st);
+}
+
+static VALUE nf_unlink_binding_node(VALUE self, VALUE document,
+                                    VALUE addr)
+{
+    void *node;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    node = (void *)(uintptr_t)NUM2ULL(addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_node_unlink(node);
+    return INT2FIX(st);
+}
+
 /* C-bound insert family (TODO.perf/14): prepend / insert-after /
  * insert-before share append's gates + predicate + bump shape.
  * mode: 1 prepend, 2 after, 3 before (anchor = receiver). */
@@ -876,6 +953,7 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
             rb_iv_set(node, "@parent", Qnil);
             rb_iv_set(node, "@structure_memoizable", Qtrue);
             rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@pub_document", document);
             rb_iv_set(node, "@node_type", INT2FIX(kinds[i]));
             rb_hash_aset(cache, key, node);
         }
@@ -912,15 +990,45 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
                                   void *result, void *ptr, int kind,
                                   int idx);
 
+static VALUE bulk_xpath_array(VALUE document, void *result);
+
 static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
 {
+    (void)self;
+    return bulk_xpath_array(document,
+                            (void *)(uintptr_t)NUM2ULL(result_ptr_val));
+}
+
+/* TODO.perf/22: materialize AND free — the eager xpath path owns
+ * the handle lifecycle in C; no Ruby AutoPointer, no finalizer. */
+static VALUE nf_materialize_xpath(VALUE self, VALUE document,
+                                  VALUE result_ptr_val)
+{
     void *result = (void *)(uintptr_t)NUM2ULL(result_ptr_val);
+    VALUE out;
+    long i, n;
+
+    (void)self;
+    out = bulk_xpath_array(document, result);
+    n = RARRAY_LEN(out);
+    for (i = 0; i < n; i++) {
+        if (rb_ary_entry(out, i) == m_native_sentinel) {
+            /* Exotic kinds need the Ruby fallback per entry — the
+             * caller keeps the handle and goes the lazy path. */
+            return Qnil;
+        }
+    }
+    f_xp_free(result);
+    return out;
+}
+
+static VALUE bulk_xpath_array(VALUE document, void *result)
+{
     void **buf;
     int *kinds;
     int count, i;
     VALUE cache, out;
 
-    (void)self;
     resolve_binding_classes();
     size_t scount = f_xp_count(result);
     if (scount == 0)
@@ -970,6 +1078,7 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
             rb_iv_set(node, "@parent", Qnil);
             rb_iv_set(node, "@structure_memoizable", Qtrue);
             rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@pub_document", document);
             rb_iv_set(node, "@node_type", INT2FIX(0));
             rb_hash_aset(cache, key, node);
         }
@@ -1009,6 +1118,7 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
                 rb_iv_set(node, "@parent", Qnil);
                 rb_iv_set(node, "@structure_memoizable", Qtrue);
                 rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@pub_document", document);
                 rb_iv_set(node, "@node_type", INT2FIX(nt));
                 rb_hash_aset(cache, key, node);
             }
@@ -1097,6 +1207,7 @@ static VALUE nf_create_binding_element(VALUE self, VALUE document,
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);
     rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@pub_document", document);
     rb_iv_set(node, "@node_type", INT2FIX(0));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -1122,6 +1233,7 @@ static VALUE nf_create_binding_text(VALUE self, VALUE document,
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);
     rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@pub_document", document);
     rb_iv_set(node, "@node_type", INT2FIX(1));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -1577,6 +1689,14 @@ void Init_native(void)
                               nf_insert_binding_child, 4);
     rb_define_module_function(m_native, "at_xpath_first",
                               nf_at_xpath_first, 2);
+    rb_define_module_function(m_native, "materialize_xpath",
+                              nf_materialize_xpath, 2);
+    rb_define_module_function(m_native, "set_binding_name",
+                              nf_set_binding_name, 3);
+    rb_define_module_function(m_native, "set_binding_text",
+                              nf_set_binding_text, 3);
+    rb_define_module_function(m_native, "unlink_binding_node",
+                              nf_unlink_binding_node, 2);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",

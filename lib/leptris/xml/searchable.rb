@@ -298,6 +298,15 @@ module Leptris::XML::Searchable
     type = Leptris::XML::FFI.leptris_xpath_result_type(result_ptr)
     case type
     when Leptris::XML::FFI::XPATH_NODESET
+      # TODO.perf/22: materialize AND free in C — no Ruby
+      # AutoPointer + finalizer per xpath call. Qnil means an
+      # exotic kind needs the Ruby fallback per entry; the lazy
+      # path below keeps the handle.
+      if defined?(Leptris::XML::NATIVE_FAST)
+        nodes = Leptris::XML::Native.materialize_xpath(
+          document, result_ptr.address)
+        return Leptris::XML::NodeSet.new(document, nodes) if nodes
+      end
       Leptris::XML::NodeSet.from_result(document, result_ptr)
     when Leptris::XML::FFI::XPATH_BOOLEAN
       v = Leptris::XML::FFI.leptris_xpath_result_boolean(result_ptr) != 0
