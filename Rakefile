@@ -127,33 +127,52 @@ task :compile do
   # Opt-in native read layer ext (#185): built and vendored beside
   # the library — no compile at install; resolves libleptris at
   # require time via dlsym.
-  ext_dir = "ext/leptris/native"
-  Dir.chdir(ext_dir) do
-    sh "ruby extconf.rb"
-    if RUBY_PLATFORM =~ /darwin/
-      # Link the bundle ourselves: setup-ruby's custom rubies make
-      # mkmf link libruby by absolute runner path no matter which
-      # RbConfig entries are cleared, and any libruby
-      # LC_LOAD_DYLIB is unresolvable on user machines. Compile
-      # via the Makefile, link with pure -undefined dynamic_lookup
-      # (Ruby symbols resolve from the loading interpreter) and a
-      # conservative deployment target.
-      sh "make native.o"
-      sh "cc -dynamic -bundle -undefined dynamic_lookup " \
-         "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
-         "-o native.bundle native.o"
-    else
-      sh "make"
+  if Gem.win_platform?
+    # #207: a PE DLL cannot leave Ruby imports unresolved — the
+    # bundle would bind to the build Ruby's x64-ucrt-rubyNNN.dll
+    # and fail on every other minor. No bundle ships for
+    # Windows; the FFI surface is the Windows contract (the
+    # auto-enable warns and falls back).
+    puts "Windows: native read layer not built — FFI is the Windows surface (#207)"
+  else
+    ext_dir = "ext/leptris/native"
+    Dir.chdir(ext_dir) do
+      sh "ruby extconf.rb"
+      if RUBY_PLATFORM =~ /darwin/
+        # Link the bundle ourselves: setup-ruby's custom rubies
+        # make mkmf link libruby by absolute runner path no matter
+        # which RbConfig entries are cleared, and any libruby
+        # LC_LOAD_DYLIB is unresolvable on user machines. Compile
+        # via the Makefile, link with pure -undefined
+        # dynamic_lookup (Ruby symbols resolve from the loading
+        # interpreter) and a conservative deployment target.
+        sh "make native.o"
+        sh "cc -dynamic -bundle -undefined dynamic_lookup " \
+           "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
+           "-o native.bundle native.o"
+      else
+        # #207: the darwin contract on Linux too — mkmf's `make`
+        # linked libruby.so.3.3 (plus a runner runpath), which
+        # failed to load on 3.4/4.0. Link WITHOUT libruby: one
+        # .so serves every Ruby minor; rb_* resolve from the
+        # loading interpreter at dlopen (static rubies export
+        # their symbols via -rdynamic, like any extension .so).
+        sh "make native.o"
+        sh "#{RbConfig::CONFIG['CC']} -shared -fPIC -o native.so native.o"
+        # Guard the contract in the build log.
+        sh "if strings native.so | grep -q libruby; then " \
+           "echo 'ERROR: native.so links libruby (#207)'; exit 1; fi"
+      end
     end
+    bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
+    raise "native layer bundle not found after build" unless bundle
+    if RUBY_PLATFORM =~ /darwin/
+      # Build-log proof of the linkage contract: libSystem only.
+      puts `otool -L #{bundle}`
+    end
+    cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
+    puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
   end
-  bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
-  raise "native layer bundle not found after build" unless bundle
-  if RUBY_PLATFORM =~ /darwin/
-    # Build-log proof of the linkage contract: libSystem only.
-    puts `otool -L #{bundle}`
-  end
-  cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
-  puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
 end
 
 task spec: :compile unless ENV.key?("LEPTRIS_LIB_PATH")
@@ -264,7 +283,11 @@ platforms.each do |platform|
     spec.platform = Gem::Platform.new(platform)
     spec.files += Dir.glob("lib/libleptris.{dll,so,dylib}")
     spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
-    spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
+    # #207: no native bundle in Windows gems (PE cannot resolve
+    # Ruby imports without binding the build Ruby's DLL).
+    unless platform.include?("mingw")
+      spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
+    end
     task = Gem::PackageTask.new(spec)
     task.define
   end

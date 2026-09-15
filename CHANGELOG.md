@@ -5,6 +5,28 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.1] - 2026-09-15
+
+### Fixed
+
+- **Prebuilt native layer now loads on every Ruby minor (#207)**:
+  the Linux bundles were linked by mkmf against
+  `libruby.so.3.3` (plus a runner-specific RUNPATH), so they
+  failed to load on Ruby 3.4/4.0 — darwin's
+  `-undefined dynamic_lookup` contract now applies on Linux too:
+  the .so links without libruby and resolves rb_* from the
+  loading interpreter, one artifact serving every Ruby minor. A
+  build-log guard fails the compile if the artifact ever
+  references libruby again.
+- **Windows platform gems no longer ship the native bundle**: a
+  PE DLL cannot leave Ruby imports unresolved — it would bind to
+  the build Ruby's `x64-ucrt-rubyNNN.dll` and fail on other
+  minors. The FFI surface is the Windows contract.
+- **The auto-enable fallback is loud**: a failed native load now
+  warns (reason + FFI notice) on stderr instead of degrading
+  silently — the silent fallback is what hid #207 behind a
+  walk-speed regression.
+
 ## [1.9.174.0] - 2026-09-15
 
 ### Changed
