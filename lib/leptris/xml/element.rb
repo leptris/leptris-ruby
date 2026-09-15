@@ -24,6 +24,12 @@ class Leptris::XML::Element < Leptris::XML::Node
   alias_method :node_name, :name
 
   def name=(new_name)
+    if @native_fast
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.set_binding_name(
+          @document, @c_address, new_name))
+      return @name = new_name
+    end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_name(c_ptr, new_name))
@@ -47,6 +53,12 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def content=(new_content)
+    if @native_fast
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.set_binding_text(
+          @document, @c_address, new_content.to_s))
+      return new_content
+    end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_text(c_ptr, new_content.to_s))

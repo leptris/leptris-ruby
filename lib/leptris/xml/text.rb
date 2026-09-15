@@ -15,6 +15,12 @@ class Leptris::XML::Text < Leptris::XML::Node
   end
 
   def content=(new_content)
+    if @native_fast
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.set_binding_text(
+          @document, @c_address, new_content.to_s))
+      return new_content
+    end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_text_node_set_content(c_ptr, new_content.to_s))

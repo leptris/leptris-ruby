@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.4] - 2026-09-15
+
+### Changed
+
+- **Eager-in-C nodeset materialization (TODO.perf/22)**: xpath
+  results materialize and free in one C pass — no
+  FFI::AutoPointer, Method object, or finalizer per call; exotic
+  kinds keep the lazy path (sentinel scan in C). Measured (load
+  ~11): a 2000-node xpath set materializes at Nokogiri parity
+  (55.9µs vs 57.3µs).
+- **C-bound value mutations (TODO.perf/23)**: `Element#name=`,
+  `#content=`, `Text#content=`, `Node#unlink` run gates + version
+  bump + engine write in one dispatch (name= 237ns, content=
+  298ns measured); readonly raises verified.
+- **Immutable read lanes (TODO.perf/24)**: `line`/`byte_offset`
+  memoize (positions never change); `Node#document` answers a
+  constructor-precomputed ivar (the scope_owned? chain leaves
+  one of the most-called readers).
+
 ## [1.9.174.3] - 2026-09-15
 
 ### Changed

@@ -11,8 +11,10 @@ class Leptris::XML::Node
   # Iterparse-yielded elements are owned by an IterationScope (the
   # internal lifetime/memoization authority) — the public #document
   # answers nil for them, per the documented contract.
+  # Precomputed at construction (TODO.perf/24): scope ownership
+  # is fixed for a node's lifetime — nil for iterparse yields.
   def document
-    scope_owned? ? nil : @document
+    @pub_document
   end
 
   def initialize(c_ptr, document, parent: nil, node_type: nil)
@@ -33,6 +35,7 @@ class Leptris::XML::Node
     # keeps the memo-hit path free of method dispatch.
     @structure_memoizable =
       !document.nil? && !document.is_a?(Leptris::XML::IterationScope)
+    @pub_document = @structure_memoizable ? document : nil
     # NATIVE_FAST availability is fixed at load time before any
     # node exists, so the conjunction with document-ownership is
     # construct-time constant — the hot gates read one ivar.
@@ -278,9 +281,11 @@ class Leptris::XML::Node
     @readonly_document = true
   end
 
+  # A node's source position never changes — first read wins.
   def line
+    return @line if defined?(@line)
     ensure_alive!
-    Leptris::XML::FFI.leptris_node_line(c_ptr)
+    @line = Leptris::XML::FFI.leptris_node_line(c_ptr)
   end
 
   # Byte offset of the node's markup in its parse source (the '<'
@@ -288,8 +293,9 @@ class Leptris::XML::Node
   # CALLBACK rows echo). 0 when unknown: mutation-created nodes, or
   # documents >= 2 GiB.
   def byte_offset
+    return @byte_offset if defined?(@byte_offset)
     ensure_alive!
-    Leptris::XML::FFI.leptris_node_byte_offset(c_ptr)
+    @byte_offset = Leptris::XML::FFI.leptris_node_byte_offset(c_ptr)
   end
 
   def <=>(other)
@@ -445,6 +451,12 @@ class Leptris::XML::Node
   end
 
   def unlink
+    if @native_fast
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.unlink_binding_node(@document, @c_address))
+      @parent = nil
+      return self
+    end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_node_unlink(c_ptr))
