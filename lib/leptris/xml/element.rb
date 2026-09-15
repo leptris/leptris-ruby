@@ -15,7 +15,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def name
     return @name if @name
     ensure_alive!
-    @name = if native_fast?
+    @name = if @addr_reads_fast
               Leptris::XML::Native.fast_name(@c_address)
             else
               Leptris::XML::FFI.leptris_element_name(c_ptr)
@@ -40,7 +40,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def content
     return @content if memo_hit?(@content_version)
     ensure_alive!
-    result = if native_fast?
+    result = if @addr_reads_fast
                Leptris::XML::Native.fast_element_text(@c_address)
              else
                Leptris::XML::FFI.leptris_element_text(c_ptr)
@@ -57,11 +57,15 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::FFI.check_status(
         Leptris::XML::Native.set_binding_text(
           @document, @c_address, new_content.to_s))
+      @content = new_content.to_s
+      @content_version = @document.version if @document
       return new_content
     end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_text(c_ptr, new_content.to_s))
+    @content = new_content.to_s
+    @content_version = @document.version if @document
     new_content
   end
 
@@ -91,7 +95,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         # engine call resolves it, then the name is cached.
         return v if !v.nil? || @attributes
         ensure_alive!
-        v = if native_fast?
+        v = if @addr_reads_fast
                  Leptris::XML::Native.fast_attribute(@c_address, name)
                else
                  Leptris::XML::FFI.leptris_element_attribute(c_ptr, name)
@@ -104,7 +108,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       # post-mutation cold [] would stamp the new version onto a
       # stale @attributes hash and attributes would serve it.
       ensure_alive!
-      v = if native_fast?
+      v = if @addr_reads_fast
             Leptris::XML::Native.fast_attribute(@c_address, name)
           else
             Leptris::XML::FFI.leptris_element_attribute(c_ptr, name)
@@ -137,14 +141,38 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::FFI.check_status(
         Leptris::XML::Native.set_binding_attribute(
           @document, @c_address, key.to_s, value.to_s))
+      seed_attribute_memo(key.to_s, value.to_s)
       return value
     end
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_set_attribute(c_ptr, key.to_s, value.to_s))
+    seed_attribute_memo(key.to_s, value.to_s)
     value
   end
   alias_method :set_attribute, :[]=
+
+  # TODO.perf/26: the write knows the new value — seed the
+  # version-stamped memo so a read-back skips re-derivation. A
+  # valid-and-just-invalidated partial memo extends in place; a
+  # full face (or anything older) restarts partial, mirroring the
+  # cold-[] rules.
+  def seed_attribute_memo(name, written)
+    return unless @document
+    values = @attr_values
+    if values && !@attributes &&
+       @attributes_version == @document.version - 1
+      values[name] = written
+    else
+      @attr_values = { name => written }
+      @attributes = nil
+      @attribute_nodes = nil
+      @keys = nil
+      @values = nil
+    end
+    @attributes_version = @document.version
+  end
+  private :seed_attribute_memo
 
   def key?(name)
     ensure_alive!
