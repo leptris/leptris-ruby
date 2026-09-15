@@ -9,24 +9,24 @@ class Leptris::XML::DocType
   end
 
   def name
-    Leptris::XML::FFI.leptris_doctype_get_name(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_name(c_ptr)
   end
   alias_method :node_name, :name
 
   def root_name
-    Leptris::XML::FFI.leptris_doctype_get_root_name(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_root_name(c_ptr)
   end
 
   def public_id
-    Leptris::XML::FFI.leptris_doctype_get_public_id(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_public_id(c_ptr)
   end
 
   def system_id
-    Leptris::XML::FFI.leptris_doctype_get_system_id(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_system_id(c_ptr)
   end
 
   def internal_subset
-    Leptris::XML::FFI.leptris_doctype_get_internal_subset(@c_ptr)
+    Leptris::XML::FFI.leptris_doctype_get_internal_subset(c_ptr)
   end
 
   def external_id

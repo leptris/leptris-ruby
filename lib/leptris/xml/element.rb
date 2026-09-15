@@ -16,9 +16,9 @@ class Leptris::XML::Element < Leptris::XML::Node
     return @name if @name
     ensure_alive!
     @name = if native_fast?
-              Leptris::XML::Native.fast_name(@c_ptr.address)
+              Leptris::XML::Native.fast_name(@c_address)
             else
-              Leptris::XML::FFI.leptris_element_name(@c_ptr)
+              Leptris::XML::FFI.leptris_element_name(c_ptr)
             end
   end
   alias_method :node_name, :name
@@ -26,7 +26,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def name=(new_name)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_set_name(@c_ptr, new_name))
+      Leptris::XML::FFI.leptris_element_set_name(c_ptr, new_name))
     @name = new_name
   end
   alias_method :node_name=, :name=
@@ -35,9 +35,9 @@ class Leptris::XML::Element < Leptris::XML::Node
     return @content if memo_hit?(@content_version)
     ensure_alive!
     result = if native_fast?
-               Leptris::XML::Native.fast_element_text(@c_ptr.address)
+               Leptris::XML::Native.fast_element_text(@c_address)
              else
-               Leptris::XML::FFI.leptris_element_text(@c_ptr)
+               Leptris::XML::FFI.leptris_element_text(c_ptr)
              end
     if @document
       @content = result
@@ -49,7 +49,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def content=(new_content)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_set_text(@c_ptr, new_content.to_s))
+      Leptris::XML::FFI.leptris_element_set_text(c_ptr, new_content.to_s))
     new_content
   end
 
@@ -80,9 +80,9 @@ class Leptris::XML::Element < Leptris::XML::Node
         return v if !v.nil? || @attributes
         ensure_alive!
         v = if native_fast?
-                 Leptris::XML::Native.fast_attribute(@c_ptr.address, name)
+                 Leptris::XML::Native.fast_attribute(@c_address, name)
                else
-                 Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+                 Leptris::XML::FFI.leptris_element_attribute(c_ptr, name)
                end
         values[name] = v
         return v
@@ -93,9 +93,9 @@ class Leptris::XML::Element < Leptris::XML::Node
       # stale @attributes hash and attributes would serve it.
       ensure_alive!
       v = if native_fast?
-            Leptris::XML::Native.fast_attribute(@c_ptr.address, name)
+            Leptris::XML::Native.fast_attribute(@c_address, name)
           else
-            Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+            Leptris::XML::FFI.leptris_element_attribute(c_ptr, name)
           end
       @attr_values = { name => v }
       @attributes = nil
@@ -106,7 +106,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       return v
     end
     ensure_alive!
-    v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+    v = Leptris::XML::FFI.leptris_element_attribute(c_ptr, name)
     # Namespace-aware misses (an undeclared prefix never resolves
     # through in-scope declarations) fall back to the WRITTEN name
     # — the same flat face #attributes exposes, so a value written
@@ -124,23 +124,32 @@ class Leptris::XML::Element < Leptris::XML::Node
     if native_fast_children?
       Leptris::XML::FFI.check_status(
         Leptris::XML::Native.set_binding_attribute(
-          @document, @c_ptr.address, key.to_s, value.to_s))
+          @document, @c_address, key.to_s, value.to_s))
       return value
     end
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_set_attribute(@c_ptr, key.to_s, value.to_s))
+      Leptris::XML::FFI.leptris_element_set_attribute(c_ptr, key.to_s, value.to_s))
     value
   end
   alias_method :set_attribute, :[]=
 
   def key?(name)
     ensure_alive!
+    # Versioned attribute memo first (TODO.perf/21): a hit proves
+    # presence without the engine round-trip; the memo cannot
+    # prove absence for a partial fill, so misses fall through.
+    n = name.to_s
+    values = @attr_values
+    if @document && values && @attributes_version == @document.version &&
+       values.key?(n)
+      return true
+    end
     return true if Leptris::XML::FFI.leptris_element_has_attribute(
-      @c_ptr, name.to_s) != 0
+      c_ptr, n) != 0
     # Same written-name fallback as #[] — the engine lookup is
     # namespace-aware and misses undeclared prefixes (#161).
-    attributes.key?(name.to_s)
+    attributes.key?(n)
   end
   alias_method :has_attribute?, :key?
 
@@ -152,19 +161,19 @@ class Leptris::XML::Element < Leptris::XML::Node
   def attribute_ns(uri, local)
     ensure_alive!
     Leptris::XML::FFI.leptris_element_attribute_ns(
-      @c_ptr, uri&.to_s, local.to_s)
+      c_ptr, uri&.to_s, local.to_s)
   end
 
   def has_attribute_ns?(uri, local)
     ensure_alive!
     Leptris::XML::FFI.leptris_element_has_attribute_ns(
-      @c_ptr, uri&.to_s, local.to_s) != 0
+      c_ptr, uri&.to_s, local.to_s) != 0
   end
 
   def remove_attribute(name)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_remove_attribute(@c_ptr, name.to_s))
+      Leptris::XML::FFI.leptris_element_remove_attribute(c_ptr, name.to_s))
     self
   end
   alias_method :delete, :remove_attribute
@@ -177,10 +186,10 @@ class Leptris::XML::Element < Leptris::XML::Node
   def each_attribute
     return enum_for(:each_attribute) unless block_given?
     ensure_alive!
-    attr = Leptris::XML::FFI.leptris_element_first_attribute(@c_ptr)
+    attr = Leptris::XML::FFI.leptris_element_first_attribute(c_ptr)
     until attr.nil? || attr.null?
       name = Leptris::XML::FFI.leptris_attribute_get_name(attr)
-      value = Leptris::XML::FFI.leptris_attribute_get_value(@c_ptr, attr)
+      value = Leptris::XML::FFI.leptris_attribute_get_value(c_ptr, attr)
       yield Leptris::XML::Attr.new(name, value, self, c_handle: attr)
       attr = Leptris::XML::FFI.leptris_attribute_next(attr)
     end
@@ -214,7 +223,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     if native_fast?
       # TODO.perf/10: both memo faces in one C walk.
       result, values = Leptris::XML::Native.bulk_attr_faces(
-        @c_ptr.address, self)
+        @c_address, self)
       if @document
         @attributes = result
         @attr_values = values
@@ -251,9 +260,9 @@ class Leptris::XML::Element < Leptris::XML::Node
   def prefix
     ensure_alive!
     if native_fast?
-      Leptris::XML::Native.fast_prefix(@c_ptr.address)
+      Leptris::XML::Native.fast_prefix(@c_address)
     else
-      result = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
+      result = Leptris::XML::FFI.leptris_element_prefix(c_ptr)
       result if result && !result.empty?
     end
   end
@@ -324,7 +333,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # the namespace lift — the full path below handles it.
     if native_fast_children?
       st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_ptr.address, node.c_ptr.address, 1)
+        @document, @c_address, node.c_ptr.address, 1)
       unless st.nil?
         Leptris::XML::FFI.check_status(st)
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
@@ -336,7 +345,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
+      Leptris::XML::FFI.leptris_element_prepend_child(c_ptr, node.c_ptr))
     Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
@@ -347,7 +356,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # the namespace lift — the full path below handles it.
     if native_fast_children?
       st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_ptr.address, node.c_ptr.address, 2)
+        @document, @c_address, node.c_ptr.address, 2)
       unless st.nil?
         Leptris::XML::FFI.check_status(st)
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
@@ -359,7 +368,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
+      Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
     Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
@@ -370,7 +379,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # the namespace lift — the full path below handles it.
     if native_fast_children?
       st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_ptr.address, node.c_ptr.address, 3)
+        @document, @c_address, node.c_ptr.address, 3)
       unless st.nil?
         Leptris::XML::FFI.check_status(st)
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
@@ -382,7 +391,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
+      Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
     Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
@@ -390,7 +399,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def remove_child(node)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_remove_child(@c_ptr, node.c_ptr))
+      Leptris::XML::FFI.leptris_element_remove_child(c_ptr, node.c_ptr))
     node
   end
 
@@ -398,7 +407,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     # Remove existing children, then attach the new ones in source order.
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_remove_children(@c_ptr))
+      Leptris::XML::FFI.leptris_element_remove_children(c_ptr))
     Array(node_or_nodes).each { |n| add_child(n) }
   end
 
@@ -460,7 +469,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # document.create_element(name) + add_child.
   def create_child(name)
     ensure_writable!
-    ptr = Leptris::XML::FFI.leptris_element_create_child(@c_ptr, name.to_s)
+    ptr = Leptris::XML::FFI.leptris_element_create_child(c_ptr, name.to_s)
     raise Leptris::XML::Error,
       "leptris_element_create_child failed for #{name.inspect}" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, @document, Leptris::XML::FFI::NODE_ELEMENT)
@@ -477,7 +486,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       # to the full path.
       if native_fast_children?
         st = Leptris::XML::Native.append_binding_child(
-          @document, @c_ptr.address, node_or_markup.c_ptr.address)
+          @document, @c_address, node_or_markup.c_ptr.address)
         unless st.nil?
           Leptris::XML::FFI.check_status(st)
           Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
@@ -488,7 +497,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       end
       Leptris::XML::FFI.check_status(
-        Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr))
+        Leptris::XML::FFI.leptris_element_append_child(c_ptr, node_or_markup.c_ptr))
       Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
       node_or_markup
     when String
@@ -496,7 +505,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       added = []
       frag.children.each do |n|
         Leptris::XML::FFI.check_status(
-          Leptris::XML::FFI.leptris_element_append_child(@c_ptr, n.c_ptr))
+          Leptris::XML::FFI.leptris_element_append_child(c_ptr, n.c_ptr))
         added << n
       end
       Leptris::XML::NodeSet.new(@document, added)
@@ -509,7 +518,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def namespace
     return @namespace if memo_hit?(@namespace_version)
     ensure_alive!
-    uri = Leptris::XML::FFI.leptris_element_namespace(@c_ptr)
+    uri = Leptris::XML::FFI.leptris_element_namespace(c_ptr)
     result =
       if uri.nil? || uri.empty?
         nil
@@ -517,7 +526,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         # The resolved namespace is reached via this element's own
         # prefix, so carry it through: consumers that distinguish
         # {"p" => "urn:p"} from the default {"nil => "urn:p"} need it.
-        prefix = Leptris::XML::FFI.leptris_element_prefix(@c_ptr)
+        prefix = Leptris::XML::FFI.leptris_element_prefix(c_ptr)
         prefix = nil if prefix.nil? || prefix.empty?
         Leptris::XML::Namespace.new(self, uri, prefix: prefix)
       end
@@ -538,7 +547,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   def namespace=(uri)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_set_namespace(@c_ptr, uri&.to_s))
+      Leptris::XML::FFI.leptris_element_set_namespace(c_ptr, uri&.to_s))
     uri
   end
 
@@ -551,7 +560,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     prefix = ::FFI::MemoryPointer.new(:pointer)
     uri = ::FFI::MemoryPointer.new(:pointer)
     Leptris::XML::FFI.leptris_element_expanded_name(
-      @c_ptr, local, prefix, uri)
+      c_ptr, local, prefix, uri)
     local_ptr = local.read_pointer
     prefix_ptr = prefix.read_pointer
     uri_ptr = uri.read_pointer
@@ -569,10 +578,10 @@ class Leptris::XML::Element < Leptris::XML::Node
   def namespace_definitions
     return @namespace_definitions if memo_hit?(@namespace_definitions_version)
     ensure_alive!
-    count = Leptris::XML::FFI.leptris_element_namespace_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_element_namespace_count(c_ptr)
     result = count.times.map do |i|
-      prefix = Leptris::XML::FFI.leptris_element_namespace_decl_prefix(@c_ptr, i)
-      uri = Leptris::XML::FFI.leptris_element_namespace_decl_uri(@c_ptr, i)
+      prefix = Leptris::XML::FFI.leptris_element_namespace_decl_prefix(c_ptr, i)
+      uri = Leptris::XML::FFI.leptris_element_namespace_decl_uri(c_ptr, i)
       Leptris::XML::Namespace.new(self, uri, prefix: prefix)
     end
     if @document
@@ -612,7 +621,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # One C pass (TODO.perf/18): the child chain, per-kind
     # serialization, and the escape set all in one dispatch —
     # byte-identical to the Ruby loop below.
-    return Leptris::XML::Native.fast_inner_xml(@c_ptr.address) if
+    return Leptris::XML::Native.fast_inner_xml(@c_address) if
       @native_fast
     children.map do |child|
       case child
@@ -646,9 +655,9 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     return Leptris::XML::Serialization.to_xml_element_unit(
       self, indent_text, indent: indent) if indent_text.is_a?(String)
-    return Leptris::XML::Serialization.element_xml_expand_empty(@c_ptr) if expand_empty
+    return Leptris::XML::Serialization.element_xml_expand_empty(c_ptr) if expand_empty
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::Serialization::ELEMENT_SERIALIZE_INTO, @c_ptr,
+      Leptris::XML::Serialization::ELEMENT_SERIALIZE_INTO, c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
 
@@ -660,7 +669,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     resolved_mode = mode || (exclusive ? Leptris::XML::FFI::C14N_MODE_EXCLUSIVE
                                        : Leptris::XML::FFI::C14N_MODE_CANONICAL)
     Leptris::XML::Serialization.canonicalize(
-      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_subtree_ex), @c_ptr,
+      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_subtree_ex), c_ptr,
       version: version, mode: resolved_mode,
       inclusive_namespaces: inclusive_namespaces,
       with_comments: with_comments)
@@ -671,7 +680,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_add_namespace_definition(
-        @c_ptr, prefix.to_s, href.to_s))
+        c_ptr, prefix.to_s, href.to_s))
     Leptris::XML::Namespace.new(self, href.to_s, prefix: prefix.nil? ? nil : prefix.to_s)
   end
   alias_method :add_namespace, :add_namespace_definition
@@ -679,14 +688,14 @@ class Leptris::XML::Element < Leptris::XML::Node
   def default_namespace=(href)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_set_default_namespace(@c_ptr, href.to_s))
+      Leptris::XML::FFI.leptris_element_set_default_namespace(c_ptr, href.to_s))
     href
   end
 
   def remove_namespace_definition(prefix)
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_remove_namespace_definition(@c_ptr, prefix.to_s))
+      Leptris::XML::FFI.leptris_element_remove_namespace_definition(c_ptr, prefix.to_s))
     self
   end
 end

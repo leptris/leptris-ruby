@@ -29,10 +29,31 @@ module Leptris::XML::Searchable
     nil # fall back to the string path — its error surface is the contract
   end
 
+  # CSS translation cache (TODO.perf/20): the selector -> XPath
+  # translation is a pure function of (selector, prefix); without
+  # it every css call re-ran the regex machinery before the
+  # compiled-expression cache could hit. Same bounded-LRU shape.
+  def self.css_expression(selector, prefix)
+    cache = (@css_expressions ||= {})
+    key = "#{prefix}#{selector}"
+    if (hit = cache[key])
+      cache.delete(key)
+      cache[key] = hit # LRU refresh
+      return hit
+    end
+    expr = Leptris::XML::CssToXPath.convert(selector, prefix: prefix)
+    cache.shift while cache.size >= COMPILED_CACHE_LIMIT
+    cache[key] = expr
+    expr
+  end
+
   def xpath(*paths)
     handler, ns, version = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
-    expr = paths.join(" | ")
+    # Single-String shape (the common call): join would mint a
+    # fresh String per call even for one path.
+    expr = paths.one? && paths.first.is_a?(String) ? paths.first
+                                                    : paths.join(" | ")
 
     doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
@@ -65,7 +86,10 @@ module Leptris::XML::Searchable
   def at_xpath(*paths)
     handler, ns, version = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
-    expr = paths.join(" | ")
+    # Single-String shape (the common call): join would mint a
+    # fresh String per call even for one path.
+    expr = paths.one? && paths.first.is_a?(String) ? paths.first
+                                                    : paths.join(" | ")
 
     doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
@@ -121,7 +145,7 @@ module Leptris::XML::Searchable
     # Nokogiri semantics: css is receiver-relative — absolute "//"
     # from a Document, descendant ".//" from elements and fragments.
     prefix = is_a?(Leptris::XML::Document) ? "//" : ".//"
-    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r, prefix: prefix) }
+    expr = args.map { |r| Leptris::XML::Searchable.css_expression(r, prefix) }
       .join(" | ")
     xpath(expr)
   end
@@ -132,7 +156,7 @@ module Leptris::XML::Searchable
     raise ArgumentError, "version: is XPath-only" if version
     raise ArgumentError, "custom CSS handlers not supported" if handler
     prefix = is_a?(Leptris::XML::Document) ? "//" : ".//"
-    expr = args.map { |r| Leptris::XML::CssToXPath.convert(r, prefix: prefix) }
+    expr = args.map { |r| Leptris::XML::Searchable.css_expression(r, prefix) }
       .join(" | ")
     at_xpath(expr)
   end
