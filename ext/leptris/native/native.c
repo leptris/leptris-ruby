@@ -76,6 +76,15 @@ static create_child_fn f_create_child;
 static append_child_fn f_append_child;
 static append_child_fn f_prepend_child, f_insert_after, f_insert_before;
 static set_attr_fn f_set_attr;
+typedef int (*xp_type_fn)(void *);
+typedef void (*xp_free_fn)(void *);
+typedef void *(*first_child_fn)(void *);
+typedef const char *(*node_str_fn)(void *);
+static xp_type_fn f_xp_type;
+static xp_free_fn f_xp_free;
+static first_child_fn f_first_child;
+static node_str_fn f_comment_content, f_cdata_content, f_pi_target,
+                   f_pi_data;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -176,6 +185,13 @@ static void resolve_symbols(const char *lib_path)
     f_insert_after = (append_child_fn)lib_sym(h, "leptris_element_insert_after");
     f_insert_before = (append_child_fn)lib_sym(h, "leptris_element_insert_before");
     f_set_attr = (set_attr_fn)lib_sym(h, "leptris_element_set_attribute");
+    f_xp_type = (xp_type_fn)lib_sym(h, "leptris_xpath_result_type");
+    f_xp_free = (xp_free_fn)lib_sym(h, "leptris_xpath_result_free");
+    f_first_child = (first_child_fn)lib_sym(h, "leptris_node_first_child");
+    f_comment_content = (node_str_fn)lib_sym(h, "leptris_comment_node_get_content");
+    f_cdata_content = (node_str_fn)lib_sym(h, "leptris_cdata_node_get_content");
+    f_pi_target = (node_str_fn)lib_sym(h, "leptris_pi_node_get_target");
+    f_pi_data = (node_str_fn)lib_sym(h, "leptris_pi_node_get_data");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -183,6 +199,9 @@ static void resolve_symbols(const char *lib_path)
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
         !f_create_child || !f_append_child || !f_prepend_child ||
         !f_insert_after || !f_insert_before || !f_set_attr || !f_set_root ||
+        !f_xp_type || !f_xp_free || !f_first_child ||
+        !f_comment_content || !f_cdata_content || !f_pi_target ||
+        !f_pi_data ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -603,7 +622,11 @@ static VALUE nf_set_binding_attribute(VALUE self, VALUE document,
     node = (void *)(uintptr_t)NUM2ULL(addr);
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
-    st = f_set_attr(node, StringValueCStr(name), StringValueCStr(value));
+    /* Attribute names cannot contain NULs (StringValueCStr's
+     * memchr is a wasted scan); VALUES keep the scan so an
+     * embedded-NUL value raises rather than truncates. */
+    st = f_set_attr(node, RSTRING_PTR(StringValue(name)),
+                    StringValueCStr(value));
     return INT2FIX(st);
 }
 
@@ -853,6 +876,7 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@parent", Qnil);
             rb_iv_set(node, "@structure_memoizable", Qtrue);
+            rb_iv_set(node, "@native_fast", Qtrue);
             rb_iv_set(node, "@node_type", INT2FIX(kinds[i]));
             rb_hash_aset(cache, key, node);
         }
@@ -885,6 +909,9 @@ static VALUE nf_bulk_element_children(VALUE self, VALUE document,
  * while the result handle is alive, identity-cache check/store
  * for elements. Returns the Ruby Array. */
 static VALUE m_native_sentinel; /* module object = fallback marker */
+static VALUE materialize_xp_entry(VALUE document, VALUE cache,
+                                  void *result, void *ptr, int kind,
+                                  int idx);
 
 static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
 {
@@ -912,76 +939,124 @@ static VALUE nf_bulk_xpath(VALUE self, VALUE document, VALUE result_ptr_val)
     cache = binding_cache_of(document);
     out = rb_ary_new2(count);
     for (i = 0; i < count; i++) {
-        VALUE node, key;
-        const char *s;
         if (buf[i] == NULL)
             continue;
-        key = ULL2NUM((uint64_t)(uintptr_t)buf[i]);
-        switch (kinds[i]) {
-        case 0: /* element */
-            node = rb_hash_aref(cache, key);
-            if (NIL_P(node)) {
-                VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
-                node = rb_obj_alloc(c_b_element);
-                rb_iv_set(node, "@c_ptr", ptr);
-                rb_iv_set(node, "@document", document);
-                rb_iv_set(node, "@parent", Qnil);
-                rb_iv_set(node, "@structure_memoizable", Qtrue);
-                rb_iv_set(node, "@node_type", INT2FIX(0));
-                rb_hash_aset(cache, key, node);
-            }
-            break;
-        case 1: /* synthetic attribute */
-            {
-                const char *name = f_xp_node_name(result, i);
-                const char *value = f_xp_node_value(result, i);
-                VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
-                node = rb_obj_alloc(c_b_result_attr);
-                rb_iv_set(node, "@c_ptr", ptr);
-                rb_iv_set(node, "@document", document);
-                rb_iv_set(node, "@attr_name",
-                          name ? rb_utf8_str_new_cstr(name) : Qnil);
-                rb_iv_set(node, "@attr_value",
-                          value ? rb_utf8_str_new_cstr(value) : Qnil);
-            }
-            break;
-        case 2: /* text-kind: synthetic sequence carrier, or a real
-                 * Text/CDATA node (XPath reports both as TEXT) —
-                 * dispatch on the node's own type like Node.wrap. */
-            {
-                int nt = f_node_type(buf[i]);
-                if (nt == 8) { /* NODE_SYNTHETIC_TEXT */
-                    s = f_xp_node_value(result, i);
-                    node = rb_obj_alloc(c_b_result_text);
-                    rb_iv_set(node, "@c_ptr",
-                              rb_funcall(c_ffi_pointer, id_ptr_new, 1, key));
-                    rb_iv_set(node, "@document", document);
-                    rb_iv_set(node, "@value",
-                              s ? rb_utf8_str_new_cstr(s) : Qnil);
-                } else {
-                    VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
-                    node = rb_hash_aref(cache, key);
-                    if (NIL_P(node)) {
-                        node = rb_obj_alloc(binding_klass_for(nt));
-                        rb_iv_set(node, "@c_ptr", ptr);
-                        rb_iv_set(node, "@document", document);
-                        rb_iv_set(node, "@parent", Qnil);
-                        rb_iv_set(node, "@structure_memoizable", Qtrue);
-                        rb_iv_set(node, "@node_type", INT2FIX(nt));
-                        rb_hash_aset(cache, key, node);
-                    }
-                }
-            }
-            break;
-        default: /* other: rare — signal Ruby fallback for this index */
-            rb_ary_push(out, m_native_sentinel);
-            continue;
-        }
-        rb_ary_push(out, node);
+        rb_ary_push(out, materialize_xp_entry(document, cache, result,
+                                              buf[i], kinds[i], i));
     }
     ruby_xfree(buf);
     ruby_xfree(kinds);
     return out;
+}
+
+/* Materializes ONE result entry as a binding wrapper (or the
+ * module sentinel for the rare kinds the bulk path defers to
+ * Ruby). Shared by the bulk materializer (TODO.perf/03) and the
+ * at_xpath single-result seam (TODO.perf/16). */
+static VALUE materialize_xp_entry(VALUE document, VALUE cache,
+                                  void *result, void *ptr, int kind,
+                                  int idx)
+{
+    VALUE node, key;
+    const char *s;
+
+    key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    switch (kind) {
+    case 0: /* element */
+        node = rb_hash_aref(cache, key);
+        if (NIL_P(node)) {
+            VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+            node = rb_obj_alloc(c_b_element);
+            rb_iv_set(node, "@c_ptr", p);
+            rb_iv_set(node, "@document", document);
+            rb_iv_set(node, "@parent", Qnil);
+            rb_iv_set(node, "@structure_memoizable", Qtrue);
+            rb_iv_set(node, "@native_fast", Qtrue);
+            rb_iv_set(node, "@node_type", INT2FIX(0));
+            rb_hash_aset(cache, key, node);
+        }
+        return node;
+    case 1: /* synthetic attribute */
+        {
+            const char *name = f_xp_node_name(result, idx);
+            const char *value = f_xp_node_value(result, idx);
+            VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+            node = rb_obj_alloc(c_b_result_attr);
+            rb_iv_set(node, "@c_ptr", p);
+            rb_iv_set(node, "@document", document);
+            rb_iv_set(node, "@attr_name",
+                      name ? rb_utf8_str_new_cstr(name) : Qnil);
+            rb_iv_set(node, "@attr_value",
+                      value ? rb_utf8_str_new_cstr(value) : Qnil);
+        }
+        return node;
+    case 2: /* text-kind: synthetic sequence carrier, or a real
+             * Text/CDATA node (XPath reports both as TEXT) —
+             * dispatch on the node's own type like Node.wrap. */
+        {
+            int nt = f_node_type(ptr);
+            if (nt == 8) { /* NODE_SYNTHETIC_TEXT */
+                s = f_xp_node_value(result, idx);
+                node = rb_obj_alloc(c_b_result_text);
+                rb_iv_set(node, "@c_ptr",
+                          rb_funcall(c_ffi_pointer, id_ptr_new, 1, key));
+                rb_iv_set(node, "@document", document);
+                rb_iv_set(node, "@value",
+                          s ? rb_utf8_str_new_cstr(s) : Qnil);
+                return node;
+            }
+            node = rb_hash_aref(cache, key);
+            if (NIL_P(node)) {
+                VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
+                node = rb_obj_alloc(binding_klass_for(nt));
+                rb_iv_set(node, "@c_ptr", p);
+                rb_iv_set(node, "@document", document);
+                rb_iv_set(node, "@parent", Qnil);
+                rb_iv_set(node, "@structure_memoizable", Qtrue);
+                rb_iv_set(node, "@native_fast", Qtrue);
+                rb_iv_set(node, "@node_type", INT2FIX(nt));
+                rb_hash_aset(cache, key, node);
+            }
+        }
+        return node;
+    default: /* other: rare — signal Ruby fallback for this entry */
+        return m_native_sentinel;
+    }
+}
+
+/* ---- at_xpath single-result seam (TODO.perf/16) ----------------
+ * One dispatch for the hottest query shape: type check, entry-0
+ * materialization through the bulk machinery, result free.
+ * Non-nodeset results return Qundef — the caller keeps the exact
+ * Ruby scalar path (and owns the free there). */
+static VALUE nf_at_xpath_first(VALUE self, VALUE document,
+                               VALUE result_ptr_val)
+{
+    void *result = (void *)(uintptr_t)NUM2ULL(result_ptr_val);
+    void *buf;
+    int kind;
+    size_t scount;
+    VALUE node;
+
+    (void)self;
+    resolve_binding_classes();
+    if (f_xp_type(result) != 0) /* XPATH_NODESET */
+        return m_native_sentinel; /* caller keeps the scalar path */
+    scount = f_xp_count(result);
+    if (scount == 0) {
+        f_xp_free(result);
+        return Qnil;
+    }
+    buf = NULL;
+    scount = f_xp_nodes_ex(result, &buf, &kind, 1);
+    if (scount == 0 || buf == NULL) {
+        f_xp_free(result);
+        return Qnil;
+    }
+    node = materialize_xp_entry(document, binding_cache_of(document),
+                                result, buf, kind, 0);
+    f_xp_free(result);
+    return node;
 }
 
 /* ---- Bulk attribute materialization (TODO.perf/10) ---------------
@@ -1027,6 +1102,7 @@ static VALUE nf_create_binding_element(VALUE self, VALUE document,
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);
+    rb_iv_set(node, "@native_fast", Qtrue);
     rb_iv_set(node, "@node_type", INT2FIX(0));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -1052,6 +1128,7 @@ static VALUE nf_create_binding_text(VALUE self, VALUE document,
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);
+    rb_iv_set(node, "@native_fast", Qtrue);
     rb_iv_set(node, "@node_type", INT2FIX(1));
     cache = binding_cache_of(document);
     key = ULL2NUM((uint64_t)(uintptr_t)ptr);
@@ -1161,6 +1238,117 @@ static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
     return fast_serialize(f_elem_serialize,
                           (void *)(uintptr_t)NUM2ULL(addr),
                           NUM2INT(indent), RTEST(decl) ? 1 : 0);
+}
+
+/* ---- inner_html in one C pass (TODO.perf/18) --------------------
+ * Serializes the receiver's children into one growable buffer:
+ * elements via leptris_element_serialize_into (the same opts the
+ * Ruby loop passed), text XML-escaped with the binding's entity
+ * set (& < > \r), CDATA/comments/PIs wrapped raw — byte-identical
+ * to Element#inner_html's per-child loop. */
+static char *inner_buf;
+static size_t inner_cap;
+
+static void inner_ensure(size_t need)
+{
+    if (need > inner_cap) {
+        inner_cap = need < 64 ? 64 : need;
+        inner_buf = ruby_xrealloc(inner_buf, inner_cap);
+    }
+}
+
+static size_t inner_append_raw(const char *s, size_t len, size_t at)
+{
+    inner_ensure(at + len + 1);
+    if (len)
+        memcpy(inner_buf + at, s, len);
+    return at + len;
+}
+
+static size_t inner_append_escaped(const char *s, size_t at)
+{
+    for (; s && *s; s++) {
+        const char *repl;
+        size_t rl;
+        switch (*s) {
+        case '&':  repl = "&amp;";  rl = 5; break;
+        case '<':  repl = "&lt;";   rl = 4; break;
+        case '>':  repl = "&gt;";   rl = 4; break;
+        case '\r': repl = "&#xD;"; rl = 5; break;
+        default:   repl = NULL;     rl = 0; break;
+        }
+        if (repl) {
+            at = inner_append_raw(repl, rl, at);
+        } else {
+            inner_ensure(at + 2);
+            inner_buf[at++] = *s;
+        }
+    }
+    return at;
+}
+
+static VALUE nf_fast_inner_xml(VALUE self, VALUE addr)
+{
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    void *child;
+    struct serialize_opts opts;
+    size_t at = 0, needed;
+
+    (void)self;
+    opts.indent = 0;
+    opts.xml_declaration = 1; /* matches element_xml_default */
+    opts.encoding = NULL;
+    inner_ensure(4096);
+    for (child = f_first_child(node); child != NULL;
+         child = f_next_sibling(child)) {
+        switch (f_node_type(child)) {
+        case 0: /* element */
+            needed = f_elem_serialize(child, inner_buf + at,
+                                      inner_cap - at, NULL, &opts);
+            if (needed > 0) {
+                if (needed > inner_cap - at) {
+                    inner_ensure(at + needed);
+                    needed = f_elem_serialize(child, inner_buf + at,
+                                              inner_cap - at, NULL, &opts);
+                }
+                at += needed - 1; /* size includes the NUL */
+            }
+            break;
+        case 1: /* text */
+            at = inner_append_escaped(f_text_content(child), at);
+            break;
+        case 2: /* comment */
+            at = inner_append_raw("<!--", 4, at);
+            at = inner_append_escaped(f_comment_content(child), at);
+            at = inner_append_raw("-->", 3, at);
+            break;
+        case 3: { /* CDATA */
+            const char *c = f_cdata_content(child);
+            at = inner_append_raw("<![CDATA[", 9, at);
+            at = inner_append_raw(c, c ? strlen(c) : 0, at);
+            at = inner_append_raw("]]>", 3, at);
+            break;
+        }
+        case 4: { /* PI — the binding strips leading whitespace from
+                   * the data before joining (read_pi_data parity). */
+            const char *data = f_pi_data(child);
+            while (data && (*data == ' ' || *data == '\t' ||
+                            *data == '\r' || *data == '\n'))
+                data++;
+            at = inner_append_raw("<?", 2, at);
+            at = inner_append_escaped(f_pi_target(child), at);
+            if (data && *data) {
+                at = inner_append_raw(" ", 1, at);
+                at = inner_append_escaped(data, at);
+            }
+            at = inner_append_raw("?>", 2, at);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return rb_utf8_str_new(inner_buf, at);
 }
 
 /* ---- Adoption-lift predicate (TODO.perf/09, #204 ask 3) ---------
@@ -1394,6 +1582,10 @@ void Init_native(void)
                               nf_set_binding_attribute, 4);
     rb_define_module_function(m_native, "insert_binding_child",
                               nf_insert_binding_child, 4);
+    rb_define_module_function(m_native, "at_xpath_first",
+                              nf_at_xpath_first, 2);
+    rb_define_module_function(m_native, "fast_inner_xml",
+                              nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
