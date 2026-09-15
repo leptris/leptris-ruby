@@ -32,9 +32,9 @@ class Leptris::XML::Document
 
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
-    # Plain-Integer address twin of @c_ptr: the native layer reads
+    # Plain-Integer address twin of c_ptr: the native layer reads
     # this ivar directly (no method dispatch), nil'ed exactly when
-    # @c_ptr is.
+    # c_ptr is.
     @c_address = c_ptr&.address
     @freed = freed
     @readonly = false
@@ -209,13 +209,13 @@ class Leptris::XML::Document
 
   def root
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
-    return nil if @c_ptr.nil?
+    return nil if c_ptr.nil?
     # Version-stamped memo (TODO.perf/13): root changes only
     # through mutations that advance @version (root=, unlink) or
-    # #free (which nils @c_ptr above) — the entry point of every
+    # #free (which nils c_ptr above) — the entry point of every
     # pipeline stops paying FFI + wrap per call.
     return @root if @root_version == @version
-    ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_document_root(c_ptr)
     result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, self)
     @root = result
     @root_version = @version
@@ -231,7 +231,7 @@ class Leptris::XML::Document
   def node
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     @node ||= Leptris::XML::Node.wrap(
-      Leptris::XML::FFI.leptris_document_node(@c_ptr), self)
+      Leptris::XML::FFI.leptris_document_node(c_ptr), self)
   end
 
   # The document's children, via the document node: prolog
@@ -250,7 +250,7 @@ class Leptris::XML::Document
     doc_node = node
     return Leptris::XML::NodeSet.new(self, []) if doc_node.nil?
     kids = doc_node.children.to_a
-    root_ptr = Leptris::XML::FFI.leptris_document_root(@c_ptr)
+    root_ptr = Leptris::XML::FFI.leptris_document_root(c_ptr)
     return kids if root_ptr.null?
     return kids if kids.any? { |child| child.c_ptr == root_ptr }
     root = Leptris::XML::Node.wrap(root_ptr, self)
@@ -289,7 +289,7 @@ class Leptris::XML::Document
       Leptris::XML::Element.lift_namespaces_for_adoption(element, {})
     end
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_document_set_root(@c_ptr, element.c_ptr))
+      Leptris::XML::FFI.leptris_document_set_root(c_ptr, element.c_ptr))
     @version += 1
     # Seed the root memo through wrap: a cross-document element
     # must enter THIS document's identity cache with @document
@@ -308,7 +308,7 @@ class Leptris::XML::Document
       raise Leptris::XML::Error, "leptris_element_create failed" if node.nil?
       return node
     end
-    ptr = Leptris::XML::FFI.leptris_element_create(@c_ptr, name)
+    ptr = Leptris::XML::FFI.leptris_element_create(c_ptr, name)
     raise Leptris::XML::Error, "leptris_element_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_ELEMENT)
   end
@@ -319,25 +319,25 @@ class Leptris::XML::Document
       raise Leptris::XML::Error, "leptris_text_node_create failed" if node.nil?
       return node
     end
-    ptr = Leptris::XML::FFI.leptris_text_node_create(@c_ptr, content.to_s)
+    ptr = Leptris::XML::FFI.leptris_text_node_create(c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_text_node_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_TEXT)
   end
 
   def create_comment(content)
-    ptr = Leptris::XML::FFI.leptris_comment_node_create(@c_ptr, content.to_s)
+    ptr = Leptris::XML::FFI.leptris_comment_node_create(c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_comment_node_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_COMMENT)
   end
 
   def create_cdata(content)
-    ptr = Leptris::XML::FFI.leptris_cdata_node_create(@c_ptr, content.to_s)
+    ptr = Leptris::XML::FFI.leptris_cdata_node_create(c_ptr, content.to_s)
     raise Leptris::XML::Error, "leptris_cdata_node_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_CDATA)
   end
 
   def create_processing_instruction(target, data = "")
-    ptr = Leptris::XML::FFI.leptris_pi_node_create(@c_ptr, target.to_s, data.to_s)
+    ptr = Leptris::XML::FFI.leptris_pi_node_create(c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_pi_node_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_PI)
   end
@@ -347,14 +347,14 @@ class Leptris::XML::Document
   end
 
   def dup
-    raw = Leptris::XML::FFI.leptris_document_copy(@c_ptr)
+    raw = Leptris::XML::FFI.leptris_document_copy(c_ptr)
     raise Leptris::XML::Error, "leptris_document_copy failed" if raw.null?
     self.class.wrap(raw)
   end
   alias_method :clone, :dup
 
   def doctype
-    ptr = Leptris::XML::FFI.leptris_document_internal_subset(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_document_internal_subset(c_ptr)
     return nil if ptr.null?
     Leptris::XML::DocType.new(ptr, self)
   end
@@ -368,18 +368,18 @@ class Leptris::XML::Document
   # display-oriented and not round-trip-guaranteed).
   def to_xml(indent: 0, no_decl: false, encoding: nil, indent_text: false)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
-    return "" if @c_ptr.nil?
+    return "" if c_ptr.nil?
     case indent_text
     when String
       return Leptris::XML::Serialization.to_xml_indent_unit(
-        @c_ptr, indent_text, indent: indent, no_decl: no_decl,
+        c_ptr, indent_text, indent: indent, no_decl: no_decl,
         encoding: encoding)
     when true
       return Leptris::XML::Serialization.to_xml_display(
-        @c_ptr, indent: indent, no_decl: no_decl, encoding: encoding)
+        c_ptr, indent: indent, no_decl: no_decl, encoding: encoding)
     end
     Leptris::XML::Serialization.to_xml(
-      Leptris::XML::Serialization::DOCUMENT_SERIALIZE_INTO, @c_ptr,
+      Leptris::XML::Serialization::DOCUMENT_SERIALIZE_INTO, c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
   alias_method :to_s, :to_xml
@@ -391,7 +391,7 @@ class Leptris::XML::Document
       no_decl: opts.fetch(:no_decl, false),
       encoding: opts[:encoding])
     status = Leptris::XML::FFI.leptris_document_save_file(
-      @c_ptr, path, opts_struct.pointer)
+      c_ptr, path, opts_struct.pointer)
     Leptris::XML::FFI.check_status(status)
     self
   end
@@ -402,11 +402,11 @@ class Leptris::XML::Document
                    exclusive: false,
                    mode: nil)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
-    return "" if @c_ptr.nil?
+    return "" if c_ptr.nil?
     resolved_mode = mode || (exclusive ? Leptris::XML::FFI::C14N_MODE_EXCLUSIVE
                                        : Leptris::XML::FFI::C14N_MODE_CANONICAL)
     Leptris::XML::Serialization.canonicalize(
-      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_ex), @c_ptr,
+      Leptris::XML::FFI.method(:leptris_c14n_canonicalize_ex), c_ptr,
       version: version, mode: resolved_mode,
       inclusive_namespaces: inclusive_namespaces,
       with_comments: with_comments)
@@ -416,7 +416,7 @@ class Leptris::XML::Document
   def free
     return if @freed.state == :freed
     @freed.state = :freed
-    Leptris::XML::FFI.leptris_document_free(@c_ptr) unless @c_ptr.nil?
+    Leptris::XML::FFI.leptris_document_free(c_ptr) unless c_ptr.nil?
     @c_ptr = nil
     @c_address = nil
     @wrapper_cache&.clear
@@ -432,7 +432,7 @@ class Leptris::XML::Document
   # handlers. Returns self for chaining.
   def exslt
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_exslt_enable(@c_ptr))
+      Leptris::XML::FFI.leptris_exslt_enable(c_ptr))
     self
   end
 
@@ -440,11 +440,11 @@ class Leptris::XML::Document
   # an array of [target, data] pairs in document order.
   def processing_instructions
     return @processing_instructions if @pi_version == @version
-    count = Leptris::XML::FFI.leptris_document_pi_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_document_pi_count(c_ptr)
     result = count.times.map do |i|
-      [Leptris::XML::FFI.leptris_document_pi_target(@c_ptr, i),
+      [Leptris::XML::FFI.leptris_document_pi_target(c_ptr, i),
        Leptris::XML::FFI.read_pi_data(
-         Leptris::XML::FFI.leptris_document_pi_data(@c_ptr, i)).to_s]
+         Leptris::XML::FFI.leptris_document_pi_data(c_ptr, i)).to_s]
     end
     @processing_instructions = result
     @pi_version = @version
@@ -460,10 +460,10 @@ class Leptris::XML::Document
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
     if target_or_index.is_a?(Integer)
       ptr = Leptris::XML::FFI.leptris_document_remove_pi(
-        @c_ptr, nil, target_or_index)
+        c_ptr, nil, target_or_index)
     else
       ptr = Leptris::XML::FFI.leptris_document_remove_pi(
-        @c_ptr, target_or_index.to_s, 0)
+        c_ptr, target_or_index.to_s, 0)
     end
     return nil if ptr.null?
     @version += 1
@@ -473,7 +473,7 @@ class Leptris::XML::Document
   # Append a document-level processing instruction. Returns self.
   def add_pi(target, data = "")
     witness = Leptris::XML::FFI.leptris_document_add_pi(
-      @c_ptr, target.to_s, data.to_s)
+      c_ptr, target.to_s, data.to_s)
     raise Leptris::XML::Error, "leptris_document_add_pi failed" if witness.null?
     @version += 1
     self
@@ -485,7 +485,7 @@ class Leptris::XML::Document
   # this is the writer). Returns self.
   def add_comment(content)
     witness = Leptris::XML::FFI.leptris_document_add_comment(
-      @c_ptr, content.to_s)
+      c_ptr, content.to_s)
     raise Leptris::XML::Error,
       "leptris_document_add_comment failed" if witness.null?
     @version += 1
@@ -497,7 +497,7 @@ class Leptris::XML::Document
   # (names, content, children, attributes) since they can never go
   # stale. The C document is also frozen (advisory upstream). One-way.
   def readonly!
-    Leptris::XML::FFI.leptris_document_freeze(@c_ptr)
+    Leptris::XML::FFI.leptris_document_freeze(c_ptr)
     @readonly = true
     self
   end
@@ -509,7 +509,7 @@ class Leptris::XML::Document
   # True once #free has run (or the GC finalizer fired) — borrowed
   # handles check this before dereferencing their c_ptr.
   def freed?
-    @freed.state == :freed || @c_ptr.nil?
+    @freed.state == :freed || c_ptr.nil?
   end
 
   # Document-level comments — parsed <!-- ... --> outside the
@@ -518,9 +518,9 @@ class Leptris::XML::Document
   # 1.9.3, upstream #578). Version-memoized like the PI list.
   def comments
     return @comments if @comments_version == @version
-    count = Leptris::XML::FFI.leptris_document_comment_count(@c_ptr)
+    count = Leptris::XML::FFI.leptris_document_comment_count(c_ptr)
     result = Array.new(count) do |i|
-      Leptris::XML::FFI.leptris_document_comment_content(@c_ptr, i)
+      Leptris::XML::FFI.leptris_document_comment_content(c_ptr, i)
     end
     @comments = result
     @comments_version = @version
@@ -545,15 +545,15 @@ class Leptris::XML::Document
 
   # The most recent error recorded against this document, or nil.
   def last_error
-    msg = Leptris::XML::FFI.leptris_document_last_error(@c_ptr)
+    msg = Leptris::XML::FFI.leptris_document_last_error(c_ptr)
     msg.nil? || msg.empty? ? nil : msg
   end
 
   def name; "document"; end
   def document; self; end
   def encoding
-    return nil if @c_ptr.nil?
-    Leptris::XML::FFI.leptris_document_encoding(@c_ptr)
+    return nil if c_ptr.nil?
+    Leptris::XML::FFI.leptris_document_encoding(c_ptr)
   end
 
   include Leptris::XML::Searchable

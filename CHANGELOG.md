@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.3] - 2026-09-15
+
+### Changed
+
+- **Lazy FFI::Pointer on wrappers (TODO.perf/19)**: the node's
+  canonical state is the Integer address; the Pointer
+  materializes only when read — the C construction faces stop
+  minting one per node (~200ns + one allocation each, and
+  proportionally less GC). Public `c_ptr` API and identity
+  unchanged. Measured (load 22-25): GC-amortized
+  `Document.create` ~5-6µs → ~4.0µs; `NativeNode#[]` 78ns
+  (budget 70), `#content` 45ns (budget 58 met).
+- **CSS translation cache (TODO.perf/20)**: repeat selectors skip
+  the per-call regex translation straight to the compiled handle;
+  the single-path xpath shape no longer allocates a joined
+  String per call.
+- **`Element#key?` consults the attribute memo (TODO.perf/21)**
+  before the engine round-trip; miss semantics unchanged.
+
 ## [1.9.174.2] - 2026-09-15
 
 ### Changed

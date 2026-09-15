@@ -870,9 +870,8 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
         key = ULL2NUM((uint64_t)(uintptr_t)buf[i]);
         node = rb_hash_aref(cache, key);
         if (NIL_P(node)) {
-            VALUE ptr = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
             node = rb_obj_alloc(binding_klass_for(kinds[i]));
-            rb_iv_set(node, "@c_ptr", ptr);
+            rb_iv_set(node, "@c_address", key);
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@parent", Qnil);
             rb_iv_set(node, "@structure_memoizable", Qtrue);
@@ -965,9 +964,8 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
     case 0: /* element */
         node = rb_hash_aref(cache, key);
         if (NIL_P(node)) {
-            VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
             node = rb_obj_alloc(c_b_element);
-            rb_iv_set(node, "@c_ptr", p);
+            rb_iv_set(node, "@c_address", key);
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@parent", Qnil);
             rb_iv_set(node, "@structure_memoizable", Qtrue);
@@ -980,9 +978,8 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
         {
             const char *name = f_xp_node_name(result, idx);
             const char *value = f_xp_node_value(result, idx);
-            VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
             node = rb_obj_alloc(c_b_result_attr);
-            rb_iv_set(node, "@c_ptr", p);
+            rb_iv_set(node, "@c_address", key);
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@attr_name",
                       name ? rb_utf8_str_new_cstr(name) : Qnil);
@@ -998,8 +995,7 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
             if (nt == 8) { /* NODE_SYNTHETIC_TEXT */
                 s = f_xp_node_value(result, idx);
                 node = rb_obj_alloc(c_b_result_text);
-                rb_iv_set(node, "@c_ptr",
-                          rb_funcall(c_ffi_pointer, id_ptr_new, 1, key));
+                rb_iv_set(node, "@c_address", key);
                 rb_iv_set(node, "@document", document);
                 rb_iv_set(node, "@value",
                           s ? rb_utf8_str_new_cstr(s) : Qnil);
@@ -1007,9 +1003,8 @@ static VALUE materialize_xp_entry(VALUE document, VALUE cache,
             }
             node = rb_hash_aref(cache, key);
             if (NIL_P(node)) {
-                VALUE p = rb_funcall(c_ffi_pointer, id_ptr_new, 1, key);
                 node = rb_obj_alloc(binding_klass_for(nt));
-                rb_iv_set(node, "@c_ptr", p);
+                rb_iv_set(node, "@c_address", key);
                 rb_iv_set(node, "@document", document);
                 rb_iv_set(node, "@parent", Qnil);
                 rb_iv_set(node, "@structure_memoizable", Qtrue);
@@ -1096,9 +1091,8 @@ static VALUE nf_create_binding_element(VALUE self, VALUE document,
     if (!ptr)
         return Qnil; /* caller raises with the error channel */
     node = rb_obj_alloc(c_b_element);
-    rb_iv_set(node, "@c_ptr",
-              rb_funcall(c_ffi_pointer, id_ptr_new, 1,
-                         ULL2NUM((uint64_t)(uintptr_t)ptr)));
+    rb_iv_set(node, "@c_address",
+              ULL2NUM((uint64_t)(uintptr_t)ptr));
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);
@@ -1122,9 +1116,8 @@ static VALUE nf_create_binding_text(VALUE self, VALUE document,
     if (!ptr)
         return Qnil;
     node = rb_obj_alloc(c_b_text);
-    rb_iv_set(node, "@c_ptr",
-              rb_funcall(c_ffi_pointer, id_ptr_new, 1,
-                         ULL2NUM((uint64_t)(uintptr_t)ptr)));
+    rb_iv_set(node, "@c_address",
+              ULL2NUM((uint64_t)(uintptr_t)ptr));
     rb_iv_set(node, "@document", document);
     rb_iv_set(node, "@parent", Qnil);
     rb_iv_set(node, "@structure_memoizable", Qtrue);

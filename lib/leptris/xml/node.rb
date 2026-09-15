@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
 class Leptris::XML::Node
-  attr_reader :c_ptr
+  # TODO.perf/19: @c_address is the canonical truth; the Pointer
+  # materializes only when actually read (most wrappers' Pointers
+  # never are — hot reads are memoized or address-based).
+  def c_ptr
+    @c_ptr ||= ::FFI::Pointer.new(@c_address)
+  end
 
   # Iterparse-yielded elements are owned by an IterationScope (the
   # internal lifetime/memoization authority) — the public #document
@@ -12,6 +17,7 @@ class Leptris::XML::Node
 
   def initialize(c_ptr, document, parent: nil, node_type: nil)
     @c_ptr = c_ptr
+    @c_address = c_ptr&.address
     @document = document
     @parent = parent
     # Structural-memo stamp (TODO.perf/13): a constructor-seeded
@@ -142,7 +148,7 @@ class Leptris::XML::Node
   def type
     return @node_type if @node_type
     ensure_alive!
-    @node_type = Leptris::XML::FFI.leptris_node_get_type(@c_ptr)
+    @node_type = Leptris::XML::FFI.leptris_node_get_type(c_ptr)
   end
   alias_method :node_type, :type
 
@@ -165,7 +171,7 @@ class Leptris::XML::Node
   def digest(drop_ws: false)
     ensure_alive!
     Leptris::XML::FFI.leptris_node_digest(
-      @c_ptr, drop_ws ? 1 : 0)
+      c_ptr, drop_ws ? 1 : 0)
   end
   def text?;     type == Leptris::XML::FFI::NODE_TEXT;     end
   def comment?;  type == Leptris::XML::FFI::NODE_COMMENT;  end
@@ -187,7 +193,7 @@ class Leptris::XML::Node
       return @parent
     end
     ensure_alive!
-    ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_parent(c_ptr)
     result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document)
     if @document
       @parent = result
@@ -205,7 +211,7 @@ class Leptris::XML::Node
   # unstamped derivation at most once per version.
   def unstamped_parent
     ensure_alive!
-    ptr = Leptris::XML::FFI.leptris_node_parent(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_parent(c_ptr)
     ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document)
   end
 
@@ -274,7 +280,7 @@ class Leptris::XML::Node
 
   def line
     ensure_alive!
-    Leptris::XML::FFI.leptris_node_line(@c_ptr)
+    Leptris::XML::FFI.leptris_node_line(c_ptr)
   end
 
   # Byte offset of the node's markup in its parse source (the '<'
@@ -283,19 +289,19 @@ class Leptris::XML::Node
   # documents >= 2 GiB.
   def byte_offset
     ensure_alive!
-    Leptris::XML::FFI.leptris_node_byte_offset(@c_ptr)
+    Leptris::XML::FFI.leptris_node_byte_offset(c_ptr)
   end
 
   def <=>(other)
     return nil unless other.is_a?(Leptris::XML::Node)
     return nil unless @document == other.document
     ensure_alive!
-    Leptris::XML::FFI.leptris_node_compare(@c_ptr, other.c_ptr)
+    Leptris::XML::FFI.leptris_node_compare(c_ptr, other.c_ptr)
   end
 
   def child
     ensure_alive!
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_first_child(c_ptr)
     return nil if ptr.null?
     Leptris::XML::Node.wrap(ptr, @document, parent: as_element_or_self)
   end
@@ -310,7 +316,7 @@ class Leptris::XML::Node
       # TODO.perf/01 tail: one C pass constructs every binding
       # wrapper (class dispatch + ivars + identity cache) — the
       # per-child Ruby wrap frames disappear.
-      nodes = Leptris::XML::Native.bulk_children(@document, @c_ptr.address)
+      nodes = Leptris::XML::Native.bulk_children(@document, @c_address)
       result = Leptris::XML::NodeSet.new(@document, nodes)
       if @document
         @children = result
@@ -319,7 +325,7 @@ class Leptris::XML::Node
       return result
     end
     parent = as_element_or_self
-    pointers, kinds = Leptris::XML::FFI.fetch_children(@c_ptr)
+    pointers, kinds = Leptris::XML::FFI.fetch_children(c_ptr)
     nodes = Array.new(pointers.size) do |i|
       Leptris::XML::Node.wrap(pointers[i], @document,
                               parent: parent, node_type: kinds[i])
@@ -337,7 +343,7 @@ class Leptris::XML::Node
       return @next_sibling
     end
     ensure_alive!
-    ptr = Leptris::XML::FFI.leptris_node_next_sibling(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_next_sibling(c_ptr)
     result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
     if @document
       @next_sibling = result
@@ -352,7 +358,7 @@ class Leptris::XML::Node
       return @previous_sibling
     end
     ensure_alive!
-    ptr = Leptris::XML::FFI.leptris_node_previous_sibling(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_previous_sibling(c_ptr)
     result = ptr.null? ? nil : Leptris::XML::Node.wrap(ptr, @document, parent: @parent)
     if @document
       @previous_sibling = result
@@ -368,7 +374,7 @@ class Leptris::XML::Node
     # Raw pointer scan: non-element siblings are typed with one C
     # call each — never wrapped, never cached — and the found
     # element carries the ELEMENT hint into the wrap.
-    ptr = Leptris::XML::FFI.leptris_node_first_child(@c_ptr)
+    ptr = Leptris::XML::FFI.leptris_node_first_child(c_ptr)
     result = nil
     until ptr.nil? || ptr.null?
       if Leptris::XML::FFI.leptris_node_get_type(ptr) ==
@@ -391,7 +397,7 @@ class Leptris::XML::Node
     # Element receivers: the element-only batch fetches pointers
     # without wrapping any text child; only the last is wrapped.
     if is_a?(Leptris::XML::Element)
-      kids = Leptris::XML::FFI.fetch_element_children(@c_ptr)
+      kids = Leptris::XML::FFI.fetch_element_children(c_ptr)
       return nil if kids.empty?
       return Leptris::XML::Node.wrap(
         kids.last, @document, parent: self,
@@ -408,10 +414,10 @@ class Leptris::XML::Node
     # ELEMENT hint rides along). Other nodes keep the filter.
     result =
       if native_fast_children?
-        Leptris::XML::Native.bulk_element_children(@document, @c_ptr.address)
+        Leptris::XML::Native.bulk_element_children(@document, @c_address)
       elsif is_a?(Leptris::XML::Element)
         parent = as_element_or_self
-        Leptris::XML::FFI.fetch_element_children(@c_ptr).map do |ptr|
+        Leptris::XML::FFI.fetch_element_children(c_ptr).map do |ptr|
           Leptris::XML::Node.wrap(ptr, @document, parent: parent,
                                   node_type: Leptris::XML::FFI::NODE_ELEMENT)
         end
@@ -441,7 +447,7 @@ class Leptris::XML::Node
   def unlink
     ensure_writable!
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_node_unlink(@c_ptr))
+      Leptris::XML::FFI.leptris_node_unlink(c_ptr))
     @parent = nil
     self
   end
@@ -468,7 +474,7 @@ class Leptris::XML::Node
         Leptris::XML::Node.wrap(node_ptr, document),
         entering == 1, depth)
     end
-    Leptris::XML::FFI.leptris_node_visit(@c_ptr, visitor, nil)
+    Leptris::XML::FFI.leptris_node_visit(c_ptr, visitor, nil)
     self
   end
 
@@ -497,7 +503,7 @@ class Leptris::XML::Node
     return enum_for(:traverse) unless block_given?
     ensure_alive!
     error = nil
-    self_address = @c_ptr.address
+    self_address = @c_address
     callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
       begin
         yield Leptris::XML::Node.wrap(node_ptr, @document)
@@ -508,7 +514,7 @@ class Leptris::XML::Node
       end
     end
     Leptris::XML::FFI.leptris_node_traverse(
-      @c_ptr, Leptris::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
+      c_ptr, Leptris::XML::FFI::TRAVERSE_POST_ORDER, callback, nil)
     raise error if error
     self
   end
@@ -516,7 +522,7 @@ class Leptris::XML::Node
   def path
     return @path if memo_hit?(@path_version)
     ensure_alive!
-    str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(@c_ptr)
+    str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(c_ptr)
     result = str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
     if @document
       @path = result
@@ -555,7 +561,7 @@ class Leptris::XML::Node
 
   def ==(other)
     return false unless other.is_a?(Leptris::XML::Node)
-    @c_ptr == other.c_ptr
+    c_ptr == other.c_ptr
   end
 
   def inspect
