@@ -13,6 +13,7 @@
 # Ruby minor (3.3/3.4/4.0) with no bundler context.
 
 require "rbconfig"
+require "fileutils"
 
 root = File.expand_path("..", __dir__)
 ext_dir = File.join(root, "ext", "leptris", "native")
@@ -32,6 +33,6 @@ Dir.chdir(ext_dir) do
   if imported && !imported.include?("ruby#{minor.delete('.')}")
     abort "#{so} imports #{imported} but was built under #{RUBY_VERSION} — refuse to mis-name it"
   end
-  File.cp(so, dest)
+  FileUtils.cp(so, dest)
   puts "Installed native layer for Ruby #{minor} -> #{dest} (#{imported || 'no ruby dll string found'})"
 end
