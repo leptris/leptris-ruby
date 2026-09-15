@@ -234,3 +234,131 @@ RSpec.describe "C-bound mutation and read floors (TODO.perf/07-10, #204)" do
              text.root.children.first)).to be(true)
   end
 end
+
+RSpec.describe "structural memos (TODO.perf/13)" do
+  it "answers parent correctly after a same-document move (FFI-seeded wrappers too)" do
+    doc = Leptris::XML::Document.parse(%q{<r><a><child/></a><b/></r>})
+    a, b = doc.root.element_children
+    child = a.element_children.first
+    expect(child.parent.name).to eq("a")
+    b.add_child(child)
+    expect(child.parent.name).to eq("b")
+    expect(child.parent).to equal(b)
+  end
+
+  it "answers parent correctly after a cross-document move" do
+    doc = Leptris::XML::Document.parse(%q{<r><slot/></r>})
+    src = Leptris::XML::Document.parse(%q{<s><x><m/></x></s>})
+    moved = src.root.element_children.first
+    doc.root.add_child(moved)
+    expect(moved.parent.name).to eq("r")
+    expect(src.root.element_children.size).to eq(0)
+  end
+
+  it "answers siblings correctly after unlink and insert" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/><b/><c/></r>})
+    a, b, c = doc.root.element_children
+    expect(a.next_sibling).to equal(b)
+    expect(b.previous_sibling).to equal(a)
+    b.unlink
+    expect(a.next_sibling).to equal(c)
+    expect(c.previous_sibling).to equal(a)
+    a.add_next_sibling(doc.create_element("x"))
+    expect(a.next_sibling.name).to eq("x")
+  end
+
+  it "memoizes Document#root with identity" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/></r>})
+    expect(doc.root).to equal(doc.root)
+    doc.root = doc.create_element("q")
+    expect(doc.root.name).to eq("q")
+    expect(doc.root).to equal(doc.root)
+  end
+end
+
+RSpec.describe "C-bound insert family (TODO.perf/14)" do
+  it "prepends and inserts around the anchor" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/><b/></r>})
+    a, b = doc.root.element_children
+    b.prepend_child(doc.create_element("first"))
+    a.add_next_sibling(doc.create_element("after"))
+    a.add_previous_sibling(doc.create_element("before"))
+    expect(doc.root.element_children.map(&:name))
+      .to eq(%w[before a after b])
+    expect(b.element_children.map(&:name)).to eq(%w[first])
+  end
+
+  it "falls back to the lift path for namespaced children" do
+    doc = Leptris::XML::Document.parse(%q{<r><a/></r>})
+    src = Leptris::XML::Document.parse(
+      %q{<a:o xmlns:a="urn:a"><a:i/></a:o>})
+    doc.root.element_children.first.prepend_child(
+      src.root.element_children.first)
+    expect(doc.root.element_children.first.children.first.to_xml)
+      .to eq(%q{<a:i xmlns:a="urn:a"/>})
+  end
+
+  it "raises ReadOnlyError through the insert faces" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.readonly!
+    expect { doc.root.prepend_child(doc.create_element("x")) }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+end
+
+RSpec.describe "compiled-expression cache (TODO.perf/15)" do
+  it "returns identical results through the cache" do
+    doc = Leptris::XML::Document.parse(
+      %q{<r><item id="7"><name>x</name></item></r>})
+    expect(doc.xpath("//item[@id='7']").map(&:name)).to eq(%w[item])
+    expect(doc.xpath("//item[@id='7']").map(&:name)).to eq(%w[item])
+    expect(doc.at_xpath("//name").content).to eq("x")
+    expect(doc.xpath("count(//item)")).to eq(1.0)
+    expect(doc.xpath("string(//name)")).to eq("x")
+    expect(doc.at_xpath("//missing")).to be_nil
+  end
+
+  it "does not cache failed compiles" do
+    cache = Leptris::XML::Searchable.instance_variable_get(:@compiled_expressions)
+    before = cache ? cache.size : 0
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    expect { doc.xpath("///[bad(") }
+      .to raise_error(Leptris::XML::XPathError)
+    after = Leptris::XML::Searchable.instance_variable_get(:@compiled_expressions)
+    expect(after.size).to eq(before)
+  end
+
+  it "keeps namespace-bound and version-pinned paths on their entries" do
+    doc = Leptris::XML::Document.parse(
+      %q{<r><p:x xmlns:p="urn:p">y</p:x></r>})
+    expect(doc.root.xpath(".//p:x", "p" => "urn:p").first.content)
+      .to eq("y")
+    expect { doc.xpath("//p:x", version: "1.0") }.not_to raise_error
+  end
+end
+
+RSpec.describe "document lifetime in C (TODO.perf/12)" do
+  it "creates documents through the C factory with full surface" do
+    doc = Leptris::XML::Document.create
+    doc.root = doc.create_element("r")
+    doc.root.add_child(doc.create_text_node("t"))
+    expect(doc.to_xml).to eq(%q{<?xml version="1.0"?><r>t</r>})
+    expect(doc.freed?).to be(false)
+    doc.free
+    expect(doc.freed?).to be(true)
+    expect(doc.c_ptr).to be_nil
+  end
+
+  it "releases parsed documents at GC through the TypedData handle" do
+    3_000.times { Leptris::XML::Document.parse(%q{<r><a x="1">t</a></r>}) }
+    GC.start
+    GC.start
+  end
+
+  it "never double-frees: explicit free then GC" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.free
+    GC.start
+    expect(doc.freed?).to be(true)
+  end
+end

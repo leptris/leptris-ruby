@@ -5,6 +5,30 @@ module Leptris::XML::Searchable
   # mirroring leptris-py#105); anything else is a namespace prefix.
   VERSION_SELECTORS = ["1.0", "3.1", :xpath10, :xpath31].freeze
 
+  # Compiled-expression cache (TODO.perf/15): the engine caches
+  # compiled strings internally, but the string path still pays
+  # lookup + hashing per call — a direct handle eval measured 34%
+  # under it on repeat expressions. Bounded LRU keyed on the
+  # expression string; only successful compiles cache; GVL makes
+  # the Hash operations safe. Version-pinned and namespace-bound
+  # evaluations keep their dedicated string entries.
+  COMPILED_CACHE_LIMIT = 64
+
+  def self.compiled_expression(expr)
+    cache = (@compiled_expressions ||= {})
+    if (hit = cache[expr])
+      cache.delete(expr)
+      cache[expr] = hit # LRU refresh
+      return hit
+    end
+    compiled = Leptris::XML::XPath.compile(expr)
+    cache.shift while cache.size >= COMPILED_CACHE_LIMIT
+    cache[expr] = compiled
+    compiled
+  rescue Leptris::XML::XPathError
+    nil # fall back to the string path — its error surface is the contract
+  end
+
   def xpath(*paths)
     handler, ns, version = parse_search_args(paths)
     raise ArgumentError, "custom XPath handlers not supported" if handler
@@ -25,6 +49,8 @@ module Leptris::XML::Searchable
           Leptris::XML::Searchable.xpath_version_code(version), nil)
       elsif ns && !ns.empty?
         xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+      elsif (compiled = Leptris::XML::Searchable.compiled_expression(expr))
+        compiled.eval_ptrs(doc_ptr, context_ptr)
       else
         Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
       end
@@ -56,6 +82,8 @@ module Leptris::XML::Searchable
           Leptris::XML::Searchable.xpath_version_code(version), nil)
       elsif ns && !ns.empty?
         xpath_eval_with_namespaces(doc_ptr, context_ptr, expr, ns)
+      elsif (compiled = Leptris::XML::Searchable.compiled_expression(expr))
+        compiled.eval_ptrs(doc_ptr, context_ptr)
       else
         Leptris::XML::FFI.leptris_xpath_eval(doc_ptr, context_ptr, expr)
       end

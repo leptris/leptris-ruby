@@ -32,6 +32,14 @@ class Leptris::XML::XPath
     new(expression.to_s, CompiledHandle.new(raw), version_code)
   end
 
+  # Raw-pointer evaluation for Searchable's compiled cache
+  # (TODO.perf/15): the same entry the string path uses, against
+  # the compiled handle — no per-call parse/cache lookup.
+  def eval_ptrs(doc_ptr, context_ptr)
+    Leptris::XML::FFI.leptris_xpath_compiled_eval(
+      @handle, doc_ptr, context_ptr)
+  end
+
   def initialize(expression, handle, version_code = nil)
     @expression = expression
     @handle = handle

@@ -87,12 +87,16 @@ class Leptris::XML::Element < Leptris::XML::Node
         values[name] = v
         return v
       end
-      # Completely cold: one FFI, start a partial values hash.
+      # Completely cold: one read, start a partial values hash.
       # Drop any full-face memos from a prior version — otherwise a
       # post-mutation cold [] would stamp the new version onto a
       # stale @attributes hash and attributes would serve it.
       ensure_alive!
-      v = Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+      v = if native_fast?
+            Leptris::XML::Native.fast_attribute(@c_ptr.address, name)
+          else
+            Leptris::XML::FFI.leptris_element_attribute(@c_ptr, name)
+          end
       @attr_values = { name => v }
       @attributes = nil
       @attribute_nodes = nil
@@ -315,32 +319,71 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def prepend_child(node)
+    # C-bound insert (TODO.perf/14): gates + predicate + version
+    # bump + engine insert in one dispatch; Qnil = the child needs
+    # the namespace lift — the full path below handles it.
+    if native_fast_children?
+      st = Leptris::XML::Native.insert_binding_child(
+        @document, @c_ptr.address, node.c_ptr.address, 1)
+      unless st.nil?
+        Leptris::XML::FFI.check_status(st)
+        Leptris::XML::Node.invalidate_cross_document!(node, @document)
+        return node
+      end
+    end
     ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_prepend_child(@c_ptr, node.c_ptr))
+    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
   def add_next_sibling(node)
+    # C-bound insert (TODO.perf/14): gates + predicate + version
+    # bump + engine insert in one dispatch; Qnil = the child needs
+    # the namespace lift — the full path below handles it.
+    if native_fast_children?
+      st = Leptris::XML::Native.insert_binding_child(
+        @document, @c_ptr.address, node.c_ptr.address, 2)
+      unless st.nil?
+        Leptris::XML::FFI.check_status(st)
+        Leptris::XML::Node.invalidate_cross_document!(node, @document)
+        return node
+      end
+    end
     ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(@c_ptr, node.c_ptr))
+    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
   def add_previous_sibling(node)
+    # C-bound insert (TODO.perf/14): gates + predicate + version
+    # bump + engine insert in one dispatch; Qnil = the child needs
+    # the namespace lift — the full path below handles it.
+    if native_fast_children?
+      st = Leptris::XML::Native.insert_binding_child(
+        @document, @c_ptr.address, node.c_ptr.address, 3)
+      unless st.nil?
+        Leptris::XML::FFI.check_status(st)
+        Leptris::XML::Node.invalidate_cross_document!(node, @document)
+        return node
+      end
+    end
     ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(@c_ptr, node.c_ptr))
+    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
@@ -437,6 +480,7 @@ class Leptris::XML::Element < Leptris::XML::Node
           @document, @c_ptr.address, node_or_markup.c_ptr.address)
         unless st.nil?
           Leptris::XML::FFI.check_status(st)
+          Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
           return node_or_markup
         end
       end
@@ -445,6 +489,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       end
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_append_child(@c_ptr, node_or_markup.c_ptr))
+      Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
       node_or_markup
     when String
       frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
@@ -546,7 +591,10 @@ class Leptris::XML::Element < Leptris::XML::Node
         key = ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns"
         scopes[key] ||= ns.href
       end
-      node = node.parent
+      # unstamped: this walk also runs inside the adoption lift,
+      # between the version bump and the engine move (see
+      # Node#unstamped_parent).
+      node = node.unstamped_parent
     end
     if @document
       @namespaces = scopes
