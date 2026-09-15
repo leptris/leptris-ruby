@@ -14,7 +14,7 @@
 
 require "rbconfig"
 
-root = File.expand_path("../..", __dir__)
+root = File.expand_path("..", __dir__)
 ext_dir = File.join(root, "ext", "leptris", "native")
 minor = RUBY_VERSION[/\A\d+\.\d+/]
 
