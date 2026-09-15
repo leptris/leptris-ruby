@@ -332,6 +332,11 @@ attach_function :leptris_parse_string,
       # 1.9.7, upstream #580; the libxml2 model).
       attach_function :leptris_document_node,
         [:leptris_document], :leptris_node_ref
+      # First node of the document child chain in one call — the
+      # prolog head (libleptris 1.9.174; document_node +
+      # node_first_child without the intermediate handle).
+      attach_function :leptris_document_first_child,
+        [:leptris_document], :leptris_node_ref
       # Wrap-free subtree visitation (1.9.20, upstream #645a):
       # enter/leave pairs for elements, depth from the walk's root,
       # one C call — no NodeSet/Array churn per level. The document

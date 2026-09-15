@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.0] - 2026-09-15
+
+### Changed
+
+- **libleptris 1.9.162 → 1.9.174** (lockstep): the vendored C
+  library moves ten upstream releases —
+  - **C14N spec conance** (1.9.164, upstream #1015): inclusive
+    C14N keeps element prefixes (`<x:b/>` no longer canonicalizes
+    to `<b/>`), escaping follows REC-xml-c14n 2.3 (text `>`
+    escapes; attribute TAB/CR/LF as character references), and
+    epilog PIs canonicalize correctly.
+  - **XSLT 3.0 xsl:iterate sequence with-params** (1.9.167,
+    upstream #1066 / #197): accumulated sequence members keep
+    their VALUES through xsl:next-iteration — the #197 repro now
+    joins "alpha,beta,gamma" (spec-pinned).
+  - HTML conformance run (1.9.165-174, upstream #659): the
+    WHATWG script-data state machine, before-head/frameset
+    phases, `</br>` handling, mid-document DOCTYPE, and 100+
+    html5lib corpus fixes; Nokogiri parity 785 → 793.
+  - XPath: cached-bytecode twin-compile store fix (1.9.172).
+
+### Added
+
+- `FFI.leptris_document_first_child` — the document child-chain
+  head in one call (libleptris 1.9.174); `audit:symbols`
+  307/307 in lockstep.
+
 ## [1.9.163.7] - 2026-09-15
 
 ### Changed
