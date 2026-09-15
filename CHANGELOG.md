@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.6] - 2026-09-15
+
+### Changed
+
+- **C-yield traversal (TODO.perf/27)**: `traverse` and `visit`
+  no longer allocate an FFI::Function closure per call — the
+  ext's callbacks rb_yield directly, preserving post-order +
+  abort-at-self + stash-abort-raise (traverse) and the
+  (node, entering, depth) visit contract. Measured (load 34):
+  **traverse over 8k nodes 1663.5µs → 379.9µs (4.4x; 6.81x
+  Nokogiri); visit 2288.6µs → 545.4µs (4.2x)**.
+- **Address-based first-touch fills (TODO.perf/28)**:
+  text/comment/CDATA/PI content and `path` fill through address
+  faces (scope-eligible); the bulk attribute faces accept
+  scope-owned elements.
+
 ## [1.9.174.5] - 2026-09-15
 
 ### Changed

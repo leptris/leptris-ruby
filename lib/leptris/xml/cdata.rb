@@ -6,7 +6,11 @@ class Leptris::XML::CDATA < Leptris::XML::Text
   def content
     return @content if memo_hit?(@content_version)
     ensure_alive!
-    result = Leptris::XML::FFI.leptris_cdata_node_get_content(c_ptr)
+    result = if @addr_reads_fast
+               Leptris::XML::Native.fast_cdata_content(@c_address)
+             else
+               Leptris::XML::FFI.leptris_cdata_node_get_content(c_ptr)
+             end
     if @document
       @content = result
       @content_version = @document.version

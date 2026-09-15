@@ -260,7 +260,9 @@ class Leptris::XML::Element < Leptris::XML::Node
     # Require the full Attr-hash face — a cold [] may have set the
     # version with only a partial @attr_values (ruby#150).
     return @attributes if @attributes && memo_hit?(@attributes_version)
-    if native_fast?
+    # TODO.perf/28: the bulk faces touch no document state —
+    # scope-eligible via @addr_reads_fast.
+    if @addr_reads_fast
       # TODO.perf/10: both memo faces in one C walk.
       result, values = Leptris::XML::Native.bulk_attr_faces(
         @c_address, self)

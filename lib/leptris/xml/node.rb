@@ -492,6 +492,13 @@ class Leptris::XML::Node
   def visit(&block)
     return enum_for(:visit) unless block
     ensure_alive!
+    # TODO.perf/27: the ext's callback rb_yields directly — no
+    # FFI::Function closure per call.
+    if @addr_reads_fast
+      Leptris::XML::Native.visit_binding(@document, @c_address,
+                                          &block)
+      return self
+    end
     document = @document
     visitor = ::FFI::Function.new(
       :void, [:pointer, :pointer, :int, :int], blocking: true) do |_, node_ptr, entering, depth|
@@ -524,9 +531,18 @@ class Leptris::XML::Node
   # exception and returns non-zero, aborting the C walk — without
   # it the FFI dispatch silently swallowed the exception and the
   # walk continued with partially processed data.
-  def traverse
-    return enum_for(:traverse) unless block_given?
+  def traverse(&block)
+    return enum_for(:traverse) unless block
     ensure_alive!
+    # TODO.perf/27: post-order + abort-at-self + stash-abort-raise
+    # all preserved in the C callback (walk state on its stack).
+    # The block forwards explicitly — rb_yield needs it on the C
+    # entry's own frame.
+    if @addr_reads_fast
+      Leptris::XML::Native.traverse_binding(@document, @c_address,
+                                             &block)
+      return self
+    end
     error = nil
     self_address = @c_address
     callback = ::FFI::Function.new(:int, [:pointer, :pointer], blocking: true) do |node_ptr, _|
@@ -547,8 +563,12 @@ class Leptris::XML::Node
   def path
     return @path if memo_hit?(@path_version)
     ensure_alive!
-    str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(c_ptr)
-    result = str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
+    result = if @addr_reads_fast
+               Leptris::XML::Native.fast_path(@c_address)
+             else
+               str_ptr = Leptris::XML::FFI.leptris_node_get_xpath(c_ptr)
+               str_ptr.null? ? nil : Leptris::XML::FFI.read_owned_string(str_ptr)
+             end
     if @document
       @path = result
       @path_version = @document.version

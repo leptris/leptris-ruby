@@ -87,8 +87,18 @@ static node_str_fn f_comment_content, f_cdata_content, f_pi_target,
                    f_pi_data;
 typedef int (*set_str_fn)(void *, const char *);
 typedef int (*node_unlink_fn)(void *);
+typedef int (*traverse_cb_fn)(void *, void *);
+typedef int (*traverse_fn)(void *, int, traverse_cb_fn, void *);
+typedef void (*visit_cb_fn)(void *, void *, int, int);
+typedef void (*visit_fn)(void *, visit_cb_fn, void *);
+typedef void (*free_str_fn)(void *);
+typedef const char *(*node_xpath_fn)(void *);
 static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
+static traverse_fn f_node_traverse;
+static visit_fn f_node_visit;
+static free_str_fn f_free_str;
+static node_xpath_fn f_node_xpath;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -105,6 +115,8 @@ static VALUE c_use_after_free_error;
 static VALUE native_cache_of(VALUE document);
 static void resolve_binding_classes(void);
 static VALUE binding_cache_of(VALUE document);
+static VALUE binding_klass_for(int kind);
+static VALUE c_iteration_scope;
 
 #define NT_ELEMENT 0
 
@@ -200,6 +212,10 @@ static void resolve_symbols(const char *lib_path)
     f_elem_set_text = (set_str_fn)lib_sym(h, "leptris_element_set_text");
     f_text_set_content = (set_str_fn)lib_sym(h, "leptris_text_node_set_content");
     f_node_unlink = (node_unlink_fn)lib_sym(h, "leptris_node_unlink");
+    f_node_traverse = (traverse_fn)lib_sym(h, "leptris_node_traverse");
+    f_node_visit = (visit_fn)lib_sym(h, "leptris_node_visit");
+    f_free_str = (free_str_fn)lib_sym(h, "leptris_free_string");
+    f_node_xpath = (node_xpath_fn)lib_sym(h, "leptris_node_get_xpath");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -211,6 +227,8 @@ static void resolve_symbols(const char *lib_path)
         !f_comment_content || !f_cdata_content || !f_pi_target ||
         !f_pi_data || !f_elem_set_name || !f_elem_set_text ||
         !f_text_set_content || !f_node_unlink ||
+        !f_node_traverse || !f_node_visit || !f_free_str ||
+        !f_node_xpath ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -707,6 +725,211 @@ static VALUE nf_unlink_binding_node(VALUE self, VALUE document,
     return INT2FIX(st);
 }
 
+/* ---- C-yield traversal (TODO.perf/27) ----------------------------
+ * Same contracts as the Ruby FFI::Function versions without the
+ * per-call closure: traverse is post-order with abort-at-self
+ * (the receiver is the LAST node of its subtree in post-order,
+ * so stopping at self bounds the walk exactly) and
+ * stash-abort-raise exception discipline; visit passes (node,
+ * entering, depth). Walk state lives on the caller's C stack —
+ * nested traversals are independent. */
+struct trav_state {
+    VALUE document;
+    VALUE err;
+    void *self_ptr;
+    int for_visit;
+};
+
+static VALUE trav_yield_one(VALUE arg)
+{
+    return rb_yield(arg);
+}
+
+static int trav_cb(void *node_ptr, void *user)
+{
+    struct trav_state *st = user;
+    VALUE cache, key, node;
+    int kind, state;
+
+    if (st->err != Qnil)
+        return 1;
+    kind = f_node_type(node_ptr);
+    cache = binding_cache_of(st->document);
+    key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
+    node = rb_hash_aref(cache, key);
+    if (NIL_P(node)) {
+        node = rb_obj_alloc(binding_klass_for(kind));
+        rb_iv_set(node, "@c_address", key);
+        rb_iv_set(node, "@document", st->document);
+        rb_iv_set(node, "@parent", Qnil);
+        if (rb_obj_class(st->document) == c_iteration_scope) {
+            rb_iv_set(node, "@structure_memoizable", Qfalse);
+            rb_iv_set(node, "@native_fast", Qfalse);
+            rb_iv_set(node, "@pub_document", Qnil);
+        } else {
+            rb_iv_set(node, "@structure_memoizable", Qtrue);
+            rb_iv_set(node, "@native_fast", Qtrue);
+            rb_iv_set(node, "@pub_document", st->document);
+        }
+        rb_iv_set(node, "@addr_reads_fast", Qtrue);
+        rb_iv_set(node, "@node_type", INT2FIX(kind));
+        rb_hash_aset(cache, key, node);
+    }
+    rb_protect(trav_yield_one, node, &state);
+    if (state) {
+        st->err = rb_errinfo();
+        return 1; /* abort the walk */
+    }
+    return node_ptr == st->self_ptr ? 1 : 0; /* abort-at-self */
+}
+
+static VALUE nf_traverse_binding(VALUE self, VALUE document,
+                                 VALUE addr)
+{
+    struct trav_state st;
+
+    (void)self;
+    resolve_binding_classes();
+    st.document = document;
+    st.err = Qnil;
+    st.self_ptr = (void *)(uintptr_t)NUM2ULL(addr);
+    st.for_visit = 0;
+    f_node_traverse(st.self_ptr, 1 /* TRAVERSE_POST_ORDER */,
+                    trav_cb, &st);
+    if (st.err != Qnil)
+        rb_exc_raise(st.err);
+    return Qnil;
+}
+
+struct visit_yield_args {
+    VALUE node, entering, depth;
+};
+
+static VALUE trav_yield_args(VALUE arg)
+{
+    struct visit_yield_args *a = (struct visit_yield_args *)arg;
+    return rb_yield_values(3, a->node, a->entering, a->depth);
+}
+
+/* Engine visit callback order is (user, node, entering, depth) —
+ * the Ruby closure's |_, node_ptr, entering, depth| mirrors it. */
+static void visit_cb(void *user, void *node_ptr, int entering,
+                     int depth)
+{
+    /* visit's engine signature cannot abort; exceptions are
+     * stashed and every later node is skipped — the raise
+     * happens after the walk, same observable outcome. */
+    struct trav_state *st = user;
+    struct visit_yield_args va;
+    VALUE cache, key, node;
+    int kind, state;
+
+    if (st->err != Qnil)
+        return;
+    kind = f_node_type(node_ptr);
+    cache = binding_cache_of(st->document);
+    key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
+    node = rb_hash_aref(cache, key);
+    if (NIL_P(node)) {
+        node = rb_obj_alloc(binding_klass_for(kind));
+        rb_iv_set(node, "@c_address", key);
+        rb_iv_set(node, "@document", st->document);
+        rb_iv_set(node, "@parent", Qnil);
+        if (rb_obj_class(st->document) == c_iteration_scope) {
+            rb_iv_set(node, "@structure_memoizable", Qfalse);
+            rb_iv_set(node, "@native_fast", Qfalse);
+            rb_iv_set(node, "@pub_document", Qnil);
+        } else {
+            rb_iv_set(node, "@structure_memoizable", Qtrue);
+            rb_iv_set(node, "@native_fast", Qtrue);
+            rb_iv_set(node, "@pub_document", st->document);
+        }
+        rb_iv_set(node, "@addr_reads_fast", Qtrue);
+        rb_iv_set(node, "@node_type", INT2FIX(kind));
+        rb_hash_aset(cache, key, node);
+    }
+    va.node = node;
+    va.entering = entering ? Qtrue : Qfalse;
+    va.depth = INT2NUM(depth);
+    rb_protect(trav_yield_args, (VALUE)&va, &state);
+    if (state)
+        st->err = rb_errinfo();
+}
+
+static VALUE nf_visit_binding(VALUE self, VALUE document, VALUE addr)
+{
+    struct trav_state st;
+
+    (void)self;
+    resolve_binding_classes();
+    st.document = document;
+    st.err = Qnil;
+    st.self_ptr = (void *)(uintptr_t)NUM2ULL(addr);
+    st.for_visit = 1;
+    f_node_visit(st.self_ptr, visit_cb, &st);
+    if (st.err != Qnil)
+        rb_exc_raise(st.err);
+    return Qnil;
+}
+
+/* ---- Address-based fills (TODO.perf/28) -------------------------
+ * Pure reads of node-local data — no cache, no version — the
+ * same shapes the inner_html pass uses. */
+static VALUE nf_fast_text_content(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_text_content((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_fast_comment_content(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_comment_content((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_fast_cdata_content(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_cdata_content((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_fast_pi_target(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_pi_target((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+static VALUE nf_fast_pi_data(VALUE self, VALUE addr)
+{
+    const char *s;
+    (void)self;
+    s = f_pi_data((void *)(uintptr_t)NUM2ULL(addr));
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+/* Owned string: copy + free through the engine's seam (the
+ * read_owned_string protocol). */
+static VALUE nf_fast_path(VALUE self, VALUE addr)
+{
+    const char *s;
+    VALUE out;
+    (void)self;
+    s = f_node_xpath((void *)(uintptr_t)NUM2ULL(addr));
+    if (!s)
+        return Qnil;
+    out = rb_utf8_str_new_cstr(s);
+    f_free_str((void *)s);
+    return out;
+}
+
 /* C-bound insert family (TODO.perf/14): prepend / insert-after /
  * insert-before share append's gates + predicate + bump shape.
  * mode: 1 prepend, 2 after, 3 before (anchor = receiver). */
@@ -1003,6 +1226,8 @@ static VALUE m_native_sentinel; /* module object = fallback marker */
 static VALUE materialize_xp_entry(VALUE document, VALUE cache,
                                   void *result, void *ptr, int kind,
                                   int idx);
+static VALUE binding_klass_for(int kind);
+static VALUE c_iteration_scope;
 
 static VALUE bulk_xpath_array(VALUE document, void *result);
 
@@ -1711,6 +1936,22 @@ void Init_native(void)
                               nf_set_binding_text, 3);
     rb_define_module_function(m_native, "unlink_binding_node",
                               nf_unlink_binding_node, 2);
+    rb_define_module_function(m_native, "traverse_binding",
+                              nf_traverse_binding, 2);
+    rb_define_module_function(m_native, "visit_binding",
+                              nf_visit_binding, 2);
+    rb_define_module_function(m_native, "fast_text_content",
+                              nf_fast_text_content, 1);
+    rb_define_module_function(m_native, "fast_comment_content",
+                              nf_fast_comment_content, 1);
+    rb_define_module_function(m_native, "fast_cdata_content",
+                              nf_fast_cdata_content, 1);
+    rb_define_module_function(m_native, "fast_pi_target",
+                              nf_fast_pi_target, 1);
+    rb_define_module_function(m_native, "fast_pi_data",
+                              nf_fast_pi_data, 1);
+    rb_define_module_function(m_native, "fast_path",
+                              nf_fast_path, 1);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",
