@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.5] - 2026-09-15
+
+### Changed
+
+- **Iterparse rides the bulk path (TODO.perf/25)**: scope-owned
+  elements materialize children through the one-pass C faces —
+  the IterationScope flows as the cache/version authority (its
+  cache resets per yield, so recycled pool addresses cannot
+  collide), with scope-aware wrapper stamps; pure address-based
+  reads (attribute/text/name) become scope-eligible. Mutations
+  on scope elements keep the Ruby path. Measured (load ~6): the
+  20k-record streaming walk 124.8ms → 100.5ms (~20%).
+- **Post-mutation memo seeding (TODO.perf/26)**: []= seeds the
+  attribute memo at the new version (partial memos extend,
+  full faces restart — the cold-[] rules); content= seeds
+  @content; the write-then-read cycle runs ~545ns combined.
+
 ## [1.9.174.4] - 2026-09-15
 
 ### Changed

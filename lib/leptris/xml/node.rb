@@ -36,6 +36,9 @@ class Leptris::XML::Node
     @structure_memoizable =
       !document.nil? && !document.is_a?(Leptris::XML::IterationScope)
     @pub_document = @structure_memoizable ? document : nil
+    # TODO.perf/25: pure address-based native reads touch no
+    # cache — safe for scope-owned (iterparse) elements too.
+    @addr_reads_fast = !!defined?(Leptris::XML::NATIVE_FAST)
     # NATIVE_FAST availability is fixed at load time before any
     # node exists, so the conjunction with document-ownership is
     # construct-time constant — the hot gates read one ivar.
@@ -162,6 +165,16 @@ class Leptris::XML::Node
   # Precomputed at construction (TODO.perf/17) — one ivar read.
   def native_fast_children?
     @native_fast
+  end
+
+  # TODO.perf/25: the bulk children faces accept the
+  # IterationScope itself (its @wrapper_cache resets per yield —
+  # recycled addresses cannot collide — and its @version advances
+  # per yield and on mutation), so streaming children ride the
+  # one-pass materialization too. The scope-aware stamps live in
+  # the C face.
+  def native_bulk_children?
+    defined?(Leptris::XML::NATIVE_FAST)
   end
 
   # Content-defined 64-bit Merkle digest of this subtree
@@ -318,7 +331,7 @@ class Leptris::XML::Node
     # (leptris_node_children_ex), so no per-child get_type.
     return @children if memo_hit?(@children_version)
     ensure_alive!
-    if native_fast_children?
+    if native_bulk_children?
       # TODO.perf/01 tail: one C pass constructs every binding
       # wrapper (class dispatch + ivars + identity cache) — the
       # per-child Ruby wrap frames disappear.
@@ -419,7 +432,7 @@ class Leptris::XML::Node
     # children are never wrapped (nor their get_type paid — the
     # ELEMENT hint rides along). Other nodes keep the filter.
     result =
-      if native_fast_children?
+      if native_bulk_children?
         Leptris::XML::Native.bulk_element_children(@document, @c_address)
       elsif is_a?(Leptris::XML::Element)
         parent = as_element_or_self

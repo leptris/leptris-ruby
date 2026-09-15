@@ -874,6 +874,7 @@ static VALUE nn_address(VALUE self)
 static VALUE c_b_element = Qundef, c_b_text, c_b_comment, c_b_cdata,
              c_b_pi, c_b_node, c_b_result_text, c_b_result_attr,
              c_b_attr, c_ffi_pointer, c_b_document, c_b_freed;
+static VALUE c_iteration_scope;
 static ID id_ptr_new;
 
 /* Binding classes resolve LAZILY: Init_native can run before the
@@ -895,6 +896,7 @@ static void resolve_binding_classes(void)
     c_b_attr = rb_path2class("Leptris::XML::Attr");
     c_b_document = rb_path2class("Leptris::XML::Document");
     c_b_freed = rb_path2class("Leptris::XML::Document::Freed");
+    c_iteration_scope = rb_path2class("Leptris::XML::IterationScope");
     id_ptr_new = rb_intern("new");
     rb_gc_register_mark_object(c_b_element);
     rb_gc_register_mark_object(c_b_text);
@@ -908,6 +910,7 @@ static void resolve_binding_classes(void)
     rb_gc_register_mark_object(c_b_attr);
     rb_gc_register_mark_object(c_b_document);
     rb_gc_register_mark_object(c_b_freed);
+    rb_gc_register_mark_object(c_iteration_scope);
 }
 
 static VALUE binding_klass_for(int kind)
@@ -951,9 +954,20 @@ static VALUE bulk_children_impl(VALUE document, VALUE parent_addr,
             rb_iv_set(node, "@c_address", key);
             rb_iv_set(node, "@document", document);
             rb_iv_set(node, "@parent", Qnil);
-            rb_iv_set(node, "@structure_memoizable", Qtrue);
-            rb_iv_set(node, "@native_fast", Qtrue);
+            /* TODO.perf/25: scope-aware stamps — the IterationScope
+             * flows through here as "document" for iterparse
+             * elements; those stay memo-exempt and FFI-mutating,
+             * but address-based reads are cache-free and safe. */
+            if (rb_obj_class(document) == c_iteration_scope) {
+                rb_iv_set(node, "@structure_memoizable", Qfalse);
+                rb_iv_set(node, "@native_fast", Qfalse);
+                rb_iv_set(node, "@pub_document", Qnil);
+            } else {
+                rb_iv_set(node, "@structure_memoizable", Qtrue);
+                rb_iv_set(node, "@native_fast", Qtrue);
                 rb_iv_set(node, "@pub_document", document);
+            }
+            rb_iv_set(node, "@addr_reads_fast", Qtrue);
             rb_iv_set(node, "@node_type", INT2FIX(kinds[i]));
             rb_hash_aset(cache, key, node);
         }
