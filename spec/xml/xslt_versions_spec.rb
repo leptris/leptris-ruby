@@ -377,6 +377,30 @@ RSpec.describe "XSLT additions (libleptris 1.9.44-1.9.46)" do
       </xsl:stylesheet>
     XSL
   end
+
+  it "keeps sequence member VALUES through xsl:next-iteration with-params (#197; leptris#1066 fixed in 1.9.167)" do
+    # The #197 repro shape: with-param select accumulates
+    # ($labels, $label) — the members' VALUES survived only as
+    # count, never as strings, until the upstream deep-copy fix.
+    source = "<items><item name='alpha'/><item name='beta'/><item name='gamma'/></items>"
+    expect(transform(<<~XSL, source)).to include("<joined>alpha,beta,gamma</joined>")
+      <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+        <xsl:template match="/items"><out>
+          <xsl:iterate select="item">
+            <xsl:param name="labels" select="()"/>
+            <xsl:variable name="label" select="string(@name)"/>
+            <xsl:next-iteration>
+              <xsl:with-param name="labels"
+                select="if ($label != '') then ($labels, $label) else $labels"/>
+            </xsl:next-iteration>
+            <xsl:on-completion>
+              <joined><xsl:value-of select="string-join($labels, ',')"/></joined>
+            </xsl:on-completion>
+          </xsl:iterate>
+        </out></xsl:template>
+      </xsl:stylesheet>
+    XSL
+  end
 end
 
 
