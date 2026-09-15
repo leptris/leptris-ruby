@@ -117,34 +117,40 @@ jobs:
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
-      # minor compiles its own artifact before packaging. A minor
-      # unavailable on a runner (arm) degrades to the loud FFI
-      # fallback for that cell only.
+      # minor compiles its own artifact before packaging. The
+      # packaging step's own ruby builds its minor via rake
+      # compile, and these steps cover the OTHERS — each version
+      # is set up exactly once (re-setup hits an msys64 symlink
+      # EEXIST), and a minor unavailable on a runner (3.3 on arm)
+      # degrades to the loud FFI fallback for that cell only.
       - uses: ruby/setup-ruby@master
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '3.3'
         with:
           ruby-version: '3.3'
           bundler-cache: false
+        continue-on-error: true
       - run: ruby ext/build_windows_native.rb
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '3.3'
         shell: bash
         continue-on-error: true
       - uses: ruby/setup-ruby@master
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '3.4'
         with:
           ruby-version: '3.4'
           bundler-cache: false
+        continue-on-error: true
       - run: ruby ext/build_windows_native.rb
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '3.4'
         shell: bash
         continue-on-error: true
       - uses: ruby/setup-ruby@master
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '4.0'
         with:
           ruby-version: '4.0'
           bundler-cache: false
+        continue-on-error: true
       - run: ruby ext/build_windows_native.rb
-        if: contains(matrix.platform, 'mingw')
+        if: contains(matrix.platform, 'mingw') && (matrix.ruby-version || '3.3') != '4.0'
         shell: bash
         continue-on-error: true
       - name: Verify at least one Windows native DLL built
