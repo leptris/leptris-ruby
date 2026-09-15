@@ -42,7 +42,12 @@ end
 unless ENV["LEPTRIS_NO_NATIVE"] == "1"
   begin
     require "leptris/xml/native_layer"
-  rescue LoadError
-    nil
+  rescue LoadError => e
+    # #207: a silent fallback hides a platform-gem packaging bug
+    # behind a walk-speed regression. Say so, then continue on
+    # the FFI surface (the explicit require still raises its full
+    # error for callers that opt in).
+    warn "leptris: native acceleration unavailable " \
+         "(#{e.message.lines.first.strip}); using the FFI surface"
   end
 end
