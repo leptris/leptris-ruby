@@ -292,7 +292,11 @@ platforms.each do |platform|
     spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
     if platform.include?("mingw")
       # #207/#227: per-Ruby-minor DLLs (PE must bind its Ruby).
-      spec.files += Dir.glob("lib/leptris/xml/native-*.so")
+      # DOT-FREE names — MRI derives the init symbol from the
+      # basename cut at the first dot (native_3_3.so ->
+      # Init_native_3_3; the dotted form made Ruby look for
+      # "Init_native-3", which cannot exist).
+      spec.files += Dir.glob("lib/leptris/xml/native_*.so")
     else
       spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
     end

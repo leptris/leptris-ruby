@@ -20,11 +20,12 @@ begin
   # The compiled bundle. A sanctioned require exception: a
   # .bundle/.so cannot go through autoload. Missing in installs
   # that do not vendor it (ruby-platform gem). Windows names the
-  # artifact per Ruby minor (#207/#227): a PE DLL must bind its
-  # build Ruby's runtime, so one DLL per supported minor ships
-  # and RUBY_VERSION selects.
+  # artifact per Ruby minor, DOT-FREE (#207/#227): a PE DLL must
+  # bind its build Ruby's runtime (one DLL per minor), and MRI
+  # derives the init symbol from the basename cut at the first
+  # dot — native_3_3.so resolves Init_native_3_3.
   if Gem.win_platform?
-    require "leptris/xml/native-#{RUBY_VERSION[/\A\d+\.\d+/]}"
+    require "leptris/xml/native_#{RUBY_VERSION[/\A\d+\.\d+/].tr('.', '_')}"
   else
     require "leptris/xml/native"
   end
