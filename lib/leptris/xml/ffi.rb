@@ -337,6 +337,29 @@ attach_function :leptris_parse_string,
       # node_first_child without the intermediate handle).
       attach_function :leptris_document_first_child,
         [:leptris_document], :leptris_node_ref
+      # Node-surface parity (libleptris 1.9.176, upstream #1094,
+      # leptris-ruby#212): entity references, the XML declaration,
+      # programmatic DOCTYPE, and document-PI identity/removal.
+      attach_function :leptris_entity_ref_node_create,
+        [:leptris_document, :string], :leptris_node_ref
+      attach_function :leptris_entity_ref_node_name,
+        [:leptris_node_ref], :string
+      attach_function :leptris_document_version,
+        [:leptris_document], :string
+      attach_function :leptris_document_standalone,
+        [:leptris_document], :int
+      attach_function :leptris_document_set_version,
+        [:leptris_document, :string], :leptris_status
+      attach_function :leptris_document_set_encoding,
+        [:leptris_document, :string], :leptris_status
+      attach_function :leptris_document_set_standalone,
+        [:leptris_document, :int], :leptris_status
+      attach_function :leptris_document_set_doctype,
+        [:leptris_document, :string, :string, :string], :leptris_doctype
+      attach_function :leptris_document_append_pi,
+        [:leptris_document, :string, :string], :leptris_node_ref
+      attach_function :leptris_document_remove_child,
+        [:leptris_document, :leptris_node_ref], :leptris_status
       # Wrap-free subtree visitation (1.9.20, upstream #645a):
       # enter/leave pairs for elements, depth from the walk's root,
       # one C call — no NodeSet/Array churn per level. The document
@@ -1070,11 +1093,15 @@ attach_function :leptris_parse_string,
       NODE_COMMENT = 2
       NODE_CDATA = 3
       NODE_PI = 4
+      NODE_ENTITY_REF = 10
       # Internal XPath-synthetic text node (leptris/types.h): the
       # carrier for sequence/map/array items in result nodesets —
       # readable only through the result handle, so the binding
       # captures the value at materialization (ResultText).
       NODE_SYNTHETIC_TEXT = 8
+      # #1094: &name; references stay unexpanded first-class nodes
+      # when this flag parses (character references still expand).
+      LEPTRIS_PARSE_KEEP_ENTITY_REFS = 4
       NODE_DOCTYPE = 5
       NODE_ATTRIBUTE = 6
 

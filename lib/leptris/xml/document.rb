@@ -505,13 +505,80 @@ class Leptris::XML::Document
     Leptris::XML::Node.wrap(ptr, self)
   end
 
-  # Append a document-level processing instruction. Returns self.
+  # Append a document-level processing instruction. Returns the PI
+  # node (epilog anchor — after the root; identity via
+  # leptris_document_append_pi, libleptris 1.9.176 / #212).
   def add_pi(target, data = "")
-    witness = Leptris::XML::FFI.leptris_document_add_pi(
+    witness = Leptris::XML::FFI.leptris_document_append_pi(
       c_ptr, target.to_s, data.to_s)
-    raise Leptris::XML::Error, "leptris_document_add_pi failed" if witness.null?
+    raise Leptris::XML::Error, "leptris_document_append_pi failed" if witness.null?
+    @version += 1
+    Leptris::XML::Node.wrap(witness, self)
+  end
+
+  # Remove a document-level PI or comment from the document
+  # children chain (libleptris 1.9.176 / #212). The node stays
+  # document-owned. Raises when the node is not in the chain.
+  def remove_child(node)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_remove_child(c_ptr, node.c_ptr))
     @version += 1
     self
+  end
+
+  # Create an &name; entity reference node (libleptris 1.9.176 /
+  # #212): serializes back verbatim once attached.
+  def create_entity_reference(name)
+    ptr = Leptris::XML::FFI.leptris_entity_ref_node_create(
+      c_ptr, name.to_s)
+    raise Leptris::XML::Error, "leptris_entity_ref_node_create failed" if ptr.null?
+    Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_ENTITY_REF)
+  end
+
+  # The XML declaration (libleptris 1.9.176 / #212). `#version`
+  # stays the mutation counter — the declaration reads are
+  # xml_-prefixed.
+  def xml_version
+    Leptris::XML::FFI.leptris_document_version(c_ptr)
+  end
+
+  def xml_standalone
+    v = Leptris::XML::FFI.leptris_document_standalone(c_ptr)
+    v < 0 ? nil : (v == 1)
+  end
+
+  def xml_encoding
+    Leptris::XML::FFI.leptris_document_encoding(c_ptr)
+  end
+
+  def xml_version=(value)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_set_version(c_ptr, value.to_s))
+    value
+  end
+
+  def xml_encoding=(value)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_set_encoding(c_ptr, value.to_s))
+    value
+  end
+
+  def xml_standalone=(value)
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_set_standalone(c_ptr,
+        value.nil? ? -1 : (value ? 1 : 0)))
+    value
+  end
+
+  # Programmatic DOCTYPE (libleptris 1.9.176 / #212): create and
+  # set the document's DOCTYPE (root name + optional PUBLIC/SYSTEM
+  # ids); serializes in document position. Returns the DocType.
+  def set_doctype(name, public_id: nil, system_id: nil)
+    dt = Leptris::XML::FFI.leptris_document_set_doctype(
+      c_ptr, name.to_s, public_id, system_id)
+    raise Leptris::XML::Error, "leptris_document_set_doctype failed" if dt.null?
+    @version += 1
+    Leptris::XML::DocType.new(dt, self)
   end
 
   # Append a document-level comment (epilog position, after the

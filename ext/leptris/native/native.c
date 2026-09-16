@@ -1212,7 +1212,8 @@ static VALUE nn_address(VALUE self)
  * Init; the per-node Ruby frames (wrap/construct/memo/alive)
  * disappear. */
 static VALUE c_b_element = Qundef, c_b_text, c_b_comment, c_b_cdata,
-             c_b_pi, c_b_node, c_b_result_text, c_b_result_attr,
+             c_b_pi, c_b_entity_ref, c_b_node, c_b_result_text,
+             c_b_result_attr,
              c_b_attr, c_ffi_pointer, c_b_document, c_b_freed;
 static VALUE c_iteration_scope;
 static ID id_ptr_new;
@@ -1229,6 +1230,7 @@ static void resolve_binding_classes(void)
     c_b_comment = rb_path2class("Leptris::XML::Comment");
     c_b_cdata = rb_path2class("Leptris::XML::CDATA");
     c_b_pi = rb_path2class("Leptris::XML::ProcessingInstruction");
+    c_b_entity_ref = rb_path2class("Leptris::XML::EntityReference");
     c_b_node = rb_path2class("Leptris::XML::Node");
     c_b_result_text = rb_path2class("Leptris::XML::ResultText");
     c_b_result_attr = rb_path2class("Leptris::XML::ResultAttr");
@@ -1244,6 +1246,7 @@ static void resolve_binding_classes(void)
     rb_gc_register_mark_object(c_b_comment);
     rb_gc_register_mark_object(c_b_cdata);
     rb_gc_register_mark_object(c_b_pi);
+    rb_gc_register_mark_object(c_b_entity_ref);
     rb_gc_register_mark_object(c_b_node);
     rb_gc_register_mark_object(c_b_result_text);
     rb_gc_register_mark_object(c_b_result_attr);
@@ -1263,6 +1266,7 @@ static VALUE binding_klass_for(int kind)
     case 2: return c_b_comment;
     case 3: return c_b_cdata;
     case 4: return c_b_pi;
+    case 10: return c_b_entity_ref; /* #212 / upstream #1094 */
     default: return c_b_node;
     }
 }

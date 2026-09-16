@@ -9,6 +9,7 @@ module Leptris
     autoload :Comment, "leptris/xml/comment"
     autoload :CDATA, "leptris/xml/cdata"
     autoload :ProcessingInstruction, "leptris/xml/processing_instruction"
+    autoload :EntityReference, "leptris/xml/entity_reference"
     autoload :Attr, "leptris/xml/attr"
     autoload :Namespace, "leptris/xml/namespace"
     autoload :Document, "leptris/xml/document"

@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.177.0] - 2026-09-16
+
+### Changed — libleptris 1.9.174 → 1.9.177 (lockstep)
+
+- **Node-surface parity (upstream #1094, #212 — the big one)**:
+  entity references (`&name;` stays a first-class
+  `EntityReference` node under the new
+  `ParseOptions.keep_entity_refs` flag — text splits around them,
+  character references still expand, serialization is verbatim;
+  `Document#create_entity_reference`), the XML declaration
+  (`xml_version`/`xml_encoding`/`xml_standalone` readers and
+  writers — `#version` stays the mutation counter), programmatic
+  DOCTYPE (`Document#set_doctype` with PUBLIC/SYSTEM ids,
+  serializing in document position), and document-PI parity
+  (`add_pi` returns the PI node with identity and epilog
+  anchoring; `Document#remove_child` removes PIs/comments). The
+  ext's kind dispatch knows the new node kind.
+- **C14N: redundant namespace redeclarations omitted** (upstream
+  #1096) — spec-pinned.
+- **Document lifecycle** (upstream #1093): pool destroy parks the
+  arenas — the fresh-doc build row's teardown share should drop;
+  clean-host battery pending.
+- XSLT/XPath/HTML perf + conformance run (1.9.175-177).
+
+### Added
+
+- `Leptris::XML::EntityReference`, the ten new FFI faces, the
+  `KEEP_ENTITY_REFS` parse flag.
+
 ## [1.9.174.10] - 2026-09-16
 
 ### Changed
