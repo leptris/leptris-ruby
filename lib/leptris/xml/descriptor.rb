@@ -150,6 +150,18 @@ class Leptris::XML::Descriptor
         cp[:kind] = kind_code(row[:kind] || :scalar)
         cp[:type_tag] = row[:type_tag] || 0
         cp[:child_plan_index] = row[:child_plan_index] || -1
+        # Rule-level ns form (libleptris 1.9.178, #1115): siblings
+        # under one parent can require different URIs when set;
+        # defaults to NONE for backward compatibility.
+        cp[:ns_form] =
+          case row[:ns]
+          when :any then Leptris::XML::FFI::PLAN_NS_ANY
+          when Hash  then Leptris::XML::FFI::PLAN_NS_EXACT
+          else         Leptris::XML::FFI::PLAN_NS_NONE
+          end
+        cp[:ns_uri] =
+          row[:ns].is_a?(Hash) ?
+            anchor_string(anchors, row[:ns].fetch(:exact)) : nil
       end
       ep[:child_count] = children.size
       ep[:child_plans] = child_memory

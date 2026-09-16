@@ -209,7 +209,12 @@ module Leptris
         layout :wire_name, :pointer,
                :kind, :uint8,
                :type_tag, :uint8,
-               :child_plan_index, :int32
+               :child_plan_index, :int32,
+               # libleptris 1.9.178 (#1114/#1115): rule-level ns
+               # forms on ChildPlan (additive to the frozen v1 ABI).
+               :ns_form, :uint8,
+               :pad0, :uint8,
+               :ns_uri, :pointer
       end
       class ElementPlan < ::FFI::Struct
         layout :element_name, :pointer,
