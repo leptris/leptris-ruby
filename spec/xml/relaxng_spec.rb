@@ -23,6 +23,7 @@ RSpec.describe Leptris::XML::RelaxNG do
       "<book id='b1'><author>A</author><author>B</author></book>")
     expect(rng.valid?(ok)).to be true
     expect(rng.validate(ok)).to eq([])
+    expect(rng.validate_errors(ok)).to eq([])
 
     bad = Leptris::XML::Document.parse("<book><author>A</author></book>")
     expect(rng.valid?(bad)).to be false
@@ -30,6 +31,13 @@ RSpec.describe Leptris::XML::RelaxNG do
     expect(errors.length).to eq(1)
     expect(errors.first).to match(/\A\d+:\d+: error: /)
     expect(errors.first).to include("attribute")
+
+    structured = rng.validate_errors(bad)
+    expect(structured.length).to eq(1)
+    expect(structured.first.keys).to contain_exactly(:line, :column, :message)
+    expect(structured.first[:line]).to be_an(Integer)
+    expect(structured.first[:column]).to be_an(Integer)
+    expect(structured.first[:message]).to include("attribute")
   end
 
   it "parses schema files and resolves <include> relative to them" do
