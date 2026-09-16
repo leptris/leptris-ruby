@@ -555,6 +555,25 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
       node_or_markup
     when String
+      # TODO.perf/34: one dispatch parses the markup and appends
+      # every fragment child (single gate + bump). Negative
+      # returns: -1 re-runs the FFI path for the exact parse
+      # error; -1000-st routes through check_status.
+      if native_fast_children?
+        r = Leptris::XML::Native.append_markup(
+          @document, @c_address, node_or_markup)
+        if r.is_a?(Integer) && r >= 0
+          return Leptris::XML::NodeSet.new(@document, []) if r.zero?
+          return Leptris::XML::NodeSet.new(@document, last_added(r))
+        end
+        if r == -1
+          # parse failure: reproduce the exact error via the
+          # legacy path (it re-fails fast)
+          Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
+        else
+          Leptris::XML::FFI.check_status(-r - 1000)
+        end
+      end
       frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       added = []
       frag.children.each do |n|
@@ -567,6 +586,14 @@ class Leptris::XML::Element < Leptris::XML::Node
       raise ArgumentError, "add_child expects a Node or String, got #{node_or_markup.class}"
     end
   end
+  # The markup-append face appends in fragment order; the added
+  # nodes are this element's last +count+ children.
+  def last_added(count)
+    kids = children.to_a
+    kids.last(count)
+  end
+  private :last_added
+
   alias_method :<<, :add_child
 
   def namespace

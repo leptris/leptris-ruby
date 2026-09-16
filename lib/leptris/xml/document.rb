@@ -70,6 +70,15 @@ class Leptris::XML::Document
     # ParseOptions.new here would only discover flags==0 (#187 —
     # per-call overhead is most of a small-document parse).
     if options.nil? && !recover
+      # TODO.perf/35: parse + wrapper + lifetime handle in one C
+      # dispatch; failure raises through the shared path below.
+      if defined?(Leptris::XML::NATIVE_FAST)
+        doc = Leptris::XML::Native.parse_binding_document(xml)
+        raise Leptris::XML::ParseError,
+              "leptris_parse_string failed: " +
+              Leptris::XML::FFI.leptris_last_error.to_s if doc.nil?
+        return doc.tap { |d| d.readonly! if readonly }
+      end
       raw = Leptris::XML::FFI.leptris_parse_string(xml, xml.bytesize, nil)
       if raw.null?
         raise Leptris::XML::ParseError,

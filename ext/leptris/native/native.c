@@ -94,6 +94,9 @@ typedef void (*visit_fn)(void *, visit_cb_fn, void *);
 typedef void (*free_str_fn)(void *);
 typedef const char *(*node_xpath_fn)(void *);
 typedef void *(*elem_copy_fn)(void *, void *);
+typedef void *(*parse_str_fn)(const char *, size_t, void *);
+typedef void *(*parse_frag_fn)(const char *, size_t, void *, int *);
+typedef const char *(*last_err_fn)(void);
 static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
 static traverse_fn f_node_traverse;
@@ -101,6 +104,9 @@ static visit_fn f_node_visit;
 static free_str_fn f_free_str;
 static node_xpath_fn f_node_xpath;
 static elem_copy_fn f_elem_copy;
+static parse_str_fn f_parse_str;
+static parse_frag_fn f_parse_frag;
+static last_err_fn f_last_err;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -221,6 +227,9 @@ static void resolve_symbols(const char *lib_path)
     f_free_str = (free_str_fn)lib_sym(h, "leptris_free_string");
     f_node_xpath = (node_xpath_fn)lib_sym(h, "leptris_node_get_xpath");
     f_elem_copy = (elem_copy_fn)lib_sym(h, "leptris_element_copy");
+    f_parse_str = (parse_str_fn)lib_sym(h, "leptris_parse_string");
+    f_parse_frag = (parse_frag_fn)lib_sym(h, "leptris_parse_fragment");
+    f_last_err = (last_err_fn)lib_sym(h, "leptris_last_error");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -233,7 +242,8 @@ static void resolve_symbols(const char *lib_path)
         !f_pi_data || !f_elem_set_name || !f_elem_set_text ||
         !f_text_set_content || !f_node_unlink ||
         !f_node_traverse || !f_node_visit || !f_free_str ||
-        !f_node_xpath || !f_elem_copy ||
+        !f_node_xpath || !f_elem_copy || !f_parse_str ||
+        !f_parse_frag || !f_last_err ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -1874,6 +1884,102 @@ static VALUE nf_copy_binding_element(VALUE self, VALUE document,
     return new_doc;
 }
 
+/* Shared document-wrapper construction from a C document
+ * pointer: ivar-seeded wrapper + lifetime handle. Returns the
+ * wrapper. (TODO.perf/35 — the create face inlines the same
+ * steps.) */
+static VALUE build_binding_document(void *doc)
+{
+    VALUE new_doc, doc_addr, handle, freed;
+    struct doc_handle *h;
+
+    doc_addr = ULL2NUM((uint64_t)(uintptr_t)doc);
+    new_doc = rb_obj_alloc(c_b_document);
+    rb_iv_set(new_doc, "@c_ptr",
+              rb_funcall(c_ffi_pointer, id_ptr_new, 1, doc_addr));
+    rb_iv_set(new_doc, "@c_address", doc_addr);
+    freed = rb_funcall(c_b_freed, id_freed_new, 1, ID2SYM(id_alive));
+    rb_iv_set(new_doc, "@freed", freed);
+    rb_iv_set(new_doc, "@readonly", Qfalse);
+    rb_iv_set(new_doc, "@version", INT2FIX(0));
+    handle = TypedData_Make_Struct(c_doc_handle, struct doc_handle,
+                                   &dh_type, h);
+    h->doc = doc;
+    rb_ivar_set(new_doc, id_iv_doc_handle, handle);
+    return new_doc;
+}
+
+/* Document.parse default path in one dispatch (TODO.perf/35):
+ * leptris_parse_string + wrapper + handle. Qnil = parse failure
+ * (the caller raises with the same message shape). */
+static VALUE nf_parse_binding_document(VALUE self, VALUE xml)
+{
+    void *doc;
+
+    (void)self;
+    resolve_binding_classes();
+    doc = f_parse_str(RSTRING_PTR(StringValue(xml)),
+                      (size_t)RSTRING_LEN(StringValue(xml)), NULL);
+    return doc ? build_binding_document(doc) : Qnil;
+}
+
+/* Fragment lane (TODO.perf/34): parse the markup against the
+ * document; returns the fragment's ADDRESS, or Qfalse when the
+ * parse fails (status is not surfaced — the caller re-runs the
+ * FFI path for the exact error). */
+static VALUE nf_parse_fragment_addr(VALUE self, VALUE document,
+                                    VALUE xml)
+{
+    void *frag;
+    int status;
+
+    (void)self;
+    resolve_binding_classes();
+    frag = f_parse_frag(RSTRING_PTR(StringValue(xml)),
+                        (size_t)RSTRING_LEN(StringValue(xml)),
+                        doc_ptr_of(document), &status);
+    return frag ? ULL2NUM((uint64_t)(uintptr_t)frag) : Qfalse;
+}
+
+/* One-shot markup append (TODO.perf/34): parse the markup, walk
+ * the fragment's children, append each to the parent — one
+ * readonly gate + version bump for the whole batch. Returns the
+ * appended count; -1 = parse failure; status codes surface as
+ * negatives (-1000 - st) for the caller's check_status path. */
+static VALUE nf_append_markup(VALUE self, VALUE document,
+                              VALUE parent_addr, VALUE xml)
+{
+    void *frag, *parent, *child, *next_child;
+    int status, count = 0;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    frag = f_parse_frag(RSTRING_PTR(StringValue(xml)),
+                        (size_t)RSTRING_LEN(StringValue(xml)),
+                        doc_ptr_of(document), &status);
+    if (!frag)
+        return INT2FIX(-1);
+    parent = (void *)(uintptr_t)NUM2ULL(parent_addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    /* Appending DETACHES the child from the fragment — capture
+     * the next sibling before each move or the walk corrupts. */
+    for (child = f_first_child(frag); child != NULL; child = next_child) {
+        next_child = f_next_sibling(child);
+        status = f_append_child(parent, child);
+        if (status != 0)
+            return INT2FIX(-1000 - status);
+        count++;
+    }
+    return INT2FIX(count);
+}
+
 static VALUE nf_doc_handle_attach(VALUE self, VALUE document)
 {
     struct doc_handle *h;
@@ -2097,6 +2203,12 @@ void Init_native(void)
                               nf_copy_binding_element, 2);
     rb_define_module_function(m_native, "set_binding_root",
                               nf_set_binding_root, 2);
+    rb_define_module_function(m_native, "parse_binding_document",
+                              nf_parse_binding_document, 1);
+    rb_define_module_function(m_native, "parse_fragment_addr",
+                              nf_parse_fragment_addr, 2);
+    rb_define_module_function(m_native, "append_markup",
+                              nf_append_markup, 3);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",
