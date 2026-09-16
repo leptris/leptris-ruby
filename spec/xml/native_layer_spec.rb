@@ -447,3 +447,21 @@ RSpec.describe "precomputed fast-path flags (TODO.perf/17)" do
       .to raise_error(ArgumentError)
   end
 end
+
+RSpec.describe "C-bound root= (TODO.perf/33)" do
+  it "raises ReadOnlyError in BOTH modes (the FFI path missed the gate)" do
+    doc = Leptris::XML::Document.create
+    doc.root = doc.create_element("r")
+    doc.readonly!
+    expect { doc.root = doc.create_element("x") }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "seeds the root memo with identity and correct association" do
+    doc = Leptris::XML::Document.create
+    doc.root = doc.create_element("r")
+    expect(doc.root).to equal(doc.root)
+    expect(doc.root.document).to equal(doc)
+    expect(doc.root.name).to eq("r")
+  end
+end

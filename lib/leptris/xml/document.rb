@@ -283,14 +283,29 @@ class Leptris::XML::Document
   # document's pool until #free).
   def root=(element)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    # Same mutation gate as every other writer — the FFI path
+    # historically missed it (TODO.perf/33: the C face exposed
+    # the divergence; readonly is one-way, so one ivar read).
+    if @readonly
+      raise Leptris::XML::ReadOnlyError,
+            "document is readonly — root= attempted"
+    end
     # A document root has no in-scope declarations of its own —
     # lift everything the element's source scope carried (#178).
     unless Leptris::XML::Element.skip_adoption_lift?(element)
       Leptris::XML::Element.lift_namespaces_for_adoption(element, {})
     end
-    Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_document_set_root(c_ptr, element.c_ptr))
-    @version += 1
+    # TODO.perf/33: gates + bump + engine set_root in one C
+    # dispatch (the FFI call plus the c_ptr materialization fed
+    # ~5% of a fresh-doc build).
+    if defined?(Leptris::XML::NATIVE_FAST)
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::Native.set_binding_root(self, element.c_address))
+    else
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_document_set_root(c_ptr, element.c_ptr))
+      @version += 1
+    end
     # Seed the root memo through wrap: a cross-document element
     # must enter THIS document's identity cache with @document
     # pointing here, not ride its source-document wrapper.

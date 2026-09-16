@@ -8,6 +8,12 @@ class Leptris::XML::Node
     @c_ptr ||= ::FFI::Pointer.new(@c_address)
   end
 
+  # The Integer twin of #c_ptr — reading it never materializes a
+  # Pointer (the native faces take addresses).
+  def c_address
+    @c_address
+  end
+
   # Iterparse-yielded elements are owned by an IterationScope (the
   # internal lifetime/memoization authority) — the public #document
   # answers nil for them, per the documented contract.

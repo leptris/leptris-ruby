@@ -5,6 +5,32 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.8] - 2026-09-16
+
+### Fixed
+
+- **`Document#root=` now gates readonly** — the FFI path
+  silently mutated frozen documents (the C face exposed the
+  divergence); both paths raise `ReadOnlyError`, spec-pinned in
+  both modes.
+
+### Changed
+
+- **C-bound `root=` (TODO.perf/33)**: gates + version bump +
+  engine set_root in one dispatch.
+- **Battery rows for the round 4-8 surfaces (TODO.perf/31)**:
+  iterparse/traverse/visit/dup/ns-xpath/element-child/mutation
+  rows behind the load gate — regression coverage for everything
+  since TODO.perf/22.
+
+### Measured — the clean-host floor table (TODO.perf/32, load 7)
+
+`NativeNode#[]` repeat **71ns** (the ≤70ns budget met at noise),
+content 66ns, binding `[]` 160ns (the versioned-memo seam),
+traverse 6.39ms/14k nodes, visit 9.69ms, iterparse 4k 20.1ms,
+ns dup 7.66µs, xpath union 2.21µs, first+last 190ns,
+name=+content= 462ns, build 13.7µs.
+
 ## [1.9.174.7] - 2026-09-16
 
 ### Changed
