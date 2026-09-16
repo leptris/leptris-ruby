@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bulk hydration surface (TODO.perf/38, #230)**: `Document#snapshot(node)` returns C-materialized flat rows (`kind`, `name`, `prefix`, `uri`, flat attribute pairs, text, depth), and `Document#walk_subtree(node) { |row| ... }` yields the same rows. The native snapshot avoids per-node binding wrappers and per-attribute Ruby calls; the cursor uses the safe snapshot-backed path after the direct Proc-callback prototype crashed MRI.
 - **Deterministic document lifetime (#231)**: `Document.open(xml) { |doc| ... }` guarantees `doc.free` on normal and exceptional exit. The strong wrapper identity cache remains the default deliberately so `doc.root.equal?(doc.root)` stays valid while the document is alive.
 - **Benchmark gate (#229)**: `LEPTRIS_BENCH_LOAD_MAX` overrides the load gate; the default is core-normalized (`max(logical_cores * 1.5, 4.0)`) rather than the old absolute load threshold.
+- **Windows native layer actually loads (fixes the silent gap since 1.9.174.2)**: the per-minor DLLs are renamed dot-free (`native_3_3.so`, `native_4_0.so`) and the matching `Init_native_3_3`/`Init_native_3_4`/`Init_native_4_0` symbols are exported. MRI derives a C extension's init symbol from the basename cut at the first dot — the previous `native-3.3.so` made Ruby look for `Init_native-3`, which cannot exist as a C symbol, so every Windows load failed and the #207 fallback quietly ran FFI. Windows test legs now exercise the native suite for real.
 
 ## [1.9.178.0] - 2026-09-16
 
