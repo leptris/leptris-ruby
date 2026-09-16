@@ -5,6 +5,30 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.178.0] - 2026-09-16
+
+### Changed — libleptris 1.9.177 → 1.9.178 (lockstep)
+
+- **#1113**: descriptor plan walk — collection wrappers now carry
+  the producing row's wire_name/type_tag (spec-pinned).
+- **#1115 / #1118**: descriptor plan surfaces — ChildPlan gains
+  rule-level `ns_form` (+ `ns_uri`) for mixed-qualification
+  schemas (additive to the frozen v1 ABI; the binding accepts
+  `:ns` on child rows and the trailing struct fields are
+  populated by `pack_plans`), and every value kind carries the
+  source node's byte offset (the accessor's contract widened;
+  readers respond with the engine's position).
+- **#1117**: C14N 1.1 ground truth — whitespace-only PI data and
+  document-level separators (lutaml-model parity corpus).
+- **#1111 / #659 / #1107**: xpath user_data, HTML corpus slices
+  (NUL/foreign-rules + frameset-ok + frameset-conversion +
+  scanner quote-parity), and CLI specs in out-of-tree builds.
+
+### Added
+
+- The trailing `ns_form` + `pad0` + `ns_uri` fields on
+  `Leptris::XML::FFI::ChildPlan` (the lockstep extension).
+
 ## [1.9.177.0] - 2026-09-16
 
 ### Changed — libleptris 1.9.174 → 1.9.177 (lockstep)
