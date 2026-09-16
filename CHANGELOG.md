@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.186.0] - 2026-09-17
+
+### Changed — libleptris 1.9.181 → 1.9.186 (lockstep)
+
+- **RNG regression fix (upstream #1137)**: documents omitting an
+  `<optional>` element failed validation since 1.9.179 — the #1121
+  name-mismatch diagnostics engaged the matcher's short-circuit
+  during backtracking probes. Verdict probes are side-effect-free
+  again; spec-pinned here (omitted + present forms, and error
+  accumulation still works).
+- **Immutable parse buffer (upstream #1125, then the 1.9.185
+  scratch-copy scanner)**: `leptris_parse_string_inplace` never
+  writes the caller's buffer (attached-only in this binding; the
+  parse faces use the copying variant). Attr-heavy parse
+  allocations stay pool-backed — 39,684 mallocs for one 48 KB
+  document in the 1.9.182 log-replay design, now 8.
+- **One arena per document (upstream #1127)**:
+  `leptris_document_create` routes through the arena-backed pool —
+  the same allocation path as the parser (the fresh-document
+  build lane); the dead `compact_allocator` is deleted.
+- **Parse perf (upstream 1.9.185/1.9.186)**: scratch-copy scanner
+  (attr-heavy 472 → 70 µs vs pugixml) and chunked element-block
+  zeroing (tag-dense text parse −8%).
+- No public-symbol changes: audit 322/322.
+
 ## [1.9.181.0] - 2026-09-16
 
 ### Changed — libleptris 1.9.178 → 1.9.181 (lockstep)
