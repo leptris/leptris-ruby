@@ -80,6 +80,9 @@ one_native = native.element_children.first
 one["sku"]; one.content
 one_native["sku"]; one_native.content
 
+ns_el = Leptris::XML::Document.parse(
+  %q{<a:o xmlns:a="urn:a" x="1"><a:i>c</a:i></a:o>}).root
+
 gap_rows = {
   "[] repeat (binding)" => -> { one["sku"] },
   "[] repeat (native)" => -> { one_native["sku"] },
@@ -108,3 +111,31 @@ end
 
 t = best_of { M.times { build_pair } }
 puts format("%-26s %11.0f ns", "build create×2+attach", t / M * 1e9)
+
+# ---- round 4-8 surface rows (TODO.perf/31) ------------------------
+stream = (1..4000).map { |i| "<rec id='#{i}' s='s#{i}'><n>#{i}</n><v>v#{i}</v></rec>" }.join
+t = best_of(3) do
+  Leptris::XML::Iterparse.parse(stream) do |el|
+    el["id"]
+    el.element_children.each { |c| c.name; c.content }
+  end
+end
+puts format("%-26s %11.2f ms", "iterparse walk 4k", t * 1000)
+
+t = best_of { 50.times { c = 0; doc.root.traverse { |n| c += 1 }; c } }
+puts format("%-26s %11.0f ns", "traverse (14k nodes)", t / 50 * 1e9)
+
+t = best_of { 50.times { c = 0; doc.root.visit { |n, e, d| c += 1 }; c } }
+puts format("%-26s %11.0f ns", "visit (14k nodes)", t / 50 * 1e9)
+
+t = best_of { 2_000.times { ns_el.dup } }
+puts format("%-26s %11.0f ns", "element dup (ns)", t / 2_000 * 1e9)
+
+t = best_of { 2_000.times { doc.root.xpath(".//item[@id='7'] | .//item[@id='9']").size } }
+puts format("%-26s %11.0f ns", "xpath union materialize", t / 2_000 * 1e9)
+
+t = best_of { 2_000.times { one.first_element_child; one.last_element_child } }
+puts format("%-26s %11.0f ns", "first+last element child", t / 2_000 * 1e9)
+
+t = best_of { N.times { one.name = "item"; one.content = "x" } }
+puts format("%-26s %11.0f ns", "name= + content=", t / N * 1e9)

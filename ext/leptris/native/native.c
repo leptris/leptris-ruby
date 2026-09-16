@@ -730,6 +730,30 @@ static VALUE nf_unlink_binding_node(VALUE self, VALUE document,
     return INT2FIX(st);
 }
 
+/* C-bound root= (TODO.perf/33): gates + bump + engine set_root
+ * in one dispatch. The caller keeps the lift decision and the
+ * @root memo seed (wrap gives the right document association). */
+static VALUE nf_set_binding_root(VALUE self, VALUE document,
+                                 VALUE addr)
+{
+    void *node;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    node = (void *)(uintptr_t)NUM2ULL(addr);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    st = f_set_root(doc_ptr_of(document), node);
+    return INT2FIX(st);
+}
+
 /* ---- C-yield traversal (TODO.perf/27) ----------------------------
  * Same contracts as the Ruby FFI::Function versions without the
  * per-call closure: traverse is post-order with abort-at-self
@@ -2071,6 +2095,8 @@ void Init_native(void)
                               nf_last_element_child, 2);
     rb_define_module_function(m_native, "copy_binding_element",
                               nf_copy_binding_element, 2);
+    rb_define_module_function(m_native, "set_binding_root",
+                              nf_set_binding_root, 2);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "doc_handle_attach",
