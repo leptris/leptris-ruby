@@ -1716,6 +1716,123 @@ static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
                           encoding);
 }
 
+/* ---- Bulk hydration walker (TODO.perf/38, #230) -----------------
+ * Pre-order walk that materializes one Hash per element node
+ * (kind, name, prefix, uri, attrs as Array<[name,value]>, text,
+ * depth, line) and yields it to a Ruby Proc (walk_subtree) or
+ * collects it into an Array (snapshot). No per-node Node wrapper
+ * construction — the consumer iterates rows and builds their
+ * typed objects directly. */
+/* Node kinds (mirror types.h). Documented in descriptor comment. */
+#define WS_NODE_ELEMENT 0
+#define WS_NODE_TEXT 1
+#define WS_NODE_COMMENT 2
+#define WS_NODE_CDATA 3
+#define WS_NODE_PI 4
+#define WS_NODE_DOCTYPE 5
+
+static VALUE build_element_row(VALUE doc, void *elem, int depth)
+{
+    VALUE row = rb_hash_new();
+    rb_hash_aset(row, ID2SYM(rb_intern("kind")),
+                 rb_utf8_str_new_cstr("element"));
+    const char *name = f_elem_name(elem);
+    rb_hash_aset(row, ID2SYM(rb_intern("name")),
+                 name ? rb_utf8_str_new_cstr(name) : Qnil);
+    rb_hash_aset(row, ID2SYM(rb_intern("prefix")),
+                 f_elem_prefix(elem) ? rb_utf8_str_new_cstr(f_elem_prefix(elem)) : Qnil);
+    rb_hash_aset(row, ID2SYM(rb_intern("uri")),
+                 f_elem_ns(elem) ? rb_utf8_str_new_cstr(f_elem_ns(elem)) : Qnil);
+    /* attrs: name/value pairs as Array<[name, value]>. */
+    VALUE attrs = rb_ary_new();
+    void *a = f_attr_first(elem);
+    while (a) {
+        VALUE pair = rb_ary_new_capa(2);
+        const char *an = f_attr_name(a);
+        const char *av = f_attr_value(elem, a);
+        rb_ary_push(pair, an ? rb_utf8_str_new_cstr(an) : Qnil);
+        rb_ary_push(pair, av ? rb_utf8_str_new_cstr(av) : Qnil);
+        rb_ary_push(attrs, pair);
+        a = f_attr_next(a);
+    }
+    rb_hash_aset(row, ID2SYM(rb_intern("attrs")), attrs);
+    /* text: first text-child content (moxml-style common case). */
+    void *c = f_first_child(elem);
+    VALUE text = Qnil;
+    while (c) {
+        if (f_node_type(c) == WS_NODE_TEXT) {
+            const char *t = f_text_content(c);
+            text = t ? rb_utf8_str_new_cstr(t) : Qnil;
+            break;
+        }
+        c = f_next_sibling(c);
+    }
+    rb_hash_aset(row, ID2SYM(rb_intern("text")), text);
+    rb_hash_aset(row, ID2SYM(rb_intern("depth")), INT2NUM(depth));
+    return row;
+}
+
+static VALUE build_text_row(int kind, int depth, const char *t)
+{
+    VALUE row = rb_hash_new();
+    rb_hash_aset(row, ID2SYM(rb_intern("kind")),
+                 rb_utf8_str_new_cstr(kind == WS_NODE_TEXT ? "text"
+                                    : kind == WS_NODE_COMMENT ? "comment"
+                                    : kind == WS_NODE_CDATA ? "cdata" : "other"));
+    rb_hash_aset(row, ID2SYM(rb_intern("text")),
+                 t ? rb_utf8_str_new_cstr(t) : Qnil);
+    rb_hash_aset(row, ID2SYM(rb_intern("depth")), INT2NUM(depth));
+    return row;
+}
+
+static void yield_or_collect_row(VALUE out_or_block, VALUE row, int collect)
+{
+    if (collect) {
+        rb_ary_push(out_or_block, row);
+    } else {
+        rb_funcall(out_or_block, rb_intern("call"), 1, row);
+    }
+}
+
+static void walk_subtree_impl(VALUE doc, void *node, int depth, VALUE out_or_block, int collect)
+{
+    int kind = f_node_type(node);
+    if (kind == WS_NODE_ELEMENT) {
+        void *c;
+        yield_or_collect_row(out_or_block, build_element_row(doc, node, depth), collect);
+        c = f_first_child(node);
+        while (c) {
+            walk_subtree_impl(doc, c, depth + 1, out_or_block, collect);
+            c = f_next_sibling(c);
+        }
+    } else if (kind == WS_NODE_DOCTYPE || kind == 9 /* DOCUMENT */) {
+        void *dc = f_first_child(node);
+        while (dc) {
+            walk_subtree_impl(doc, dc, depth, out_or_block, collect);
+            dc = f_next_sibling(dc);
+        }
+    } else if (kind == WS_NODE_TEXT || kind == WS_NODE_COMMENT ||
+               kind == WS_NODE_CDATA || kind == WS_NODE_PI) {
+        const char *t = NULL;
+        if (kind == WS_NODE_TEXT)
+            t = f_text_content(node);
+        else if (kind == WS_NODE_COMMENT)
+            t = f_comment_content(node);
+        else if (kind == WS_NODE_CDATA)
+            t = f_cdata_content(node);
+        else if (kind == WS_NODE_PI)
+            t = f_pi_data(node);
+        yield_or_collect_row(out_or_block, build_text_row(kind, depth, t), collect);
+    }
+}
+
+static VALUE nf_snapshot_subtree(VALUE self, VALUE document, VALUE addr)
+{
+    VALUE out = rb_ary_new();
+    walk_subtree_impl(document, (void *)(uintptr_t)NUM2ULL(addr), 0, out, 1);
+    return out;
+}
+
 /* ---- inner_html in one C pass (TODO.perf/18) --------------------
  * Serializes the receiver's children into one growable buffer:
  * elements via leptris_element_serialize_into (the same opts the
@@ -2253,6 +2370,8 @@ void Init_native(void)
                               nf_append_markup, 3);
     rb_define_module_function(m_native, "fast_inner_xml",
                               nf_fast_inner_xml, 1);
+    rb_define_module_function(m_native, "snapshot_subtree",
+                              nf_snapshot_subtree, 2);
     rb_define_module_function(m_native, "doc_handle_attach",
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
