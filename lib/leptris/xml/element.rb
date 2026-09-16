@@ -25,9 +25,8 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def name=(new_name)
     if @native_fast
-      Leptris::XML::FFI.check_status(
-        Leptris::XML::Native.set_binding_name(
-          @document, @c_address, new_name))
+      Leptris::XML::Native.set_binding_name(
+        @document, @c_address, new_name)
       return @name = new_name
     end
     ensure_writable!
@@ -54,9 +53,8 @@ class Leptris::XML::Element < Leptris::XML::Node
 
   def content=(new_content)
     if @native_fast
-      Leptris::XML::FFI.check_status(
-        Leptris::XML::Native.set_binding_text(
-          @document, @c_address, new_content.to_s))
+      Leptris::XML::Native.set_binding_text(
+        @document, @c_address, new_content.to_s)
       @content = new_content.to_s
       @content_version = @document.version if @document
       return new_content
@@ -138,9 +136,8 @@ class Leptris::XML::Element < Leptris::XML::Node
     # set in one dispatch; the bump drops the version-stamped
     # attribute memos on both surfaces.
     if native_fast_children?
-      Leptris::XML::FFI.check_status(
-        Leptris::XML::Native.set_binding_attribute(
-          @document, @c_address, key.to_s, value.to_s))
+      Leptris::XML::Native.set_binding_attribute(
+        @document, @c_address, key.to_s, value.to_s)
       seed_attribute_memo(key.to_s, value.to_s)
       return value
     end
@@ -374,10 +371,8 @@ class Leptris::XML::Element < Leptris::XML::Node
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
     if native_fast_children?
-      st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 1)
-      unless st.nil?
-        Leptris::XML::FFI.check_status(st)
+      unless Leptris::XML::Native.insert_binding_child(
+        @document, @c_address, node.c_ptr.address, 1).nil?
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
@@ -397,10 +392,8 @@ class Leptris::XML::Element < Leptris::XML::Node
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
     if native_fast_children?
-      st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 2)
-      unless st.nil?
-        Leptris::XML::FFI.check_status(st)
+      unless Leptris::XML::Native.insert_binding_child(
+        @document, @c_address, node.c_ptr.address, 2).nil?
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
@@ -420,10 +413,8 @@ class Leptris::XML::Element < Leptris::XML::Node
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
     if native_fast_children?
-      st = Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 3)
-      unless st.nil?
-        Leptris::XML::FFI.check_status(st)
+      unless Leptris::XML::Native.insert_binding_child(
+        @document, @c_address, node.c_ptr.address, 3).nil?
         Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
@@ -539,10 +530,10 @@ class Leptris::XML::Element < Leptris::XML::Node
       # means the child needs the namespace lift — fall through
       # to the full path.
       if native_fast_children?
-        st = Leptris::XML::Native.append_binding_child(
-          @document, @c_address, node_or_markup.c_ptr.address)
-        unless st.nil?
-          Leptris::XML::FFI.check_status(st)
+        # The face raises on failure (TODO.perf/36); Qnil = the
+        # child needs the lift — the full path handles it.
+        unless Leptris::XML::Native.append_binding_child(
+          @document, @c_address, node_or_markup.c_ptr.address).nil?
           Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
           return node_or_markup
         end
@@ -562,17 +553,15 @@ class Leptris::XML::Element < Leptris::XML::Node
       if native_fast_children?
         r = Leptris::XML::Native.append_markup(
           @document, @c_address, node_or_markup)
-        if r.is_a?(Integer) && r >= 0
+        if r != -1
+          # Appends raise in C on status failures (TODO.perf/36);
+          # -1 alone means the parse failed.
           return Leptris::XML::NodeSet.new(@document, []) if r.zero?
           return Leptris::XML::NodeSet.new(@document, last_added(r))
         end
-        if r == -1
-          # parse failure: reproduce the exact error via the
-          # legacy path (it re-fails fast)
-          Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
-        else
-          Leptris::XML::FFI.check_status(-r - 1000)
-        end
+        # parse failure: reproduce the exact error via the legacy
+        # path (it re-fails fast)
+        Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       end
       frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       added = []

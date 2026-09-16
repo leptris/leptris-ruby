@@ -55,6 +55,10 @@ module Leptris::XML::Searchable
     expr = paths.one? && paths.first.is_a?(String) ? paths.first
                                                     : paths.join(" | ")
 
+    # TODO.perf/37: the document's Pointer is lazy (materializes
+    # once per document lifetime, not per parse); the ffi gem
+    # does NOT convert Integers for typedef'd pointer params, so
+    # the Pointer object is still what crosses here.
     doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 
@@ -100,6 +104,10 @@ module Leptris::XML::Searchable
     expr = paths.one? && paths.first.is_a?(String) ? paths.first
                                                     : paths.join(" | ")
 
+    # TODO.perf/37: the document's Pointer is lazy (materializes
+    # once per document lifetime, not per parse); the ffi gem
+    # does NOT convert Integers for typedef'd pointer params, so
+    # the Pointer object is still what crosses here.
     doc_ptr = is_a?(Leptris::XML::Document) ? c_ptr : document.c_ptr
     context_ptr = is_a?(Leptris::XML::Document) ? nil : c_ptr
 

@@ -3,7 +3,6 @@
 require "ffi"
 
 class Leptris::XML::Document
-  attr_reader :c_ptr
 
   # @api private
   # Internal flag container shared between the Document instance and its
@@ -55,6 +54,19 @@ class Leptris::XML::Document
     #
     # Allocated lazily: parse-heavy loops stop paying one Hash per
     # document for trees that are freed before any wrap.
+  end
+
+  # TODO.perf/37: the Integer address is canonical; the Pointer
+  # materializes only when read (parse/create faces skip it).
+  # A freed document answers nil — never re-materialize a stale
+  # or absent address.
+  def c_ptr
+    @c_ptr ||= (@c_address && ::FFI::Pointer.new(@c_address))
+  end
+
+  # The Integer twin of #c_ptr.
+  def c_address
+    @c_address
   end
 
   def wrapper_cache
@@ -308,8 +320,7 @@ class Leptris::XML::Document
     # dispatch (the FFI call plus the c_ptr materialization fed
     # ~5% of a fresh-doc build).
     if defined?(Leptris::XML::NATIVE_FAST)
-      Leptris::XML::FFI.check_status(
-        Leptris::XML::Native.set_binding_root(self, element.c_address))
+      Leptris::XML::Native.set_binding_root(self, element.c_address)
     else
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_document_set_root(c_ptr, element.c_ptr))

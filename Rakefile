@@ -172,7 +172,12 @@ task :compile do
       # Build-log proof of the linkage contract: libSystem only.
       puts `otool -L #{bundle}`
     end
-    cp(bundle, "lib/leptris/xml/#{File.basename(bundle)}")
+    # Atomic replace: overwriting a bundle another process still
+    # has mapped gets that loader SIGKILLed (CODESIGNING Invalid
+    # Page) — cp to a temp name, then mv.
+    dest = "lib/leptris/xml/#{File.basename(bundle)}"
+    cp(bundle, "#{dest}.new")
+    mv("#{dest}.new", dest)
     puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
   end
 end

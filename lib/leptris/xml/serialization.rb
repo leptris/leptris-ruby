@@ -32,16 +32,16 @@ module Leptris::XML::Serialization
   # cycle lives at the FFI seam (FFI.serialize_into_string); this
   # module owns only options selection and construction.
   def self.to_xml(ffi_function, c_ptr, indent: 0, no_decl: false, encoding: nil)
-    # TODO.perf/04: the common shape (no encoding) runs the whole
-    # sized-buffer cycle in the ext — one C dispatch, no options
-    # marshaling, no Ruby buffer management.
-    if defined?(Leptris::XML::NATIVE_FAST) && encoding.nil?
+    # TODO.perf/04+36: the whole sized-buffer cycle in the ext —
+    # one C dispatch, no options marshaling, no Ruby buffer
+    # management; encoding rides the face (nil -> no override).
+    if defined?(Leptris::XML::NATIVE_FAST)
       decl = !no_decl
       return Leptris::XML::Native.fast_element_xml(
-        c_ptr.address, indent.to_i, decl) if
+        c_ptr.address, indent.to_i, decl, encoding) if
         ffi_function == ELEMENT_SERIALIZE_INTO
       return Leptris::XML::Native.fast_document_xml(
-        c_ptr.address, indent.to_i, decl) if
+        c_ptr.address, indent.to_i, decl, encoding) if
         ffi_function == DOCUMENT_SERIALIZE_INTO
     end
     opts =
@@ -59,7 +59,8 @@ module Leptris::XML::Serialization
   # loop: no kwargs, no options rebuild, no method allocation —
   # one FFI fast-path dispatch per child.
   def self.element_xml_default(c_ptr)
-    return Leptris::XML::Native.fast_element_xml(c_ptr.address, 0, true) if
+    return Leptris::XML::Native.fast_element_xml(c_ptr.address, 0, true,
+                                                  nil) if
       defined?(Leptris::XML::NATIVE_FAST)
     Leptris::XML::FFI.serialize_into_string(
       ELEMENT_SERIALIZE_INTO, c_ptr, DEFAULT_OPTIONS.pointer)
