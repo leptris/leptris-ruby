@@ -473,6 +473,17 @@ attach_function :leptris_parse_string,
         [:leptris_node_ref], :leptris_status
       attach_function :leptris_node_line,
         [:leptris_node_ref], :int
+      # Parser-recorded source position (libleptris 1.9.180,
+      # #1124): {line, col_start, col_end} — Jing's diagnostic
+      # convention (column after the start tag's '>' / the
+      # element's final '>').
+      class SourcePosition < ::FFI::Struct
+        layout :line, :int,
+               :col_start, :int,
+               :col_end, :int
+      end
+      attach_function :leptris_node_source_position,
+        [:leptris_node_ref, :pointer], :void
       attach_function :leptris_node_compare,
         [:leptris_node_ref, :leptris_node_ref], :int
       attach_function :leptris_node_traverse,
@@ -1004,6 +1015,17 @@ attach_function :leptris_parse_string,
         [:leptris_relaxng, :leptris_document], :int
       attach_function :leptris_rng_error,
         [:leptris_relaxng], :string
+      # Accumulated validation errors (libleptris 1.9.179, #878):
+      # the validator no longer stops at the first failure;
+      # leptris_rng_error keeps returning the first (back-compat).
+      attach_function :leptris_rng_error_count,
+        [:leptris_relaxng], :size_t
+      attach_function :leptris_rng_error_message,
+        [:leptris_relaxng, :size_t], :string
+      attach_function :leptris_rng_error_line,
+        [:leptris_relaxng, :size_t], :int
+      attach_function :leptris_rng_error_column,
+        [:leptris_relaxng, :size_t], :int
 
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt

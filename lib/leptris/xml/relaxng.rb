@@ -60,11 +60,23 @@ module Leptris::XML::RelaxNG
 
     # Nokogiri shape: an array of error strings (the engine emits
     # Jing's "line:col: error: message" form), empty when valid.
+    # libleptris 1.9.179 (#878): errors accumulate — every failure
+    # from the validate call is returned, not just the first.
     def validate(document)
       ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
                                                   document.c_ptr)
       return [] if ok != 0
-      [Leptris::XML::FFI.leptris_rng_error(@handle)].compact
+      count = Leptris::XML::FFI.leptris_rng_error_count(@handle)
+      return [Leptris::XML::FFI.leptris_rng_error(@handle)].compact if count.zero?
+      # Jing's rendering for every accumulated error, matching the
+      # single-error accessor's format ("line:col: error: msg").
+      Array.new(count) do |i|
+        msg = Leptris::XML::FFI.leptris_rng_error_message(@handle, i)
+        next nil if msg.nil?
+        line = Leptris::XML::FFI.leptris_rng_error_line(@handle, i)
+        col = Leptris::XML::FFI.leptris_rng_error_column(@handle, i)
+        line > 0 ? "#{line}:#{col}: error: #{msg}" : msg
+      end.compact
     end
 
     def valid?(document)
