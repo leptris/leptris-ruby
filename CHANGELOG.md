@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.181.0] - 2026-09-16
+
+### Changed — libleptris 1.9.178 → 1.9.181 (lockstep)
+
+- **RNG error accumulation (upstream #878)**: `RelaxNG#validate`
+  now returns ALL errors, not just the first. The new
+  `leptris_rng_error_count/_message/_line/_column` surface is
+  attached, and each message is composed Jing-style as
+  `line:col: error: message` (the raw accumulated messages carry
+  no prefix; `leptris_rng_error` remains the back-compat
+  first-error accessor).
+- **Parser-recorded source positions (upstream #1124)**:
+  `Node#source_position` returns `{ line:, col_start:, col_end }`
+  via the new `leptris_node_source_position` (column spans follow
+  the Jing convention; created nodes report zeros).
+- 1.9.179/1.9.180 engine fixes ride along: ASAN use-after-free on
+  the line-break table, a leak on the parse-failure path, and a
+  leak of the in-place document.
+
 ## [1.9.178.1] - 2026-09-16
 
 ### Changed

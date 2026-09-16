@@ -309,6 +309,19 @@ class Leptris::XML::Node
     @line = Leptris::XML::FFI.leptris_node_line(c_ptr)
   end
 
+  # Full parser-recorded position (libleptris 1.9.180, #1124):
+  # {line:, col_start:, col_end:} in Jing's diagnostic
+  # convention; zeros for programmatically-created nodes. First
+  # read wins (positions never change).
+  def source_position
+    return @source_position if defined?(@source_position)
+    ensure_alive!
+    out = Leptris::XML::FFI::SourcePosition.new
+    Leptris::XML::FFI.leptris_node_source_position(c_ptr, out)
+    @source_position = { line: out[:line], col_start: out[:col_start],
+                         col_end: out[:col_end] }
+  end
+
   # Byte offset of the node's markup in its parse source (the '<'
   # of the tag; libleptris 1.9.162, #1039 — the position descriptor
   # CALLBACK rows echo). 0 when unknown: mutation-created nodes, or
