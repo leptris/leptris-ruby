@@ -5,6 +5,26 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.10] - 2026-09-16
+
+### Changed
+
+- **Status raises in C (TODO.perf/36)**: every C mutation face
+  raises `Leptris::XML::Error` with the exact `status_message`
+  format — the Ruby `check_status` dispatch leaves the fast
+  mutation paths (and the success/lift-marker collision it
+  briefly introduced — Qtrue on success now — was caught by the
+  bottom-up construction spec). `to_xml(encoding:)` rides the ext
+  serializer face (encoding VALUE, nil → NULL).
+- **Document lazy Pointer (TODO.perf/37)**: `#c_ptr` materializes
+  once over `@c_address` (freed docs answer nil); the parse/create
+  faces skip the Pointer mint entirely. The ffi gem rejects
+  Integers for typedef'd pointer params — the search paths keep
+  the lazy Pointer.
+- **Atomic bundle vendoring**: replacing a mapped `native.bundle`
+  in place gets the next loader SIGKILLed (CODESIGNING Invalid
+  Page) — the Rakefile now cp+mv's atomically.
+
 ## [1.9.174.9] - 2026-09-16
 
 ### Changed

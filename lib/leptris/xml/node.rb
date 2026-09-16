@@ -486,8 +486,7 @@ class Leptris::XML::Node
 
   def unlink
     if @native_fast
-      Leptris::XML::FFI.check_status(
-        Leptris::XML::Native.unlink_binding_node(@document, @c_address))
+      Leptris::XML::Native.unlink_binding_node(@document, @c_address)
       @parent = nil
       return self
     end

@@ -97,6 +97,7 @@ typedef void *(*elem_copy_fn)(void *, void *);
 typedef void *(*parse_str_fn)(const char *, size_t, void *);
 typedef void *(*parse_frag_fn)(const char *, size_t, void *, int *);
 typedef const char *(*last_err_fn)(void);
+typedef const char *(*status_str_fn)(int);
 static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
 static traverse_fn f_node_traverse;
@@ -107,6 +108,7 @@ static elem_copy_fn f_elem_copy;
 static parse_str_fn f_parse_str;
 static parse_frag_fn f_parse_frag;
 static last_err_fn f_last_err;
+static status_str_fn f_status_str;
 static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
@@ -125,8 +127,10 @@ static void resolve_binding_classes(void);
 static VALUE binding_cache_of(VALUE document);
 static VALUE binding_klass_for(int kind);
 static VALUE c_iteration_scope;
+static VALUE c_leptris_error;
 static VALUE c_b_document, c_b_freed, c_ffi_pointer;
 static ID id_ptr_new, id_freed_new, id_alive;
+static void check_status_c(int st);
 
 #define NT_ELEMENT 0
 
@@ -230,6 +234,7 @@ static void resolve_symbols(const char *lib_path)
     f_parse_str = (parse_str_fn)lib_sym(h, "leptris_parse_string");
     f_parse_frag = (parse_frag_fn)lib_sym(h, "leptris_parse_fragment");
     f_last_err = (last_err_fn)lib_sym(h, "leptris_last_error");
+    f_status_str = (status_str_fn)lib_sym(h, "leptris_status_string");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
     if (!f_elem_name || !f_text_content || !f_attr ||
@@ -243,7 +248,7 @@ static void resolve_symbols(const char *lib_path)
         !f_text_set_content || !f_node_unlink ||
         !f_node_traverse || !f_node_visit || !f_free_str ||
         !f_node_xpath || !f_elem_copy || !f_parse_str ||
-        !f_parse_frag || !f_last_err ||
+        !f_parse_frag || !f_last_err || !f_status_str ||
         !f_doc_free ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
@@ -640,7 +645,8 @@ static VALUE nf_append_binding_child(VALUE self, VALUE document,
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
     st = f_append_child(parent, child);
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* C-bound set_attribute (TODO.perf/11, #204 gap row 0.25x): the
@@ -669,7 +675,8 @@ static VALUE nf_set_binding_attribute(VALUE self, VALUE document,
      * embedded-NUL value raises rather than truncates. */
     st = f_set_attr(node, RSTRING_PTR(StringValue(name)),
                     StringValueCStr(value));
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* C-bound value mutations (TODO.perf/23): the same gates + bump
@@ -692,7 +699,8 @@ static VALUE nf_set_binding_name(VALUE self, VALUE document,
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
     st = f_elem_set_name(node, StringValueCStr(name));
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* Element text or text-node content — kind-dispatched in C. */
@@ -716,7 +724,8 @@ static VALUE nf_set_binding_text(VALUE self, VALUE document,
     st = f_node_type(node) == NT_ELEMENT
              ? f_elem_set_text(node, StringValueCStr(content))
              : f_text_set_content(node, StringValueCStr(content));
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 static VALUE nf_unlink_binding_node(VALUE self, VALUE document,
@@ -737,7 +746,8 @@ static VALUE nf_unlink_binding_node(VALUE self, VALUE document,
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
     st = f_node_unlink(node);
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* C-bound root= (TODO.perf/33): gates + bump + engine set_root
@@ -761,7 +771,8 @@ static VALUE nf_set_binding_root(VALUE self, VALUE document,
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
     st = f_set_root(doc_ptr_of(document), node);
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* ---- C-yield traversal (TODO.perf/27) ----------------------------
@@ -1074,7 +1085,8 @@ static VALUE nf_insert_binding_child(VALUE self, VALUE document,
         rb_raise(rb_eArgError, "invalid insert mode %d", m);
         return Qnil;
     }
-    return INT2FIX(st);
+    check_status_c(st);
+    return Qtrue;
 }
 
 /* Builder factories (#149): create in C, wrap as NativeNode — no
@@ -1225,6 +1237,7 @@ static void resolve_binding_classes(void)
     c_b_document = rb_path2class("Leptris::XML::Document");
     c_b_freed = rb_path2class("Leptris::XML::Document::Freed");
     c_iteration_scope = rb_path2class("Leptris::XML::IterationScope");
+    c_leptris_error = rb_path2class("Leptris::XML::Error");
     id_ptr_new = rb_intern("new");
     rb_gc_register_mark_object(c_b_element);
     rb_gc_register_mark_object(c_b_text);
@@ -1239,6 +1252,7 @@ static void resolve_binding_classes(void)
     rb_gc_register_mark_object(c_b_document);
     rb_gc_register_mark_object(c_b_freed);
     rb_gc_register_mark_object(c_iteration_scope);
+    rb_gc_register_mark_object(c_leptris_error);
 }
 
 static VALUE binding_klass_for(int kind)
@@ -1635,7 +1649,8 @@ static char *ser_buf;
 static size_t ser_cap;
 
 static VALUE fast_serialize(serialize_into_fn fn, void *node,
-                            int indent, int xml_declaration)
+                            int indent, int xml_declaration,
+                            VALUE encoding)
 {
     struct serialize_opts opts;
     char stack_buf[4096];
@@ -1646,7 +1661,11 @@ static VALUE fast_serialize(serialize_into_fn fn, void *node,
 
     opts.indent = indent;
     opts.xml_declaration = xml_declaration;
-    opts.encoding = NULL;
+    /* The Ruby string's bytes stay valid across the synchronous
+     * engine call (TODO.perf/36). */
+    opts.encoding = NIL_P(encoding)
+                        ? NULL
+                        : StringValueCStr(encoding);
     /* Probe the largest buffer we own: a big scratch from a prior
      * call usually fits (single serialization); cold calls start
      * on the stack buffer. */
@@ -1672,21 +1691,25 @@ static VALUE fast_serialize(serialize_into_fn fn, void *node,
 }
 
 static VALUE nf_fast_document_xml(VALUE self, VALUE addr,
-                                  VALUE indent, VALUE decl)
+                                  VALUE indent, VALUE decl,
+                                  VALUE encoding)
 {
     (void)self;
     return fast_serialize(f_doc_serialize,
                           (void *)(uintptr_t)NUM2ULL(addr),
-                          NUM2INT(indent), RTEST(decl) ? 1 : 0);
+                          NUM2INT(indent), RTEST(decl) ? 1 : 0,
+                          encoding);
 }
 
 static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
-                                 VALUE indent, VALUE decl)
+                                 VALUE indent, VALUE decl,
+                                 VALUE encoding)
 {
     (void)self;
     return fast_serialize(f_elem_serialize,
                           (void *)(uintptr_t)NUM2ULL(addr),
-                          NUM2INT(indent), RTEST(decl) ? 1 : 0);
+                          NUM2INT(indent), RTEST(decl) ? 1 : 0,
+                          encoding);
 }
 
 /* ---- inner_html in one C pass (TODO.perf/18) --------------------
@@ -1861,8 +1884,6 @@ static VALUE nf_copy_binding_element(VALUE self, VALUE document,
         return Qnil;
     doc_addr = ULL2NUM((uint64_t)(uintptr_t)doc);
     new_doc = rb_obj_alloc(c_b_document);
-    rb_iv_set(new_doc, "@c_ptr",
-              rb_funcall(c_ffi_pointer, id_ptr_new, 1, doc_addr));
     rb_iv_set(new_doc, "@c_address", doc_addr);
     freed = rb_funcall(c_b_freed, id_freed_new, 1, ID2SYM(id_alive));
     rb_iv_set(new_doc, "@freed", freed);
@@ -1907,6 +1928,23 @@ static VALUE build_binding_document(void *doc)
     h->doc = doc;
     rb_ivar_set(new_doc, id_iv_doc_handle, handle);
     return new_doc;
+}
+
+/* check_status in C (TODO.perf/36): the exact status_message
+ * format — "base" or "base (detail)" — so the mutation faces
+ * raise instead of returning codes for a Ruby dispatch. */
+static void check_status_c(int st)
+{
+    const char *base, *detail;
+
+    if (st == 0)
+        return;
+    base = f_status_str(st);
+    detail = f_last_err();
+    if (detail && *detail)
+        rb_raise(c_leptris_error, "%s (%s)",
+                 base ? base : "?", detail);
+    rb_raise(c_leptris_error, "%s", base ? base : "?");
 }
 
 /* Document.parse default path in one dispatch (TODO.perf/35):
@@ -1974,7 +2012,7 @@ static VALUE nf_append_markup(VALUE self, VALUE document,
         next_child = f_next_sibling(child);
         status = f_append_child(parent, child);
         if (status != 0)
-            return INT2FIX(-1000 - status);
+            check_status_c(status);
         count++;
     }
     return INT2FIX(count);
@@ -2231,7 +2269,7 @@ void Init_native(void)
                               nf_bulk_element_children, 2);
     rb_define_module_function(m_native, "bulk_xpath", nf_bulk_xpath, 2);
     rb_define_module_function(m_native, "fast_document_xml",
-                              nf_fast_document_xml, 3);
+                              nf_fast_document_xml, 4);
     rb_define_module_function(m_native, "fast_element_xml",
-                              nf_fast_element_xml, 3);
+                              nf_fast_element_xml, 4);
 }
