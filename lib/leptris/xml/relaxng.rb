@@ -83,5 +83,27 @@ module Leptris::XML::RelaxNG
       Leptris::XML::FFI.leptris_rng_validate(@handle,
                                              document.c_ptr) != 0
     end
+
+    # Structured errors: [{ line:, column:, message: }] — the fields
+    # callers need for log formatting, instead of re-parsing the
+    # Jing-form strings from #validate. Empty when valid. Message,
+    # line, and column carry Jing's exact attribution (libleptris
+    # >= 1.9.180).
+    def validate_errors(document)
+      ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
+                                                  document.c_ptr)
+      return [] if ok != 0
+      count = Leptris::XML::FFI.leptris_rng_error_count(@handle)
+      return [] if count.zero?
+      Array.new(count) do |i|
+        msg = Leptris::XML::FFI.leptris_rng_error_message(@handle, i)
+        next nil if msg.nil?
+        {
+          line: Leptris::XML::FFI.leptris_rng_error_line(@handle, i),
+          column: Leptris::XML::FFI.leptris_rng_error_column(@handle, i),
+          message: msg,
+        }
+      end.compact
+    end
   end
 end
