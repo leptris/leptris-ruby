@@ -17,6 +17,13 @@ class Leptris::XML::ParseOptions
   # defaulted attributes.
   DTDATTR = Leptris::XML::FFI::LEPTRIS_PARSE_DTDATTR
 
+  # Keep &name; entity references unexpanded as first-class
+  # EntityReference nodes (libleptris 1.9.176, upstream #1094 /
+  # leptris-ruby#212): text runs split around them, character
+  # references still expand, and the references serialize back
+  # verbatim.
+  KEEP_ENTITY_REFS = Leptris::XML::FFI::LEPTRIS_PARSE_KEEP_ENTITY_REFS
+
   attr_reader :flags
 
   # Recover (libleptris 1.9.0, #547): a parse failure returns an
@@ -30,6 +37,10 @@ class Leptris::XML::ParseOptions
                  recover: false)
     @flags = flags.to_i
     @recover = recover ? true : false
+  end
+
+  def self.keep_entity_refs
+    new(KEEP_ENTITY_REFS)
   end
 
   def self.noblanks
@@ -50,6 +61,10 @@ class Leptris::XML::ParseOptions
 
   def dtdattr?
     @flags & DTDATTR != 0
+  end
+
+  def keep_entity_refs?
+    @flags & KEEP_ENTITY_REFS != 0
   end
 
   def dtdattr=(value)

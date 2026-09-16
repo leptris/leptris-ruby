@@ -132,6 +132,8 @@ class Leptris::XML::Node
       Leptris::XML::CDATA.new(c_ptr, document, parent: parent, node_type: node_type)
     when Leptris::XML::FFI::NODE_PI
       Leptris::XML::ProcessingInstruction.new(c_ptr, document, parent: parent, node_type: node_type)
+    when Leptris::XML::FFI::NODE_ENTITY_REF
+      Leptris::XML::EntityReference.new(c_ptr, document, parent: parent, node_type: node_type)
     else
       new(c_ptr, document, parent: parent, node_type: node_type)
     end
