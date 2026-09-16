@@ -161,9 +161,9 @@ jobs:
         if: contains(matrix.platform, 'mingw')
         shell: bash
         run: |
-          count=$(ls lib/leptris/xml/native-*.so 2>/dev/null | wc -l)
+          count=$(ls lib/leptris/xml/native_*.so 2>/dev/null | wc -l)
           if [ "$count" -lt 1 ]; then
-            echo "ERROR: no native-<minor>.so built for ${{ matrix.platform }}"
+            echo "ERROR: no native_<minor>.so built for ${{ matrix.platform }}"
             exit 1
           fi
           echo "Windows native DLLs: $count"

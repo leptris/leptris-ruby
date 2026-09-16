@@ -2396,3 +2396,15 @@ void Init_native(void)
     rb_define_module_function(m_native, "fast_element_xml",
                               nf_fast_element_xml, 4);
 }
+
+#ifdef _WIN32
+/* MRI derives a C extension's init symbol from the require
+ * feature's basename cut at the first dot. The Windows per-minor
+ * DLLs are therefore named dot-free (native_3_3.so etc.), and
+ * each needs its exact init name exported. All are defined here
+ * unconditionally: a DLL only ever loads under the Ruby minor it
+ * was built against (PE binds its build Ruby's runtime DLL). */
+void Init_native_3_3(void) { Init_native(); }
+void Init_native_3_4(void) { Init_native(); }
+void Init_native_4_0(void) { Init_native(); }
+#endif
