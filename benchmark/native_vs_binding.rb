@@ -36,8 +36,18 @@ load_avg = begin
 rescue StandardError
   `uptime`.match(/([\d.]+) /)[1].to_f
 end
-if load_avg > 20
-  puts "# SKIP: host load #{load_avg} > 20 (TODO.restructure/17 gate)"
+# Gate the drift battery on the host's load — #229: an absolute
+# threshold missed quiet boxes under shared-machine load; default
+# to a core-normalized one with an ENV override.
+default_threshold = begin
+  cores = Integer(`sysctl -n hw.logicalcpu`.strip) rescue 1
+  [cores * 1.5, 4.0].max
+rescue StandardError
+  8.0
+end
+threshold = (ENV["LEPTRIS_BENCH_LOAD_MAX"] || default_threshold).to_f
+if load_avg > threshold
+  puts "# SKIP: host load #{load_avg.round(2)} > threshold #{threshold.round(2)} (cores=#{begin; `sysctl -n hw.logicalcpu`.strip; rescue "?"; end})"
   exit 0
 end
 

@@ -73,6 +73,60 @@ class Leptris::XML::Document
     @wrapper_cache ||= {}
   end
 
+  # #231: deterministic scope — yields the document, guarantees
+  # teardown at block exit (even on raise). Frameworks with their
+  # own finalizer timing worries can wrap every parse in this and
+  # skip the GC-via-finalizer slot entirely.
+  def self.open(xml_or_io, **kwargs)
+    doc = parse(xml_or_io, **kwargs)
+    return doc unless block_given?
+    begin
+      yield doc
+    ensure
+      doc.free
+    end
+  end
+
+  # #230: bulk hydration walks — one C pass per subtree, no per-node
+  # Ruby wrapper construction. snapshot returns an Array of rows
+  # (consumer iterates and builds typed objects in one pass);
+  # walk_subtree yields rows through a block (lower peak memory for
+  # very large subtrees).
+  def snapshot(node)
+    if defined?(Leptris::XML::NATIVE_FAST)
+      Leptris::XML::Native.snapshot_subtree(
+        self, node.respond_to?(:c_address) ? node.c_address : nil)
+    else
+      rows = []
+      walk_subtree(node) { |row| rows << row }
+      rows
+    end
+  end
+
+  def walk_subtree(node, &block)
+    return enum_for(:walk_subtree, node) unless block
+    if defined?(Leptris::XML::NATIVE_FAST)
+      # The public cursor yields the same C-materialized rows as
+      # #snapshot. The C cursor prototype was deliberately not
+      # exposed: a Proc-calling recursive C walk crashed under
+      # MRI; snapshot is the safe one-pass bulk surface.
+      snapshot(node).each(&block)
+      return
+    end
+    # FFI fallback: recursive walk (the historical per-node shape).
+    if node.is_a?(Leptris::XML::Node)
+      yield(element_row(node)) if node.element?
+      node.element_children.each { |c| walk_subtree(c, &block) }
+    end
+  end
+
+  def element_row(el)
+    { kind: "element", name: el.name, prefix: el.namespace&.prefix,
+      uri: el.namespace&.href, attrs: el.attributes,
+      text: el.element_children.find { |c| c.text? }&.content,
+      depth: 0 }
+  end
+
   def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
     xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
     if xml.empty?
