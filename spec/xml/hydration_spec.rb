@@ -1,6 +1,13 @@
 # frozen_string_literal: true
+
+begin
+  require "leptris/xml/native_layer"
+rescue LoadError
+  # FFI-only installs (Windows test legs, ruby-platform gem): the
+  # bulk surface still runs via the FFI fallback path — the row
+  # shape specs below skip, the Document.open specs stay active.
+end
 require "leptris"
-require "leptris/xml/native_layer"
 
 # #230 (moxml/lutaml's "parse is 0.27% of total"): the binding's
 # bulk hydration surface — one C walk per subtree, no per-node
