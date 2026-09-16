@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.174.9] - 2026-09-16
+
+### Changed
+
+- **Fragment fast lane (TODO.perf/34)**: `add_child(String)` runs
+  one C dispatch for the whole markup add — fragment parse +
+  every child append + a single readonly gate and version bump
+  (the move-during-iteration hazard handled: appending detaches,
+  so the walk captures next before each move). The fragment parse
+  face returns an address (no status MemoryPointer, no Pointer);
+  `DocumentFragment#children` rides the bulk face; parse failures
+  fall back to the legacy path for the exact error.
+- **Document.parse default path as one C dispatch (TODO.perf/35)**:
+  engine parse + ivar-seeded wrapper + lifetime handle in one
+  call — small parses measured 15.6µs → 6.8µs (~2.3x, under host
+  load ~100; the shape is self-contained).
+
 ## [1.9.174.8] - 2026-09-16
 
 ### Fixed
