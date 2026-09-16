@@ -48,6 +48,6 @@ unless ENV["LEPTRIS_NO_NATIVE"] == "1"
     # the FFI surface (the explicit require still raises its full
     # error for callers that opt in).
     warn "leptris: native acceleration unavailable " \
-         "(#{e.message.lines.first.strip}); using the FFI surface"
+         "(#{e.message.gsub(/\s+/, ' ').strip[0, 200]}); using the FFI surface"
   end
 end

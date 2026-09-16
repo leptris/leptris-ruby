@@ -34,4 +34,22 @@ if RUBY_PLATFORM =~ /darwin/
   RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_SHARED"] = ""
   RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_STATIC"] = ""
 end
+if Gem.win_platform?
+  # Windows names the artifact per Ruby minor, DOT-FREE (#227
+  # fix): MRI derives the init symbol from the basename cut at
+  # the first dot, so native_3_4.so needs Init_native_3_4
+  # exported. GNU ld auto-exports only when no explicit export
+  # is present — pin the export table with a .def file so the
+  # wrapper init names are certain to be exported.
+  def_path = File.expand_path("native_exports.def", __dir__)
+  File.write(def_path, <<~DEF)
+    EXPORTS
+    Init_native
+    Init_native_3_3
+    Init_native_3_4
+    Init_native_4_0
+  DEF
+  win_def = " #{def_path.tr('/', '\\\\')}"
+  $DLDFLAGS << win_def unless $DLDFLAGS.include?("native_exports.def")
+end
 create_makefile("leptris/xml/native")
