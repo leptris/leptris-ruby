@@ -120,6 +120,7 @@ static ID id_iv_c_address, id_iv_native_cache, id_iv_binding_cache;
 static ID id_iv_version, id_iv_readonly, id_address;
 static ID id_iv_nn_content, id_iv_nn_content_ver;
 static ID id_iv_nn_attrs, id_iv_nn_attrs_ver;
+static ID id_child_klasses;
 static VALUE c_use_after_free_error;
 
 static VALUE native_cache_of(VALUE document);
@@ -366,6 +367,42 @@ static VALUE nn_allocate(VALUE klass)
     return TypedData_Make_Struct(klass, struct native_node, &nn_type, n);
 }
 
+/* Klass-propagating reads (#246): a consumer subclass installed a
+ * per-kind child-klass map; reads mint that class so the child
+ * arrives already being the consumer's wrapper. Map-less callers
+ * (the base class) keep today's base mint. */
+static VALUE klass_for_kind(VALUE owner_klass, int kind)
+{
+    VALUE map = rb_attr_get(owner_klass, id_child_klasses);
+    VALUE k;
+    if (NIL_P(map))
+        return c_native_node;
+    k = rb_ary_entry(map, (long)kind);
+    return RB_TYPE_P(k, T_CLASS) ? k : c_native_node;
+}
+
+static VALUE nn_install_child_klasses(VALUE self, VALUE map)
+{
+    long i, len;
+    Check_Type(map, T_ARRAY);
+    len = RARRAY_LEN(map);
+    if (len > 5)
+        rb_raise(rb_eArgError,
+                 "child klasses: Array of classes/nil indexed by "
+                 "node kind (element, text, comment, cdata, pi)");
+    for (i = 0; i < len; i++) {
+        VALUE k = rb_ary_entry(map, i);
+        if (!NIL_P(k) &&
+            !(RB_TYPE_P(k, T_CLASS) &&
+              RTEST(rb_class_inherited_p(k, c_native_node))))
+            rb_raise(rb_eTypeError,
+                     "child klasses entries must be nil or a "
+                     "Leptris::XML::NativeNode subclass");
+    }
+    rb_ivar_set(self, id_child_klasses, map);
+    return self;
+}
+
 /* Bulk children: one native pass; cache check/store inline; the
  * document's wrapper_cache (a Ruby Hash keyed by address) provides
  * identity for nodes seen through other paths. */
@@ -401,7 +438,7 @@ static VALUE nn_children(VALUE self)
     void **buf;
     int *kinds;
     int count, i;
-    VALUE cache, out;
+    VALUE cache, out, owner_klass;
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     count = fetch_children_two_call(n->ptr, &buf, &kinds);
@@ -413,13 +450,14 @@ static VALUE nn_children(VALUE self)
 
     cache = native_cache_of(n->document);
     out = rb_ary_new2(count);
+    owner_klass = rb_obj_class(self);
     for (i = 0; i < count; i++) {
         uint64_t addr = (uint64_t)(uintptr_t)buf[i];
         VALUE key = ULL2NUM(addr);
         VALUE child = rb_hash_aref(cache, key);
         if (NIL_P(child)) {
             struct native_node *cn;
-            child = nn_allocate(c_native_node);
+            child = nn_allocate(klass_for_kind(owner_klass, kinds[i]));
             TypedData_Get_Struct(child, struct native_node, &nn_type, cn);
             cn->ptr = buf[i];
             cn->document = n->document;
@@ -454,7 +492,7 @@ static VALUE nn_element_children(VALUE self)
     void **buf;
     int *kinds;
     int count, i;
-    VALUE cache, out;
+    VALUE cache, out, child_klass;
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     count = fetch_children_two_call(n->ptr, &buf, &kinds);
@@ -466,6 +504,7 @@ static VALUE nn_element_children(VALUE self)
 
     cache = native_cache_of(n->document);
     out = rb_ary_new();
+    child_klass = klass_for_kind(rb_obj_class(self), NT_ELEMENT);
     for (i = 0; i < count; i++) {
         if (kinds[i] != NT_ELEMENT)
             continue;
@@ -473,7 +512,7 @@ static VALUE nn_element_children(VALUE self)
         VALUE child = rb_hash_aref(cache, key);
         if (NIL_P(child)) {
             struct native_node *cn;
-            child = nn_allocate(c_native_node);
+            child = nn_allocate(child_klass);
             TypedData_Get_Struct(child, struct native_node, &nn_type, cn);
             cn->ptr = buf[i];
             cn->document = n->document;
@@ -486,7 +525,8 @@ static VALUE nn_element_children(VALUE self)
     return out;
 }
 
-static VALUE wrap_cached(struct native_node *owner, void *ptr)
+static VALUE wrap_cached(VALUE owner_klass, struct native_node *owner,
+                         void *ptr)
 {
     VALUE cache, key, node;
     struct native_node *n;
@@ -496,7 +536,7 @@ static VALUE wrap_cached(struct native_node *owner, void *ptr)
     node = rb_hash_aref(cache, key);
     if (!NIL_P(node))
         return node;
-    node = nn_allocate(c_native_node);
+    node = nn_allocate(klass_for_kind(owner_klass, f_node_type(ptr)));
     TypedData_Get_Struct(node, struct native_node, &nn_type, n);
     n->ptr = ptr;
     n->document = owner->document;
@@ -510,7 +550,7 @@ static VALUE nn_next_sibling(VALUE self)
     void *sib;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     sib = f_next_sibling(n->ptr);
-    return sib ? wrap_cached(n, sib) : Qnil;
+    return sib ? wrap_cached(rb_obj_class(self), n, sib) : Qnil;
 }
 
 static VALUE nn_parent(VALUE self)
@@ -519,7 +559,7 @@ static VALUE nn_parent(VALUE self)
     void *par;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     par = f_parent(n->ptr);
-    return par ? wrap_cached(n, par) : Qnil;
+    return par ? wrap_cached(rb_obj_class(self), n, par) : Qnil;
 }
 
 /* Wrap a freshly-created C node as a NativeNode and register it
@@ -2281,6 +2321,7 @@ void Init_native(void)
     id_iv_nn_content_ver = rb_intern("@nn_content_ver");
     id_iv_nn_attrs = rb_intern("@nn_attrs");
     id_iv_nn_attrs_ver = rb_intern("@nn_attrs_ver");
+    id_child_klasses = rb_intern("@nn_child_klasses");
     id_iv_doc_handle = rb_intern("@doc_handle");
     id_freed_new = rb_intern("new");
     id_alive = rb_intern("alive");
@@ -2291,6 +2332,8 @@ void Init_native(void)
     rb_gc_register_mark_object(c_use_after_free_error);
 
     rb_define_singleton_method(c_native_node, "from", nn_from, 2);
+    rb_define_singleton_method(c_native_node, "install_child_klasses",
+                               nn_install_child_klasses, 1);
     rb_define_singleton_method(c_native_node, "create_element", nn_create_element, 2);
     rb_define_singleton_method(c_native_node, "create_text", nn_create_text, 2);
     rb_define_singleton_method(c_native_node, "set_root", nn_set_root, 2);
