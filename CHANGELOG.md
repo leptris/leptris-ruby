@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.193.0] - 2026-09-17
+
+### Changed — libleptris 1.9.192 -> 1.9.193 (lockstep)
+
+- Engine build hygiene: explicit includes — stdint.h in arena.c,
+  unistd.h in cli/output.c (leptris/leptris#1166). Under any
+  feature-macro shift (_GNU_SOURCE on the PGO trainer) the old
+  transitive-include graph broke the build; both musl platform-gem
+  legs now compile clean. The binding additionally forces
+  -include stdint.h on the throwaway trainer build (belt and
+  suspenders).
+- No public-symbol changes: audit 323/323. The 1.9.193.0 gem is
+  the first published release since 1.9.188.0 (the 1.9.188.x PGO
+  attempts never passed the musl legs) and carries the full
+  1.9.189-192 RNG wave plus the two-stage PGO library build.
+
 ## [1.9.192.0] - 2026-09-17
 
 ### Changed — libleptris 1.9.188 → 1.9.192 (lockstep)

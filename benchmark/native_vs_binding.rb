@@ -70,7 +70,7 @@ rows = {
     n.element_children.each { |it| it.name; it["id"]; it.content }
   },
   "serialize (binding)" => -> { doc.to_xml },
-  "serialize (native)" => -> { Leptris::XML::Native.fast_document_xml(doc.c_ptr.address, 0, true) },
+  "serialize (native)" => -> { Leptris::XML::Native.fast_document_xml(doc.c_ptr.address, 0, true, nil) },
 }
 
 puts format("%-26s %12s", "row", "best-of-5")
@@ -149,3 +149,32 @@ puts format("%-26s %11.0f ns", "first+last element child", t / 2_000 * 1e9)
 
 t = best_of { N.times { one.name = "item"; one.content = "x" } }
 puts format("%-26s %11.0f ns", "name= + content=", t / N * 1e9)
+
+# ---- TODO.perf/39: RNG error faces + fresh-doc lane ----------------
+# validate_report is the one-call whole-report face (1.9.190);
+# validate_errors renders per-error rows from it; validate renders
+# the Jing strings. Schema compile happens once, outside the loop.
+rng_schema = <<~RNG
+  <element name="r" xmlns="http://relaxng.org/ns/structure/1.0">
+    <attribute name="req"><text/></attribute>
+    <zeroOrMore><element name="c"><text/></element></zeroOrMore>
+  </element>
+RNG
+rng = Leptris::XML::RelaxNG.parse(rng_schema)
+rng_bad = Leptris::XML::Document.parse(%q{<r><c>a</c><d>b</d></r>})
+rng_n = 2_000
+
+rng_rows = {
+  "rng validate_report" => -> { rng.validate_report(rng_bad) },
+  "rng validate_errors" => -> { rng.validate_errors(rng_bad) },
+  "rng validate (strings)" => -> { rng.validate(rng_bad) },
+}
+puts ""
+puts format("%-26s %14s", "rng row", "best-of-5")
+rng_rows.each do |label, work|
+  t = best_of { rng_n.times { work.call } }
+  puts format("%-26s %11.0f ns", label, t / rng_n * 1e9)
+end
+
+t = best_of { 50_000.times { Leptris::XML::Document.create } }
+puts format("%-26s %11.0f ns", "Document.create (fresh)", t / 50_000 * 1e9)
