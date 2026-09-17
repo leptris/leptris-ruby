@@ -117,10 +117,13 @@ task :compile do
     # _GNU_SOURCE is MUSL-ONLY: the CLI trainer's fileno needs a POSIX
     # feature macro under musl. On glibc the macro reshuffles the
     # header graph and breaks arena.c's accidental (missing-stdint.h)
-    # uintptr_t. Single-quote: the value carries a space (an unquoted
-    # split hands cmake a bare -D_GNU_SOURCE); non-Windows branch, so
-    # sh quoting is safe.
-    gnu = RUBY_PLATFORM =~ /musl/ ? " -D_GNU_SOURCE" : ""
+    # uintptr_t. -include stdint.h: under _GNU_SOURCE musl's header
+    # graph ALSO stops feeding stdint.h to arena.c (leptris/leptris
+    # #1166) — force the include on the throwaway trainer build;
+    # the shipped library keeps the plain flags. Single-quote: the
+    # value carries a space (an unquoted split hands cmake a bare
+    # -D_GNU_SOURCE); non-Windows branch, so sh quoting is safe.
+    gnu = RUBY_PLATFORM =~ /musl/ ? " -D_GNU_SOURCE -include stdint.h" : ""
     pgo_cflags = "#{cflags}#{gnu}".strip
     pgo_base =
       if pgo_cflags == cflags
