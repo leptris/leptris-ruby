@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.192.0] - 2026-09-17
+
+### Changed — libleptris 1.9.188 → 1.9.192 (lockstep)
+
+- **`RelaxNG::Schema#validate_report`** — the whole validation
+  report in one C call (upstream 1.9.190,
+  `leptris_rng_error_report`): `[{ kind:, message:, offender:,
+  line:, column: }]`, empty when valid. `kind` is the #1126
+  failure-class taxonomy ("missing-required-attr",
+  "attr-not-allowed", ...), `offender` the attributed element/
+  attribute name. Spec-pinned. `validate_errors` now renders from
+  the same report (one call + struct reads instead of 4 accessor
+  calls per error); the per-index accessors stay attached for
+  back-compat.
+- **The metanorma schema chain compiles and validates end to end**
+  (1.9.189): the combine-merge heap-use-after-free on include
+  merges, XSD `\i`/`\c` pattern classes, and the whole-value match
+  anchor riding the continuation. Spec-pinned (combine merge,
+  `\i\c*`).
+- **Attributes behind a `<ref>` are consumed** — both the verdict
+  (1.9.191) and the diagnostic walk (1.9.192): basicdoc.rng's
+  `Root-Attributes` no longer produces false
+  "found attribute X, but no attributes allowed here". Spec-pinned.
+- **externalRef resolves in bare-`<element>` schemas** (1.9.190).
+  Spec-pinned.
+- One new public symbol: audit 323/323.
+
 ## [1.9.188.0] - 2026-09-17
 
 ### Changed — libleptris 1.9.186 → 1.9.188 (lockstep)
