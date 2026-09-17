@@ -23,6 +23,7 @@ module Leptris::XML::RelaxNG
   #     rng.valid?(doc)      # => true/false
   #     rng.validate(doc)    # => [] or ["1:0: error: element ..."]
   #     rng.validate_errors(doc) # => [] or [{line:, column:, message:}]
+  #     rng.validate_report(doc) # => [] or [{kind:, message:, offender:, ...}]
   #
   class Schema
     # GC-managed compiled handle.
@@ -86,23 +87,40 @@ module Leptris::XML::RelaxNG
     # callers need for log formatting, instead of re-parsing the
     # Jing-form strings from #validate. Empty when valid. Message,
     # line, and column carry Jing's exact attribution (libleptris
-    # >= 1.9.179, upstream #878). This is the single enumeration of
-    # the error-accumulation surface; #validate renders these rows.
+    # >= 1.9.179, upstream #878). Rendered from #validate_report —
+    # the single enumeration of the error surface.
     def validate_errors(document)
+      validate_report(document).map do |r|
+        { line: r[:line], column: r[:column], message: r[:message] }
+      end
+    end
+
+    # The whole validation report, one C call (libleptris >= 1.9.190):
+    # [{ kind:, message:, offender:, line:, column: }] — empty when
+    # valid. `kind` is the #1126 failure-class taxonomy
+    # ("missing-required-attr", "attr-not-allowed", ...), `offender`
+    # the attributed element/attribute name (nil when unknown).
+    # Strings are read into Ruby copies before returning.
+    def validate_report(document)
       ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
                                                   document.c_ptr)
       return [] if ok != 0
-      count = Leptris::XML::FFI.leptris_rng_error_count(@handle)
+      out = ::FFI::MemoryPointer.new(:pointer)
+      count = Leptris::XML::FFI.leptris_rng_error_report(@handle, out)
       return [] if count.zero?
+      base = out.read_pointer
+      return [] if base.null?
+      record = Leptris::XML::FFI::RngErrorRecord
       Array.new(count) do |i|
-        msg = Leptris::XML::FFI.leptris_rng_error_message(@handle, i)
-        next nil if msg.nil?
+        r = record.new(base + i * record.size)
         {
-          line: Leptris::XML::FFI.leptris_rng_error_line(@handle, i),
-          column: Leptris::XML::FFI.leptris_rng_error_column(@handle, i),
-          message: msg,
+          kind: r[:kind],
+          message: r[:message],
+          offender: r[:offender],
+          line: r[:line],
+          column: r[:column],
         }
-      end.compact
+      end
     end
   end
 end

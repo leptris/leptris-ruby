@@ -1027,6 +1027,21 @@ attach_function :leptris_parse_string,
       attach_function :leptris_rng_error_column,
         [:leptris_relaxng, :size_t], :int
 
+      # Whole-report face (libleptris 1.9.190): one call returns
+      # every record — kind (the #1126 failure-class taxonomy) and
+      # offender were unreachable through the per-index accessors.
+      # Record array is handle-owned; strings live until the next
+      # validate call or leptris_rng_free.
+      class RngErrorRecord < ::FFI::Struct
+        layout :kind, :string,
+               :message, :string,
+               :offender, :string,
+               :line, :uint,
+               :column, :uint
+      end
+      attach_function :leptris_rng_error_report,
+        [:leptris_relaxng, :pointer], :size_t
+
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
       attach_function :leptris_xslt_parse_file,
