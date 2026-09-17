@@ -1027,6 +1027,20 @@ attach_function :leptris_parse_string,
       attach_function :leptris_rng_error_column,
         [:leptris_relaxng, :size_t], :int
 
+      # The structured report shape (libleptris >= 1.9.190): one
+      # call returns the whole validation error list. Record layout
+      # mirrors LeptrisRngErrorRecord in leptris.h.
+      class RngErrorRecord < ::FFI::Struct
+        layout :kind, :string,
+               :message, :string,
+               :offender, :string,
+               :line, :uint,
+               :column, :uint
+      end
+
+      attach_function :leptris_rng_error_report,
+        [:leptris_relaxng, :pointer], :size_t
+
       attach_function :leptris_xslt_parse,
         [:string, :size_t], :leptris_xslt
       attach_function :leptris_xslt_parse_file,

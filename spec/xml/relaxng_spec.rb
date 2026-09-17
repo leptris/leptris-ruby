@@ -34,7 +34,7 @@ RSpec.describe Leptris::XML::RelaxNG do
 
     structured = rng.validate_errors(bad)
     expect(structured.length).to eq(1)
-    expect(structured.first.keys).to contain_exactly(:line, :column, :message)
+    expect(structured.first.keys).to include(:line, :column, :message)
     expect(structured.first[:line]).to be_an(Integer)
     expect(structured.first[:column]).to be_an(Integer)
     expect(structured.first[:message]).to include("attribute")

@@ -92,6 +92,30 @@ module Leptris::XML::RelaxNG
       ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
                                                   document.c_ptr)
       return [] if ok != 0
+      # The report call (libleptris >= 1.9.190) returns the whole
+      # list in one shot and adds kind + offender; older engines
+      # fall through to the per-index accessors.
+      begin
+        out = ::FFI::MemoryPointer.new(:pointer)
+        count = Leptris::XML::FFI.leptris_rng_error_report(@handle, out)
+        unless count.zero?
+          base = out.read_pointer
+          stride = Leptris::XML::FFI::RngErrorRecord.size
+          return Array.new(count) do |i|
+            r = Leptris::XML::FFI::RngErrorRecord.new(base + i * stride)
+            {
+              kind: r[:kind],
+              message: r[:message],
+              offender: r[:offender],
+              line: r[:line],
+              column: r[:column],
+            }
+          end
+        end
+        return []
+      rescue StandardError
+        # engine predates the report call - per-index fallback below
+      end
       count = Leptris::XML::FFI.leptris_rng_error_count(@handle)
       return [] if count.zero?
       Array.new(count) do |i|
