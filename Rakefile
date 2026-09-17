@@ -114,10 +114,12 @@ task :compile do
     # built in normal gems) uses fileno, which musl hides without a
     # POSIX feature macro (glibc is lenient). Upstream fix pending in
     # the C repo; this stays on the throwaway instrumented build.
+    # single-quote the value: it now carries a space, and an unquoted
+    # split hands cmake a bare -D_GNU_SOURCE (parse error). Non-Windows
+    # branch only, so sh quoting is safe.
     pgo_cflags = "#{cflags} -D_GNU_SOURCE".strip
     pgo_base = cmake_base.sub("-DCMAKE_C_FLAGS=#{cflags}",
-                              cflags.empty? ? "-DCMAKE_C_FLAGS=-D_GNU_SOURCE" :
-                                              "-DCMAKE_C_FLAGS=#{pgo_cflags}")
+                              "-DCMAKE_C_FLAGS='#{pgo_cflags}'")
     sh "cmake -B #{build}/build -S #{build} #{pgo_base} " \
        "-DLEPTRIS_BUILD_CLI=ON -DLEPTRIS_ENABLE_PGO=GENERATE"
     sh "cmake --build #{build}/build --config Release -j 4"
