@@ -5,6 +5,7 @@
  * bulk — one cache round-trip, zero Ruby frames, zero FFI
  * marshaling per node. */
 #include <ruby.h>
+#include <ruby/encoding.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -266,7 +267,13 @@ static VALUE nn_name(VALUE self)
     const char *s;
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     s = f_elem_name(n->ptr);
-    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+    /* Interned (shared, frozen) fstring: element names repeat
+     * massively across a document — one RString per distinct name
+     * per process instead of one per read (lutaml/moxml#249:
+     * ~18% of consumer materialize allocations were fresh name
+     * strings). Names are identifiers; nothing downstream mutates
+     * them in place (renames mint new strings). */
+    return s ? rb_enc_interned_str(s, strlen(s), rb_utf8_encoding()) : Qnil;
 }
 
 static VALUE nn_content(VALUE self)
