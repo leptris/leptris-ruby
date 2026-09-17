@@ -22,6 +22,7 @@ module Leptris::XML::RelaxNG
   #     rng = Leptris::XML::RelaxNG.parse(schema_xml)
   #     rng.valid?(doc)      # => true/false
   #     rng.validate(doc)    # => [] or ["1:0: error: element ..."]
+  #     rng.validate_errors(doc) # => [] or [{line:, column:, message:}]
   #
   class Schema
     # GC-managed compiled handle.
@@ -63,20 +64,17 @@ module Leptris::XML::RelaxNG
     # libleptris 1.9.179 (#878): errors accumulate — every failure
     # from the validate call is returned, not just the first.
     def validate(document)
-      ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
-                                                  document.c_ptr)
-      return [] if ok != 0
-      count = Leptris::XML::FFI.leptris_rng_error_count(@handle)
-      return [Leptris::XML::FFI.leptris_rng_error(@handle)].compact if count.zero?
-      # Jing's rendering for every accumulated error, matching the
-      # single-error accessor's format ("line:col: error: msg").
-      Array.new(count) do |i|
-        msg = Leptris::XML::FFI.leptris_rng_error_message(@handle, i)
-        next nil if msg.nil?
-        line = Leptris::XML::FFI.leptris_rng_error_line(@handle, i)
-        col = Leptris::XML::FFI.leptris_rng_error_column(@handle, i)
-        line > 0 ? "#{line}:#{col}: error: #{msg}" : msg
-      end.compact
+      structured = validate_errors(document)
+      unless structured.empty?
+        return structured.map do |e|
+          e[:line] > 0 ? "#{e[:line]}:#{e[:column]}: error: #{e[:message]}"
+                        : e[:message]
+        end
+      end
+      # Invalid verdict with nothing accumulated: the back-compat
+      # single-error accessor is the last resort (nil-safe).
+      return [] if valid?(document)
+      [Leptris::XML::FFI.leptris_rng_error(@handle)].compact
     end
 
     def valid?(document)
@@ -88,7 +86,8 @@ module Leptris::XML::RelaxNG
     # callers need for log formatting, instead of re-parsing the
     # Jing-form strings from #validate. Empty when valid. Message,
     # line, and column carry Jing's exact attribution (libleptris
-    # >= 1.9.180).
+    # >= 1.9.179, upstream #878). This is the single enumeration of
+    # the error-accumulation surface; #validate renders these rows.
     def validate_errors(document)
       ok = Leptris::XML::FFI.leptris_rng_validate(@handle,
                                                   document.c_ptr)
