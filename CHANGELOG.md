@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.188.0] - 2026-09-17
+
+### Changed — libleptris 1.9.186 → 1.9.188 (lockstep)
+
+- **RELAX NG: foreign-namespace annotation elements are skipped**
+  in patterns (1.9.187) — `a:documentation` and friends no longer
+  abort schema compilation (the metanorma isodoc-compile.rng
+  family). Spec-pinned.
+- **RELAX NG: `externalRef`** (1.9.188) — the referenced grammar's
+  `<start>` splices in as the pattern body, defines merge so refs
+  inside the external grammar resolve; depth-guarded, href-relative
+  via `parse_file`. Spec-pinned.
+- **RELAX NG: `anyName` name class** (RELAX NG 4.14, 1.9.188) for
+  elements and attributes — the biblio.rng recursive AnyElement
+  shape. Spec-pinned. Known engine laxness (bare text under the
+  wildcard validates; Jing rejects) filed upstream as
+  leptris/leptris#1153 — deliberately not pinned here.
+- **`leptris_rng_parse_file` publishes schema-parse detail** to
+  `leptris_last_error` (1.9.188) — `Schema.parse_file` failures
+  now raise with the engine's reason instead of an empty channel.
+  Spec-pinned.
+- **HTML: after-body insertion-mode restore** (1.9.187, #659) —
+  non-whitespace text after `</body>` switches back to in-body;
+  text and later comments flow into the still-open body.
+  Spec-pinned.
+- No public-symbol changes: audit 322/322.
+
 ## [1.9.186.1] - 2026-09-17
 
 ### Added
