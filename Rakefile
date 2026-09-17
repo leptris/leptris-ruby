@@ -98,10 +98,40 @@ task :compile do
   # literal on Windows shells (they broke the MSVC build).
   # GCC-family only — MSVC's cl rejects the flag outright (D8021).
   cflags = Gem.win_platform? ? "" : "-Wno-error=incompatible-pointer-types"
-  sh "cmake -B #{build}/build -S #{build} " \
-     "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
-     "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
-  sh "cmake --build #{build}/build --config Release -j 4"
+  cmake_base =
+    "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
+    "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
+
+  # Two-stage PGO (engine CMake: LEPTRIS_ENABLE_PGO GENERATE/USE;
+  # measured ~20% CPU on the DOM parse path, v1.9.188 worktree A/B,
+  # every PGO round beating every baseline round). Train via the CLI
+  # over the tarball's XML corpus. Windows keeps the plain build —
+  # MSVC PGO is inherently LTCG and these gems link the DLL as-is.
+  # LEPTRIS_PGO=0 escapes to the single-stage build.
+  pgo = ENV["LEPTRIS_PGO"] != "0" && !Gem.win_platform?
+  if pgo
+    sh "cmake -B #{build}/build -S #{build} #{cmake_base} " \
+       "-DLEPTRIS_BUILD_CLI=ON -DLEPTRIS_ENABLE_PGO=GENERATE"
+    sh "cmake --build #{build}/build --config Release -j 4"
+    cli = File.join(build, "build", "cli", "leptris")
+    pgo_dir = File.join(build, "build", "pgo-data")
+    corpus = Dir[File.join(build, "benchmarks", "data", "*.xml")]
+    corpus.each do |xml|
+      # a corpus file can be deliberately malformed; training tolerates it
+      system({ "LLVM_PROFILE_FILE" => File.join(pgo_dir, "%p.profraw") },
+             cli, "parse", xml, out: File::NULL, err: File::NULL)
+    end
+    if RUBY_PLATFORM =~ /darwin/
+      sh "xcrun llvm-profdata merge -output=#{File.join(pgo_dir, 'default.profdata')} " \
+         "#{File.join(pgo_dir, '*.profraw')}"
+    end
+    sh "cmake -B #{build}/build -S #{build} #{cmake_base} " \
+       "-DLEPTRIS_BUILD_CLI=OFF -DLEPTRIS_ENABLE_PGO=USE"
+    sh "cmake --build #{build}/build --config Release -j 4"
+  else
+    sh "cmake -B #{build}/build -S #{build} #{cmake_base}"
+    sh "cmake --build #{build}/build --config Release -j 4"
+  end
   # Windows names the shared library leptris.dll (no "lib" prefix);
   # vendoring under the uniform libleptris.* name keeps the FFI
   # search order simple. libleptris >= 1.3.0 renames the DLL to
