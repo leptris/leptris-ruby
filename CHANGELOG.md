@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.186.1] - 2026-09-17
+
+### Added
+
+- `RelaxNG::Schema#validate_errors(document)` — structured
+  `[{ line:, column:, message: }]` rows (Jing's exact attribution,
+  upstream #878 accumulation), for callers that need the fields
+  for log formatting instead of re-parsing the Jing-form strings
+  from `#validate`. `#validate` now renders its strings from the
+  same rows (one enumeration of the error surface; identical
+  output, including the back-compat zero-count fallback).
+
 ## [1.9.186.0] - 2026-09-17
 
 ### Changed — libleptris 1.9.181 → 1.9.186 (lockstep)

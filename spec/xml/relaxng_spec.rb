@@ -38,6 +38,13 @@ RSpec.describe Leptris::XML::RelaxNG do
     expect(structured.first[:line]).to be_an(Integer)
     expect(structured.first[:column]).to be_an(Integer)
     expect(structured.first[:message]).to include("attribute")
+
+    # validate renders its strings from the same rows
+    rendered = structured.map do |e|
+      e[:line] > 0 ? "#{e[:line]}:#{e[:column]}: error: #{e[:message]}"
+                    : e[:message]
+    end
+    expect(rng.validate(bad)).to eq(rendered)
   end
 
   it "parses schema files and resolves <include> relative to them" do
