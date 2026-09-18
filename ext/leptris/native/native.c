@@ -1941,6 +1941,115 @@ static VALUE nf_snapshot_rows(VALUE self, VALUE document, VALUE addr)
     return out;
 }
 
+/* ---- Struct plan executor (moxml "miles faster" round) ------------
+ * The consumer's shape compiles to spec: name (interned String) ->
+ * [Struct class, attrs Hash (name -> slot Symbol), text slot Symbol
+ * or nil, children slot Symbol or nil]. C walks the subtree
+ * pre-order, mints typed structs directly (rb_struct_new +
+ * rb_struct_aset), and attaches each to the nearest OPEN frame —
+ * exactly Moxml::Plan's semantics: an unmatched element is a
+ * barrier (its matched descendants surface at top level). Zero
+ * Ruby frames and zero intermediate rows per element. */
+static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
+                      VALUE roots)
+{
+    if (f_node_type(node) == WS_NODE_ELEMENT) {
+        const char *name_c = f_elem_name(node);
+        VALUE entry = name_c ? rb_hash_aref(spec,
+                            rb_enc_interned_str(name_c, strlen(name_c),
+                                                rb_utf8_encoding()))
+                             : Qnil;
+
+        /* Complete deeper frames: pre-order means any open frame at
+         * depth >= this element's depth belongs to an earlier
+         * subtree that ended before this row. */
+        while (RARRAY_LEN(stack) >= 2 &&
+               NUM2INT(rb_ary_entry(stack, RARRAY_LEN(stack) - 2)) >=
+                 depth) {
+            rb_ary_pop(stack);
+            rb_ary_pop(stack);
+        }
+
+        if (!NIL_P(entry)) {
+            VALUE klass = rb_ary_entry(entry, 0);
+            VALUE attrs_spec = rb_ary_entry(entry, 1);
+            VALUE text_slot = rb_ary_entry(entry, 2);
+            VALUE children_slot = rb_ary_entry(entry, 3);
+            VALUE value = rb_struct_new(klass);
+
+            for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
+                const char *an = f_attr_name(a);
+                VALUE slot = an ? rb_hash_aref(attrs_spec,
+                                      rb_enc_interned_str(an, strlen(an),
+                                                          rb_utf8_encoding()))
+                                : Qnil;
+                if (!NIL_P(slot)) {
+                    const char *av = f_attr_value(node, a);
+                    rb_struct_aset(value, slot,
+                                   av ? rb_utf8_str_new_cstr(av) : Qnil);
+                }
+            }
+            if (!NIL_P(text_slot)) {
+                void *c;
+                for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+                    if (f_node_type(c) == WS_NODE_TEXT) {
+                        const char *t = f_text_content(c);
+                        rb_struct_aset(value, text_slot,
+                                       t ? rb_utf8_str_new_cstr(t) : Qnil);
+                        break;
+                    }
+                }
+            }
+
+            /* attach: nearest open frame carrying a children array;
+             * barriers (unmatched ancestors) and the root surface
+             * the value at top level — Moxml::Plan's contract. */
+            if (RARRAY_LEN(stack) >= 2 &&
+                rb_ary_entry(stack, RARRAY_LEN(stack) - 1) != Qnil) {
+                rb_ary_push(rb_ary_entry(stack, RARRAY_LEN(stack) - 1),
+                            value);
+            } else {
+                rb_ary_push(roots, value);
+            }
+
+            if (!NIL_P(children_slot)) {
+                VALUE children = rb_ary_new();
+                rb_struct_aset(value, children_slot, children);
+                rb_ary_push(stack, INT2NUM(depth));
+                rb_ary_push(stack, children);
+            }
+        } else {
+            /* unmatched: barrier frame — descendants must not
+             * attach through it (Moxml::Plan parity). */
+            rb_ary_push(stack, INT2NUM(depth));
+            rb_ary_push(stack, Qnil);
+        }
+
+        void *c;
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            plan_walk(c, depth + 1, spec, stack, roots);
+        }
+    } else if (f_node_type(node) == WS_NODE_DOCTYPE ||
+               f_node_type(node) == 9) {
+        void *dc = f_first_child(node);
+        while (dc) {
+            plan_walk(dc, depth, spec, stack, roots);
+            dc = f_next_sibling(dc);
+        }
+    }
+}
+
+static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
+                             VALUE spec)
+{
+    (void)self;
+    (void)document;
+    VALUE roots = rb_ary_new();
+    plan_walk((void *)(uintptr_t)NUM2ULL(addr), 0, spec,
+              rb_ary_new(), roots);
+    return roots;
+}
+
 /* ---- inner_html in one C pass (TODO.perf/18) --------------------
  * Serializes the receiver's children into one growable buffer:
  * elements via leptris_element_serialize_into (the same opts the
@@ -2490,6 +2599,8 @@ void Init_native(void)
                               nf_snapshot_subtree, 2);
     rb_define_module_function(m_native, "snapshot_rows",
                               nf_snapshot_rows, 2);
+    rb_define_module_function(m_native, "plan_structs",
+                              nf_plan_structs, 3);
     rb_define_module_function(m_native, "doc_handle_attach",
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
