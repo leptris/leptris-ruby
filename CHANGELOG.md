@@ -41,6 +41,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TruffleRuby/JRuby on armv7. Completes platform parity with the
   sibling project's table.
 
+### Fixed
+
+- **macOS floor of the vendored dylibs (was: macOS 26 only)**: the
+  published darwin gems' `libleptris.dylib` carried
+  `LC_BUILD_VERSION minos 26.0` — the CI runner's SDK default —
+  and refused to load on any older macOS. The compile task now
+  sets `MACOSX_DEPLOYMENT_TARGET=11.0` for cmake (a plain
+  `-DCMAKE_OSX_DEPLOYMENT_TARGET` lands UNINITIALIZED and is
+  ignored); verified `minos 11.0` locally. The extconf.rb pin had
+  only ever covered the native bundle.
+- **glibc floor of the linux gems (was: glibc ≥ 2.38)**: the
+  x86_64 gem was built on a 24.04 runner and leaked GLIBC_2.38
+  symbol requirements — Debian 12 / Ubuntu 22.04 hosts could not
+  load it (the aarch64 gem likewise via the 24.04-arm runner).
+  The x86_64 leg now builds natively on ubuntu-22.04 (floor
+  2.35) and the aarch64 leg builds in a qemu linux/arm64
+  bookworm container (floor 2.36).
+
 ## [1.9.193.0] - 2026-09-17
 
 ### Changed — libleptris 1.9.192 -> 1.9.193 (lockstep)

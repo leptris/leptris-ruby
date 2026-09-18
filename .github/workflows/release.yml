@@ -99,10 +99,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: x86_64-linux
-          - os: ubuntu-24.04-arm
-            platform: aarch64-linux
           - os: windows-latest
             platform: x64-mingw32
           - os: windows-latest
@@ -244,12 +242,16 @@ jobs:
             lib/libutf8proc.*
 
   build-arm32:
-    # 32-bit ARM (armv7): no GitHub-hosted runner exists — build
-    # under qemu binfmt emulation in per-libc containers, the same
-    # shape the sibling project verified as true 32-bit ARM ELF.
-    # PGO is OFF for the emulated legs: the two-stage trainer's
-    # instrumented build + corpus run cost 10-20x under qemu; the
-    # plain single-stage build ships the identical library.
+    # 32-bit ARM (armv7) has no GitHub-hosted runner, and the
+    # aarch64 glibc leg is ALSO built here under qemu: a 24.04-arm
+    # native build leaked GLIBC_2.38 requirements (glibc 2.39
+    # runner), locking out Debian 12 / Ubuntu 22.04 hosts — the
+    # bookworm base keeps the floor at 2.36. qemu binfmt
+    # emulation, the same shape the sibling project verified as
+    # true 32-bit ARM ELF. PGO is OFF for the emulated legs: the
+    # two-stage trainer's instrumented build + corpus run cost
+    # 10-20x under qemu; the plain single-stage build ships the
+    # identical library.
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
@@ -259,10 +261,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - platform: aarch64-linux
+            image: ruby:3.3-bookworm
+            qplatform: linux/arm64
           - platform: arm-linux
             image: ruby:3.3-bookworm
+            qplatform: linux/arm/v7
           - platform: arm-linux-musl
             image: ruby:3.3-alpine
+            qplatform: linux/arm/v7
     steps:
       - uses: actions/checkout@v4
         with:
@@ -270,12 +277,12 @@ jobs:
 
       - uses: docker/setup-qemu-action@v3
 
-      - name: Build gem in emulated armv7 container
+      - name: Build gem in emulated ARM container
         env:
           TARGET_PLATFORM: ${{ matrix.platform }}
         run: |
           docker run --rm \
-            --platform linux/arm/v7 \
+            --platform '${{ matrix.qplatform }}' \
             -v "$PWD:/work" \
             -w /work \
             -e BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
