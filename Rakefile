@@ -128,6 +128,12 @@ task :compile do
   # LEPTRIS_PGO=0 escapes to the single-stage build.
   pgo = ENV["LEPTRIS_PGO"] != "0" && !Gem.win_platform?
   if pgo
+    # The trainer is disposable infrastructure — an engine-side
+    # trainer break (e.g. leptris/leptris#1204: GCC LTO internalizes
+    # CLI-only API symbols and the CLI link dies) must degrade the
+    # gem to the plain build (loudly, with the issue pointer), not
+    # block every platform's release.
+    begin
     # _GNU_SOURCE for the TRAIN build only: the CLI (the trainer, not
     # built in normal gems) uses fileno, which musl hides without a
     # POSIX feature macro (glibc is lenient). Upstream fix pending in
@@ -168,6 +174,15 @@ task :compile do
     sh "cmake -B #{build}/build -S #{build} #{cmake_base} " \
        "-DLEPTRIS_BUILD_CLI=OFF -DLEPTRIS_ENABLE_PGO=USE"
     sh "cmake --build #{build}/build --config Release -j 4"
+    rescue => e
+      warn "leptris: PGO trainer failed (#{e.message.to_s[0, 160]}); " \
+           "shipping the single-stage build — the parse path loses the " \
+           "~20% PGO gain this release (leptris/leptris#1204 tracks the " \
+           "engine-side trainer break)"
+      rm_rf(File.join(build, "build"))
+      sh "cmake -B #{build}/build -S #{build} #{cmake_base}"
+      sh "cmake --build #{build}/build --config Release -j 4"
+    end
   else
     sh "cmake -B #{build}/build -S #{build} #{cmake_base}"
     sh "cmake --build #{build}/build --config Release -j 4"
