@@ -106,4 +106,22 @@ RSpec.describe "WHATWG HTML full compatibility (libleptris #659 closed)" do
     expect(doc.at_css("head script")).not_to be_nil
     expect(doc.at_css("body p")).not_to be_nil
   end
+
+  it "makes comments past </html> document-level epilog nodes (1.9.196)" do
+    doc = whatwg("<html><body>x</body></html><!--epilog-->")
+    # the comment survives at the document level, after the html element
+    last = doc.children.to_a.last
+    expect(last.comment?).to be true
+  end
+
+  it "nests a table inside a cell instead of foster-parenting (1.9.196)" do
+    doc = whatwg("<table><tr><td><table><tr><td>deep</td></tr></table></td></tr></table>")
+    tables = doc.css("table")
+    expect(tables.size).to eq(2)
+    # the inner table's parent is the outer table's td — nested, not
+    # foster-parented out of the cell
+    inner = tables[1]
+    expect(inner.parent.name).to eq("td")
+    expect(inner.content).to eq("deep")
+  end
 end
