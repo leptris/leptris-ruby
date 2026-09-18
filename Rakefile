@@ -98,9 +98,19 @@ task :compile do
   # literal on Windows shells (they broke the MSVC build).
   # GCC-family only — MSVC's cl rejects the flag outright (D8021).
   cflags = Gem.win_platform? ? "" : "-Wno-error=incompatible-pointer-types"
+  # macOS floor for the VENDORED dylibs: without this, cmake uses
+  # the building machine's SDK default (a macos-latest runner
+  # shipped minos 26.0) and the dylib refuses to load on user
+  # machines older than the runner — the extconf.rb 11.0 pin only
+  # ever covered the native bundle. CMake initializes
+  # CMAKE_OSX_DEPLOYMENT_TARGET from this env var at first
+  # configure (a plain -D lands UNINITIALIZED and is ignored).
+  # 11.0 = the oldest macOS GitHub still hosts runners for;
+  # matches extconf.rb.
+  ENV["MACOSX_DEPLOYMENT_TARGET"] ||= "11.0" if RUBY_PLATFORM =~ /darwin/
   cmake_base =
     "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
-    "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
+    "-DCMAKE_PREFIX_PATH=#{u8_prefix}#{osx_target} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
 
   # Two-stage PGO (engine CMake: LEPTRIS_ENABLE_PGO GENERATE/USE;
   # measured ~20% CPU on the DOM parse path, v1.9.188 worktree A/B,
