@@ -23,9 +23,10 @@ raise "serialize" unless doc.to_xml.include?('<a x="2">z</a>')
 rng = Leptris::XML::RelaxNG.parse(
   '<element name="r" xmlns="http://relaxng.org/ns/structure/1.0">' \
   "<attribute name=\"id\"/></element>")
-raise "rng verdict" unless rng.valid?(doc)
-raise "rng errors shape" unless rng.validate_errors(doc).is_a?(Array)
-raise "rng report shape" unless rng.validate_report(doc).is_a?(Array)
+rng_doc = Leptris::XML::Document.parse(%q{<r id='1'/>})
+raise "rng verdict" unless rng.valid?(rng_doc)
+raise "rng errors shape" unless rng.validate_errors(rng_doc).is_a?(Array)
+raise "rng report shape" unless rng.validate_report(rng_doc).is_a?(Array)
 
 # The #318 class: node-kind constants must live in the shipped
 # Ruby layer (plain constants cannot go missing with the lib).
