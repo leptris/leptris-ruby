@@ -1976,6 +1976,8 @@ static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
             VALUE text_slot = rb_ary_entry(entry, 2);
             VALUE children_slot = rb_ary_entry(entry, 3);
             VALUE value = rb_struct_new(klass);
+            RB_GC_GUARD(klass);
+            RB_GC_GUARD(attrs_spec);
 
             for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
                 const char *an = f_attr_name(a);
@@ -2011,6 +2013,8 @@ static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
             } else {
                 rb_ary_push(roots, value);
             }
+            RB_GC_GUARD(value);
+            RB_GC_GUARD(entry);
 
             if (!NIL_P(children_slot)) {
                 VALUE children = rb_ary_new();
@@ -2045,8 +2049,10 @@ static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
     (void)self;
     (void)document;
     VALUE roots = rb_ary_new();
-    plan_walk((void *)(uintptr_t)NUM2ULL(addr), 0, spec,
-              rb_ary_new(), roots);
+    VALUE stack = rb_ary_new();
+    plan_walk((void *)(uintptr_t)NUM2ULL(addr), 0, spec, stack, roots);
+    RB_GC_GUARD(spec);
+    RB_GC_GUARD(stack);
     return roots;
 }
 
