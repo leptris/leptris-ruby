@@ -1,0 +1,59 @@
+name: gem-smoke
+
+# Post-publish guard (the teptris-ruby template): install the
+# PUBLISHED gem from rubygems on every released platform/Ruby and
+# round-trip it. Catches what build+test cannot: packaging skew,
+# platform-gem resolution, native-layer loading on user toolchains.
+# The round-trip covers the RNG faces (validate_errors/report) and
+# asserts the NODE_* constants ship in the Ruby layer (#318 class).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Published version to smoke (defaults to latest)'
+        type: string
+        required: false
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            ruby-version: '3.3'
+          - os: ubuntu-24.04-arm
+            ruby-version: '3.3'
+          - os: macos-latest
+            ruby-version: '3.3'
+          - os: macos-15-intel
+            ruby-version: '3.3'
+          - os: windows-latest
+            ruby-version: '3.3'
+          - os: windows-latest
+            ruby-version: '3.4'
+          - os: windows-latest
+            ruby-version: '4.0'
+          - os: windows-11-arm
+            ruby-version: '3.4'
+          - os: windows-11-arm
+            ruby-version: '4.0'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+
+      - name: Install published gem
+        env:
+          SMOKE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          gem install leptris --no-document ${SMOKE_VERSION:+-v "$SMOKE_VERSION"}
+
+      - name: Round-trip the installed gem
+        shell: bash
+        run: ruby scripts/gem_smoke.rb

@@ -5,6 +5,35 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.194.3] - 2026-09-18
+
+### Added
+
+- **gem-smoke workflow** (the teptris-ruby template, 9 legs): after
+  every release, install the PUBLISHED gem from rubygems on
+  ubuntu/arm64-ubuntu/macos-intel/macos-arm and Windows ucrt
+  (x64 3.3/3.4/4.0, arm64 3.4/4.0), then round-trip
+  parse/xpath/mutate/serialize/RelaxNG against the installed copy —
+  with an explicit guard that the NODE_* constants ship in the
+  Ruby layer (the sibling project's #318 class: a packaging skew
+  surfaced as NameErrors in host apps). `scripts/gem_smoke.rb`.
+- **Ruby-source parity gate in the publish job**: every platform
+  variant's `lib/**/*.rb` must be byte-identical before anything
+  is pushed — a skew (one cell packaging from a different source
+  state) aborts the release.
+
+### Changed
+
+- The armv7 platform legs (`arm-linux`, `arm-linux-musl`) are
+  **experimental** (continue-on-error) until upstream ports the
+  64-bit-pinned layouts: the engine's round-19 ABI asserts
+  correctly abort on 32-bit (`sizeof(leptris_element) == 72`
+  requires 8-byte pointers) — filed as leptris/leptris#1174 with
+  both logs. aarch64-linux (qemu bookworm, glibc floor 2.36)
+  stays strict. The 1.9.194.0 release run correctly refused to
+  publish on their failure; .1/.2 were the parallel hot-read
+  aliases.
+
 ## [1.9.194.0] - 2026-09-18
 
 ### Changed — libleptris 1.9.193 → 1.9.194 (lockstep)
