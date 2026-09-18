@@ -301,8 +301,10 @@ jobs:
             image: ruby:3.3-bookworm
             qplatform: linux/ppc64le
             experimental: true
-          - platform: s390x-linux
-            image: ruby:3.3-bookworm
+          # s390x ships as MUSL: official ruby images dropped s390x
+          # entirely, but Alpine still builds ruby 3.3 for it
+          - platform: s390x-linux-musl
+            image: ruby:3.3-alpine
             qplatform: linux/s390x
             experimental: true
     steps:

@@ -27,7 +27,7 @@ module Leptris
         when /arm.*linux/ then %w[arm-linux arm-linux-musl]
         # POWER8+ little-endian and IBM Z (qemu-built platform gems)
         when /ppc64le.*linux/ then %w[ppc64le-linux]
-        when /s390x.*linux/ then %w[s390x-linux]
+        when /s390x.*linux/ then %w[s390x-linux s390x-linux-musl]
         else []
         end
       end

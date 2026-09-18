@@ -349,7 +349,7 @@ platforms = [
   "arm-linux",
   "arm-linux-musl",
   "ppc64le-linux",
-  "s390x-linux",
+  "s390x-linux-musl",
 ]
 
 platforms.each do |platform|
