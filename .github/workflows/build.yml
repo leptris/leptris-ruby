@@ -120,10 +120,12 @@ jobs:
             qplatform: linux/ppc64le
             image: ruby:3.3-bookworm
             ruby: image-ruby
+          # official ruby images dropped s390x entirely; Alpine still
+          # ships ruby 3.3 for s390x as a release arch
           - arch: s390x-linux
             qplatform: linux/s390x
-            image: debian:bookworm
-            ruby: distro-ruby
+            image: alpine:3.20
+            ruby: alpine-ruby
     steps:
       - uses: actions/checkout@v4
 
@@ -140,12 +142,16 @@ jobs:
             -e BUNDLE_WITHOUT=benchmark \
             "${IMAGE}" sh -c '
               set -eux
-              apt-get update -qq
-              apt-get install -y -qq build-essential cmake bash git curl
+              if [ "${{ matrix.ruby }}" = "alpine-ruby" ]; then :; else
+                apt-get update -qq
+                apt-get install -y -qq build-essential cmake bash git curl
+              fi
               git config --global --add safe.directory /work
               if [ "${{ matrix.ruby }}" = "distro-ruby" ]; then
                 apt-get install -y -qq ruby ruby-dev
                 gem install bundler --no-document
+              elif [ "${{ matrix.ruby }}" = "alpine-ruby" ]; then
+                apk add --no-cache ruby ruby-dev build-base cmake bash curl git
               fi
               bundle install --jobs 4 --retry 3
               bundle exec rake compile audit:symbols
