@@ -101,6 +101,7 @@ module Leptris
       end
 
       typedef :pointer, :leptris_document
+      typedef :pointer, :leptris_dtd
       typedef :pointer, :leptris_element
       typedef :pointer, :leptris_node_ref
       typedef :pointer, :leptris_attribute
@@ -967,6 +968,30 @@ attach_function :leptris_parse_string,
         [:leptris_schematron, :leptris_document], :leptris_document
       attach_function :leptris_schematron_error,
         [:leptris_schematron], :string
+
+      # DTD validation (libleptris >= 1.9.200, #1183): parse an
+      # external subset, validate any document against it. The error
+      # struct's message/element_name are library-allocated and
+      # valid until the next validate call.
+      class DTDError < ::FFI::Struct
+        layout :message, :pointer,
+               :element_name, :pointer,
+               :line, :int,
+               :column, :int
+      end
+
+      # The DTD surface ships with libleptris >= 1.9.201 (the export
+      # fix); guard so older vendored libraries keep the whole FFI
+      # module loadable — DTD raises at use time instead.
+      begin
+        attach_function :leptris_dtd_parse,
+          [:string, :size_t], :leptris_dtd
+        attach_function :leptris_dtd_validate,
+          [:leptris_document, :leptris_dtd, :pointer], :int
+        attach_function :leptris_dtd_free,
+          [:leptris_dtd], :void
+      rescue ::FFI::NotFoundError
+      end
 
       # Tree diff (libleptris >= 1.9.126 family): equal subtrees
       # prune in O(1) by the #869 Merkle digest; diverging regions

@@ -25,6 +25,7 @@ module Leptris
     autoload :XPath, "leptris/xml/xpath"
     autoload :EvaluationContext, "leptris/xml/evaluation_context"
     autoload :Schematron, "leptris/xml/schematron"
+    autoload :DTD, "leptris/xml/dtd"
     autoload :Diff, "leptris/xml/diff"
     autoload :Descriptor, "leptris/xml/descriptor"
     autoload :PlanValue, "leptris/xml/plan_value"
