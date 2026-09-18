@@ -328,6 +328,8 @@ platforms = [
   "aarch64-linux-musl",
   "x86_64-darwin",
   "arm64-darwin",
+  "arm-linux",
+  "arm-linux-musl",
 ]
 
 platforms.each do |platform|
