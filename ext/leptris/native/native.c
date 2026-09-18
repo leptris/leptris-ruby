@@ -1971,13 +1971,14 @@ static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
         }
 
         if (!NIL_P(entry)) {
-            VALUE klass = rb_ary_entry(entry, 0);
-            VALUE attrs_spec = rb_ary_entry(entry, 1);
-            VALUE text_slot = rb_ary_entry(entry, 2);
-            VALUE children_slot = rb_ary_entry(entry, 3);
+            /* volatile: keep live VALUEs on the C stack so the
+             * conservative scanner sees them on every ABI (windows
+             * x64 keeps some only in callee-saved registers). */
+            volatile VALUE klass = rb_ary_entry(entry, 0);
+            volatile VALUE attrs_spec = rb_ary_entry(entry, 1);
+            volatile VALUE text_slot = rb_ary_entry(entry, 2);
+            volatile VALUE children_slot = rb_ary_entry(entry, 3);
             VALUE value = rb_struct_new(klass);
-            RB_GC_GUARD(klass);
-            RB_GC_GUARD(attrs_spec);
 
             for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
                 const char *an = f_attr_name(a);
