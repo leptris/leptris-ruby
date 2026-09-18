@@ -1880,6 +1880,67 @@ static VALUE nf_snapshot_subtree(VALUE self, VALUE document, VALUE addr)
     return out;
 }
 
+/* ---- Lean plan rows (lutaml/moxml#249 plan layer) ----------------
+ * Elements only, one 4-tuple per element: [name, attrs_flat, text,
+ * depth] — no Hash per row, no text/comment rows, attr and element
+ * NAMES interned (shared frozen fstrings: names repeat across the
+ * document, so repeat reads allocate zero). Pre-order, depth 0 at
+ * the addressed node. */
+static void walk_rows_impl(void *node, int depth, VALUE out)
+{
+    if (f_node_type(node) == WS_NODE_ELEMENT) {
+        VALUE row = rb_ary_new_capa(4);
+        VALUE attrs;
+        const char *name = f_elem_name(node);
+        const char *an;
+        const char *av;
+        void *a;
+        void *c;
+
+        rb_ary_store(row, 0, name ? rb_enc_interned_str(name, strlen(name),
+                                                     rb_utf8_encoding())
+                                  : Qnil);
+        attrs = rb_ary_new();
+        for (a = f_attr_first(node); a; a = f_attr_next(a)) {
+            an = f_attr_name(a);
+            av = f_attr_value(node, a);
+            rb_ary_push(attrs, an ? rb_enc_interned_str(an, strlen(an),
+                                                         rb_utf8_encoding())
+                                  : Qnil);
+            rb_ary_push(attrs, av ? rb_utf8_str_new_cstr(av) : Qnil);
+        }
+        rb_ary_store(row, 1, attrs);
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            if (f_node_type(c) == WS_NODE_TEXT) {
+                const char *t = f_text_content(c);
+                rb_ary_store(row, 2, t ? rb_utf8_str_new_cstr(t) : Qnil);
+                break;
+            }
+        }
+        rb_ary_store(row, 3, INT2NUM(depth));
+        rb_ary_push(out, row);
+
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            walk_rows_impl(c, depth + 1, out);
+        }
+    } else if (f_node_type(node) == WS_NODE_DOCTYPE || f_node_type(node) == 9) {
+        void *dc = f_first_child(node);
+        while (dc) {
+            walk_rows_impl(dc, depth, out);
+            dc = f_next_sibling(dc);
+        }
+    }
+}
+
+static VALUE nf_snapshot_rows(VALUE self, VALUE document, VALUE addr)
+{
+    (void)self;
+    (void)document;
+    VALUE out = rb_ary_new();
+    walk_rows_impl((void *)(uintptr_t)NUM2ULL(addr), 0, out);
+    return out;
+}
+
 /* ---- inner_html in one C pass (TODO.perf/18) --------------------
  * Serializes the receiver's children into one growable buffer:
  * elements via leptris_element_serialize_into (the same opts the
@@ -2422,6 +2483,8 @@ void Init_native(void)
                               nf_fast_inner_xml, 1);
     rb_define_module_function(m_native, "snapshot_subtree",
                               nf_snapshot_subtree, 2);
+    rb_define_module_function(m_native, "snapshot_rows",
+                              nf_snapshot_rows, 2);
     rb_define_module_function(m_native, "doc_handle_attach",
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
