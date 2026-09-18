@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.198.0] - 2026-09-18
+
+### Changed — libleptris 1.9.197 → 1.9.198 (lockstep)
+
+- **The root_doc_map TLS memo no longer resolves
+  namebp-carrying elements** — upstream adopted exactly the
+  one-line guard filed from our ubuntu-3.4 CI investigation
+  (leptris/leptris#1189, closed): a recycled root address no
+  longer makes `set_root` mis-reject a same-document attach as
+  "cross-document". The seam_and_reads spec that exposed it now
+  runs green across the full grid, deterministically.
+- HTML: memchr prefilter in the raw-text close-tag scan.
+- No public-symbol changes: audit 323/323. 727/0 both modes.
+
 ## [1.9.197.0] - 2026-09-18
 
 ### Changed — libleptris 1.9.194 → 1.9.197 (lockstep)
