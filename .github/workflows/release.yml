@@ -438,7 +438,12 @@ jobs:
             fi
             d="/tmp/parity/$name"
             mkdir -p "$d"
-            tar xzf "$gem" -C "$d" data.tar.gz
+            # Outer read is compression-agnostic: Ruby 4 toolchains
+            # emit UNCOMPRESSED gem tarballs (RubyGems 4 format), and
+            # GNU tar xzf exits 2 on them (bsdtar auto-detects, which
+            # is why the bytes "open fine locally"). The inner
+            # data.tar.gz is always gzipped.
+            tar xf "$gem" -C "$d" data.tar.gz
             tar xzf "$d/data.tar.gz" -C "$d"
             find "$d/lib" -name '*.rb' -type f | sed "s|$d/||" | sort > "$d/list.txt"
             valid=$((valid + 1))
