@@ -24,16 +24,30 @@ jobs:
     uses: metanorma/ci/.github/workflows/prepare-rake.yml@main
 
   test:
-    name: Test on Ruby ${{ matrix.ruby.version }} ${{ matrix.os }}
+    name: Test on Ruby ${{ matrix.ruby-version }} ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: prepare
     if: needs.prepare.outputs.push-for-tag != 'true'
 
-    continue-on-error: ${{ matrix.ruby.experimental }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       max-parallel: 5
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      # The FULL platform/ruby grid, owned in-repo (the shared
+      # metanorma prepare matrix only covered the 3x3
+      # ubuntu/macos/windows core). Every platform the release
+      # SHIPS gets its suite RUN here, not just built: x86_64 +
+      # aarch64 linux, arm64 + intel darwin, x64 + arm64 Windows.
+      # Ruby 3.3 is unavailable on windows-11-arm.
+      matrix:
+        ruby-version: ['3.3', '3.4', '4.0']
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest,
+             macos-15-intel, windows-latest, windows-11-arm]
+        experimental: [false]
+        exclude:
+          # Ruby 3.3 is unavailable on the windows-arm runner
+          - os: windows-11-arm
+            ruby-version: '3.3'
 
     steps:
     - uses: actions/checkout@v4
@@ -41,8 +55,7 @@ jobs:
     - uses: ruby/setup-ruby@master
       with:
         bundler-cache: true
-        ruby-version: ${{ matrix.ruby.version }}
-        rubygems: ${{ matrix.ruby.rubygems }}
+        ruby-version: ${{ matrix.ruby-version }}
 
     # rake compile vendors libleptris (Rakefile LIBLEPTRIS_VERSION pin)
     # into lib/ where the FFI search order finds it -- no env var needed.
@@ -50,3 +63,30 @@ jobs:
     # vendored library, so upstream surface drift fails here first.
     - run: bundle exec rake compile audit:symbols
     - run: bundle exec rspec
+
+  test-musl:
+    # The musl platform gems were BUILT in Alpine but the suite never
+    # ran on musl — libelf/linking/allocator behavior differs from
+    # glibc (the engine's own history: #1166). Same container shape
+    # as the release's build-musl, plus rspec inside.
+    name: Test on Ruby 3.3 alpine (musl)
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.push-for-tag != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile + suite in Alpine container
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BUNDLE_WITHOUT=benchmark \
+            ruby:3.3-alpine sh -c '
+              set -eux
+              apk add --no-cache build-base bash curl git cmake make
+              git config --global --add safe.directory /work
+              bundle install --jobs 4 --retry 3
+              bundle exec rake compile audit:symbols
+              bundle exec rspec
+            '
