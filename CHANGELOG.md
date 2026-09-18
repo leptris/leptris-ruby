@@ -5,7 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.194.3] - 2026-09-18
+## [1.9.195.0] - 2026-09-18
+
+### Changed — libleptris 1.9.194 → 1.9.195 (lockstep)
+
+- **HTML: WHATWG mode is feature-complete upstream (#659 closed)** —
+  the binding now pins the shipped behavior classes in
+  `spec/xml/html_whatwg_full_spec.rb`: active-formatting
+  reconstruction across paragraphs, the adoption agency (misnested
+  formatting reopens inside `<p>`), the Noah's Ark three-element
+  cap, template content outside the live table machinery,
+  RCDATA/rawtext (title/textarea/iframe/noembed/xmp/style),
+  in-table stray-text foster parenting, frameset-mode content
+  drop, foreign integration points, after-body restore, and the
+  script-data escape states. The `:html4` default lane is
+  unchanged.
+- **RNG: required attributes behind `<ref>` are enforced**
+  (#1164). Spec-pinned.
+- **RNG: stray character data under element-only content is
+  rejected (#1153)** — the anyName-wildcard laxness we filed from
+  the v188 pins. Spec-pinned at the verdict level; follow-up filed
+  upstream: the rejection does not yet record an error row
+  (report/legacy channels empty for this case).
+- Engine 1.9.195 also fixes public-API symbols kept through
+  ThinLTO (#1154) — the macOS dylib now exports all 323 declared
+  symbols.
 
 ### Added
 
