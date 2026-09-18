@@ -5,10 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.195.0] - 2026-09-18
+## [1.9.197.0] - 2026-09-18
 
-### Changed — libleptris 1.9.194 → 1.9.195 (lockstep)
+### Changed — libleptris 1.9.194 → 1.9.197 (lockstep)
 
+- **HTML: the html5lib corpus is at ZERO reds upstream** — #659's
+  closing state reached in v1.9.196 (tricky01:8 table scope +
+  marker prune was the last), with table-foreign-scope bursts,
+  after-body/after-after-body comment routing, plaintext
+  raw-to-EOF, nested-table-in-cell, and the document-epilog
+  comment rule. v1.9.197 adds a memchr text-run skip in the
+  tokenizer main loop. The binding's WHATWG battery grows two
+  pins from the zero-reds set: comments past `</html>` become
+  document-level epilog nodes, and a nested table inside a cell
+  nests instead of foster-parenting.
 - **HTML: WHATWG mode is feature-complete upstream (#659 closed)** —
   the binding now pins the shipped behavior classes in
   `spec/xml/html_whatwg_full_spec.rb`: active-formatting
