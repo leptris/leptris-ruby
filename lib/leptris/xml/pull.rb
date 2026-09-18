@@ -136,7 +136,13 @@ module Leptris::XML::Pull
     # disappears from streaming loops.
     NAME_OFFSET = Leptris::XML::FFI::PullEventStruct.offset_of(:name)
     TEXT_OFFSET = Leptris::XML::FFI::PullEventStruct.offset_of(:text)
-    private_constant :NAME_OFFSET, :TEXT_OFFSET
+    # Length-driven text reads (1.9.200's ERROR-event text_len fix
+    # closed the last zero-length path): NUL-terminated read_string
+    # over-reads unterminated content and truncates on embedded
+    # NULs.
+    TEXT_LEN_OFFSET = Leptris::XML::FFI::PullEventStruct.offset_of(:text_len)
+    SIZE_T_64 = FFI.type_size(:size_t) == 8
+    private_constant :NAME_OFFSET, :TEXT_OFFSET, :TEXT_LEN_OFFSET, :SIZE_T_64
 
     # Advances the cursor and returns the next Event, or nil after the
     # end of the document. Attribute values are captured during
@@ -149,8 +155,12 @@ module Leptris::XML::Pull
       name_ptr = raw.get_pointer(NAME_OFFSET)
       text_ptr = raw.get_pointer(TEXT_OFFSET)
       attrs = type == :start_element ? capture_attrs : nil
+      # size_t is pointer-width: dispatch the read once (Pointer has
+      # no width-generic accessor) — no per-event struct wrapper.
+      text_len = SIZE_T_64 ? raw.get_uint64(TEXT_LEN_OFFSET)
+                           : raw.get_uint32(TEXT_LEN_OFFSET)
       text = text_ptr.null? ? nil :
-        text_ptr.read_string.force_encoding(Encoding::UTF_8)
+        text_ptr.read_string(text_len).force_encoding(Encoding::UTF_8)
       text = Leptris::XML::FFI.read_pi_data(text) if type == :pi
       Event.new(
         type,

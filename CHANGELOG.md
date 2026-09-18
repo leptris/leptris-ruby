@@ -5,6 +5,20 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.201.0] - 2026-09-19
+
+### Changed — libleptris 1.9.199 → 1.9.201 (lockstep)
+
+- **SAX pull ERROR events carry their text length** (1.9.200) —
+  the last event path without it; the binding's pull reader now
+  reads text **length-driven** (`text_len`, width-dispatched)
+  instead of NUL-terminated, per the engine's event contract.
+  Spec-pinned: a pull ERROR event's message arrives intact.
+- `leptris diff --summary/--json` CLI modes (1.9.200) — engine
+  surface unchanged (CLI-only); the binding's diff accessors were
+  already complete.
+- No public-symbol changes: audit 323/323. 730/0 both modes.
+
 ## [1.9.199.0] - 2026-09-19
 
 ### Changed — libleptris 1.9.197 → 1.9.199 (lockstep; 1.9.198/199
