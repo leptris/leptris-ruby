@@ -15,6 +15,10 @@ on:
         type: string
         required: false
 
+concurrency:
+  group: 'gem-smoke-${{ inputs.version || github.ref }}'
+  cancel-in-progress: true
+
 jobs:
   smoke:
     strategy:
