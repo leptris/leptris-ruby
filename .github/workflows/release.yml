@@ -8,6 +8,15 @@ on:
         type: string
         required: false
 
+# Duplicate dispatches of the same release version must not run
+# concurrently: two parallel publishes race on the bump/tag push and
+# the artifact assembly (hit in practice during the 1.9.19x train).
+# The publish loop is idempotent, so cancelling a superseded run is
+# always safe.
+concurrency:
+  group: 'release-${{ inputs.next_version || github.ref }}'
+  cancel-in-progress: true
+
 # contents: write is needed for pushing the version-bump commit + tag.
 # id-token: write is required for RubyGems.org Trusted Publishing (OIDC).
 permissions:
