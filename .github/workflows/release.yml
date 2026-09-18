@@ -252,6 +252,13 @@ jobs:
     # two-stage trainer's instrumented build + corpus run cost
     # 10-20x under qemu; the plain single-stage build ships the
     # identical library.
+    #
+    # The two armv7 rows are EXPERIMENTAL until upstream ports the
+    # 64-bit-pinned layouts (leptris/leptris#1174: the round-19 ABI
+    # asserts correctly abort on 32-bit — sizeof(leptris_element)
+    # is 72 only where pointers are 8 bytes). Their failure is loud
+    # but non-blocking; aarch64 stays strict.
+    continue-on-error: ${{ matrix.experimental }}
     needs: bump
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
@@ -264,12 +271,15 @@ jobs:
           - platform: aarch64-linux
             image: ruby:3.3-bookworm
             qplatform: linux/arm64
+            experimental: false
           - platform: arm-linux
             image: ruby:3.3-bookworm
             qplatform: linux/arm/v7
+            experimental: true
           - platform: arm-linux-musl
             image: ruby:3.3-alpine
             qplatform: linux/arm/v7
+            experimental: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -373,6 +383,40 @@ jobs:
           pattern: pkg-*
           path: pkg
           merge-multiple: true
+
+      # Every variant must ship byte-identical lib/**/*.rb — a skew
+      # means one cell packaged from a different source state (the
+      # sibling project's #318 class: a mingw-only Ruby/natives
+      # mismatch surfaced as NameErrors in host apps).
+      - name: Verify Ruby-source parity across platform variants
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/parity && mkdir -p /tmp/parity
+          for gem in pkg/*.gem; do
+            name=$(basename "$gem" .gem)
+            d="/tmp/parity/$name"
+            mkdir -p "$d"
+            tar xzf "$gem" -C "$d" data.tar.gz
+            tar xzf "$d/data.tar.gz" -C "$d"
+            find "$d/lib" -name '*.rb' -type f | sed "s|$d/||" | sort > "$d/list.txt"
+          done
+          first=$(ls /tmp/parity | head -1)
+          ref_list="/tmp/parity/$first/list.txt"
+          ref_hashes=$(cd "/tmp/parity/$first" && xargs md5sum < list.txt | sort -k2)
+          for d in /tmp/parity/*/; do
+            name=$(basename "$d")
+            [ "$name" = "$first" ] && continue
+            diff -q "$ref_list" "$d/list.txt" >/dev/null || {
+              echo "::error::$name ships a different lib/**/*.rb file set than $first"
+              exit 1
+            }
+            hashes=$(cd "$d" && xargs md5sum < list.txt | sort -k2)
+            diff -q <(echo "$ref_hashes") <(echo "$hashes") >/dev/null || {
+              echo "::error::$name Ruby sources differ from $first (version skew)"
+              exit 1
+            }
+          done
+          echo "Ruby sources byte-identical across $(ls /tmp/parity | wc -l | tr -d ' ') variants"
 
       - name: Configure RubyGems credentials (Trusted Publishing / OIDC)
         uses: rubygems/configure-rubygems-credentials@main
