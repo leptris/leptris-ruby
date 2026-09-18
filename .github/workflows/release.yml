@@ -284,6 +284,18 @@ jobs:
             image: ruby:3.3-alpine
             qplatform: linux/arm/v7
             experimental: true
+          # POWER8+ LE and IBM Z: qemu-built platform gems. s390x is
+          # big-endian — the engine's first exposure to a BE target;
+          # experimental until a release proves it (engine bugs file
+          # upstream, like armv7's #1174).
+          - platform: ppc64le-linux
+            image: ruby:3.3-bookworm
+            qplatform: linux/ppc64le
+            experimental: true
+          - platform: s390x-linux
+            image: ruby:3.3-bookworm
+            qplatform: linux/s390x
+            experimental: true
     steps:
       - uses: actions/checkout@v4
         with:

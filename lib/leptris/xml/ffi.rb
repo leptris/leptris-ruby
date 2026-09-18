@@ -25,6 +25,9 @@ module Leptris
         # "armeb-linux", ...). Never matches aarch64 ("aarch" has
         # no "arm" substring).
         when /arm.*linux/ then %w[arm-linux arm-linux-musl]
+        # POWER8+ little-endian and IBM Z (qemu-built platform gems)
+        when /ppc64le.*linux/ then %w[ppc64le-linux]
+        when /s390x.*linux/ then %w[s390x-linux]
         else []
         end
       end
