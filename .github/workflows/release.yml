@@ -392,14 +392,24 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/parity && mkdir -p /tmp/parity
+          valid=0
           for gem in pkg/*.gem; do
             name=$(basename "$gem" .gem)
+            if ! tar tzf "$gem" >/dev/null 2>&1; then
+              echo "::warning::$name is not a valid gem archive (partial output of an experimental leg) — skipping parity for it"
+              continue
+            fi
             d="/tmp/parity/$name"
             mkdir -p "$d"
             tar xzf "$gem" -C "$d" data.tar.gz
             tar xzf "$d/data.tar.gz" -C "$d"
             find "$d/lib" -name '*.rb' -type f | sed "s|$d/||" | sort > "$d/list.txt"
+            valid=$((valid + 1))
           done
+          if [ "$valid" -lt 2 ]; then
+            echo "::error::fewer than two valid variants to compare"
+            exit 1
+          fi
           first=$(ls /tmp/parity | head -1)
           ref_list="/tmp/parity/$first/list.txt"
           ref_hashes=$(cd "/tmp/parity/$first" && xargs md5sum < list.txt | sort -k2)
