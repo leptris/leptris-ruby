@@ -428,8 +428,12 @@ jobs:
           valid=0
           for gem in pkg/*.gem; do
             name=$(basename "$gem" .gem)
-            if ! tar tzf "$gem" >/dev/null 2>&1; then
-              echo "::warning::$name is not a valid gem archive (partial output of an experimental leg) — skipping parity for it"
+            # Authoritative validity probe: rubygems itself must be
+            # able to read the gem (tar tzf rejected every downloaded
+            # artifact of run 35349069902 while the same bytes open
+            # fine locally — suppressed stderr hid the reason).
+            if ! gem specification "$gem" name >/dev/null 2>&1; then
+              echo "::warning::$name is not a valid gem archive (gem specification failed: $(gem specification "$gem" name 2>&1 | head -1)) — skipping parity for it"
               continue
             fi
             d="/tmp/parity/$name"
