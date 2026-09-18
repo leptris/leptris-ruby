@@ -226,6 +226,10 @@ jobs:
               git config --global --add safe.directory /work
               bundle install --jobs 4 --retry 3
               bundle exec rake gem:native:"'"${TARGET_PLATFORM}"'"
+              # Validate the built gem INSIDE the container (both musl
+              # rows — aarch64-musl is otherwise built but never run).
+              gem install --local pkg/*.gem --no-document
+              ruby /work/scripts/gem_smoke.rb
             '
 
       - uses: actions/upload-artifact@v4
