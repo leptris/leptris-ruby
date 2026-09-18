@@ -312,6 +312,12 @@ jobs:
               git config --global --add safe.directory /work
               bundle install --jobs 4 --retry 3
               bundle exec rake gem:native:"'"${TARGET_PLATFORM}"'"
+              # Validate the built gem INSIDE the emulation: install
+              # it and run the round-trip smoke (parses, queries,
+              # serializes, validates). This is what proves the
+              # 32-bit shim actually works, not just compiles.
+              gem install --local pkg/*.gem --no-document
+              ruby /work/scripts/gem_smoke.rb
             '
 
       - uses: actions/upload-artifact@v4

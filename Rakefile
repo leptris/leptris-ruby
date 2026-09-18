@@ -77,6 +77,14 @@ task :compile do
   fetch_tarball.call(
     "https://api.github.com/repos/leptris/leptris/tarball/v#{version}", build)
 
+  # NOTE: 32-bit ARM (armv7) is an ENGINE port task — the round-19
+  # ABI asserts pin layouts to 8-byte-pointer sizes and correctly
+  # abort the build on 32-bit. Filed upstream as leptris/leptris
+  # #1174; the release legs stay experimental (continue-on-error)
+  # and flip green automatically when the port ships. We patch
+  # nothing here — the emulated-leg smoke validates whatever the
+  # engine provides.
+
   # utf8proc: shared build only, @rpath install name, local prefix.
   u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)
   u8_prefix = File.join(u8_dir, "prefix")
