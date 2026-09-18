@@ -90,3 +90,44 @@ jobs:
               bundle exec rake compile audit:symbols
               bundle exec rspec
             '
+
+  test-qemu:
+    # POWER8+ LE and IBM Z: no native runners — the full suite runs
+    # under qemu binfmt in bookworm containers. s390x is the engine's
+    # first big-endian target; legs stay experimental until a green
+    # run proves the engine there (failures file upstream, cf.
+    # armv7's #1174).
+    name: Test on Ruby 3.3 ${{ matrix.arch }} (qemu)
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.push-for-tag != 'true'
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: ppc64le-linux
+            qplatform: linux/ppc64le
+          - arch: s390x-linux
+            qplatform: linux/s390x
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - name: Compile + suite in emulated container
+        run: |
+          docker run --rm \
+            --platform '${{ matrix.qplatform }}' \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BUNDLE_WITHOUT=benchmark \
+            ruby:3.3-bookworm sh -c '
+              set -eux
+              apt-get update -qq
+              apt-get install -y -qq build-essential cmake bash git curl
+              git config --global --add safe.directory /work
+              bundle install --jobs 4 --retry 3
+              bundle exec rake compile audit:symbols
+              bundle exec rspec
+            '
