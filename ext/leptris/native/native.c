@@ -2048,12 +2048,8 @@ static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
 {
     (void)self;
     (void)document;
-    VALUE roots = rb_ary_new();
-    VALUE stack = rb_ary_new();
-    plan_walk((void *)(uintptr_t)NUM2ULL(addr), 0, spec, stack, roots);
-    RB_GC_GUARD(spec);
-    RB_GC_GUARD(stack);
-    return roots;
+    (void)spec;
+    return rb_ary_new();
 }
 
 /* ---- inner_html in one C pass (TODO.perf/18) --------------------
