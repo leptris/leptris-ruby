@@ -77,6 +77,29 @@ task :compile do
   fetch_tarball.call(
     "https://api.github.com/repos/leptris/leptris/tarball/v#{version}", build)
 
+  # 32-bit ARM build shim (upstream leptris/leptris#1174): the
+  # round-19 ABI asserts pin struct layouts to 8-byte-pointer sizes
+  # (element 72, attribute 40); on armv7 pointers are 4 bytes, so
+  # the asserts abort the build by design. Relax ONLY those two
+  # exact-size asserts on 32-bit targets — the `sizeof(void*) == 4
+  # ||` guard keeps full drift-guarding on 64-bit, which is where
+  # the ABI pin matters. The emulated-leg gem smoke (release.yml)
+  # validates the resulting binaries; the upstream port is tracked
+  # in #1174.
+  if RUBY_PLATFORM =~ /arm/ && RUBY_PLATFORM !~ /aarch64|arm64/
+    Dir.glob("#{build}/src/**/element.h").each do |f|
+      s = File.read(f)
+      patched = s.gsub(
+        "LEPTRIS_STATIC_ASSERT(sizeof(struct leptris_element) == 72,",
+        "LEPTRIS_STATIC_ASSERT(sizeof(void*) == 4 || sizeof(struct leptris_element) == 72,"
+      ).gsub(
+        "LEPTRIS_STATIC_ASSERT(sizeof(struct leptris_attribute) == 40,",
+        "LEPTRIS_STATIC_ASSERT(sizeof(void*) == 4 || sizeof(struct leptris_attribute) == 40,"
+      )
+      File.write(f, patched) if patched != s
+    end
+  end
+
   # utf8proc: shared build only, @rpath install name, local prefix.
   u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)
   u8_prefix = File.join(u8_dir, "prefix")
