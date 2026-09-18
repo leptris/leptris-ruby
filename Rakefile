@@ -100,28 +100,6 @@ task :compile do
     end
   end
 
-  # DEBUG SHIM (disposable): trace set_root rejections — which of
-  # the two guards fires, and what the root→doc resolution paths
-  # (memo / map / namebp) each believe. Enabled unconditionally on
-  # this debug branch only; stderr lands in the CI log.
-  Dir.glob("#{build}/src/leptris/leptris.c").each do |f|
-    s = File.read(f)
-    if (i = s.index("LEPTRIS_API LeptrisStatus leptris_document_set_root"))
-      head = s[0...i]
-      rest = s[i..]
-      rest = rest.sub(
-        "    if (!doc || !root) return LEPTRIS_ERROR_NULL_ARG;",
-        "    if (!doc || !root) { fprintf(stderr, \"SETROOT REJECT null doc=%p root=%p\\n\", (void*)doc, (void*)root); return LEPTRIS_ERROR_NULL_ARG; }"
-      ).sub(
-        "    if (leptris_elem_parent(root))\n        return LEPTRIS_ERROR_INVALID_ARG;",
-        "    if (leptris_elem_parent(root)) { fprintf(stderr, \"SETROOT REJECT parent doc=%p root=%p parent=%p\\n\", (void*)doc, (void*)root, (void*)leptris_elem_parent(root)); return LEPTRIS_ERROR_INVALID_ARG; }"
-      ).sub(
-        "    if (leptris_element_get_document(root) != doc)\n        return LEPTRIS_ERROR_INVALID_ARG;",
-        "    if (leptris_element_get_document(root) != doc) { fprintf(stderr, \"SETROOT REJECT xdoc doc=%p root=%p getdoc=%p namebp=%p hasbp=%d memo_root=%p\\n\", (void*)doc, (void*)root, (void*)leptris_element_get_document(root), (void*)leptris_elem_namebp_doc(root), leptris_elem_has_namebp(root), (void*)0); return LEPTRIS_ERROR_INVALID_ARG; }"
-      )
-      File.write(f, head + rest) if rest != s[i..]
-    end
-  end
 
   # utf8proc: shared build only, @rpath install name, local prefix.
   u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)
