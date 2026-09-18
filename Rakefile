@@ -110,7 +110,7 @@ task :compile do
   ENV["MACOSX_DEPLOYMENT_TARGET"] ||= "11.0" if RUBY_PLATFORM =~ /darwin/
   cmake_base =
     "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
-    "-DCMAKE_PREFIX_PATH=#{u8_prefix}#{osx_target} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
+    "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
 
   # Two-stage PGO (engine CMake: LEPTRIS_ENABLE_PGO GENERATE/USE;
   # measured ~20% CPU on the DOM parse path, v1.9.188 worktree A/B,
