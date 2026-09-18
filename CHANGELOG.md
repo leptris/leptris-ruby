@@ -5,18 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.198.0] - 2026-09-18
+## [1.9.199.0] - 2026-09-19
 
-### Changed — libleptris 1.9.197 → 1.9.198 (lockstep)
+### Changed — libleptris 1.9.197 → 1.9.199 (lockstep; 1.9.198/199
+released before this gem, entries folded)
 
+- **The 32-bit port shipped (upstream #1174 closed)** — per-wordsize
+  layout pins replace the 64-bit-only ABI asserts, xsl:number values
+  are 64-bit end to end (ILP32 truncation fixed), and SSE2 paths
+  gate on `__SSE2__` rather than x86-ness. **The `arm-linux` and
+  `arm-linux-musl` platform gems compile for the first time** —
+  their release legs (experimental, with in-container install +
+  round-trip smoke) validate the port directly.
 - **The root_doc_map TLS memo no longer resolves
-  namebp-carrying elements** — upstream adopted exactly the
-  one-line guard filed from our ubuntu-3.4 CI investigation
-  (leptris/leptris#1189, closed): a recycled root address no
+  namebp-carrying elements** (1.9.198, leptris/leptris#1189,
+  closed) — upstream adopted exactly the one-line guard filed from
+  our ubuntu-3.4 CI investigation: a recycled root address no
   longer makes `set_root` mis-reject a same-document attach as
-  "cross-document". The seam_and_reads spec that exposed it now
-  runs green across the full grid, deterministically.
-- HTML: memchr prefilter in the raw-text close-tag scan.
+  "cross-document". The seam_and_reads spec that exposed it runs
+  green across the full grid, deterministically.
+- HTML: memchr prefilter in the raw-text close-tag scan; 256-entry
+  LUT for the attribute-name scan (#1177).
+- `leptris validate --dtd` + DTD content-model fixes (cli; the
+  binding's DTD surface unchanged).
+- Still experimental pending upstream: ppc64le (LTO export
+  internalization, #1196 — the no-LTO release build ships working
+  gems) and s390x big-endian parser (#1197/#1194, engine work
+  in progress upstream).
 - No public-symbol changes: audit 323/323. 727/0 both modes.
 
 ## [1.9.197.0] - 2026-09-18
