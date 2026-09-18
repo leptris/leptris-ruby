@@ -5,6 +5,42 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.194.0] - 2026-09-18
+
+### Changed — libleptris 1.9.193 → 1.9.194 (lockstep)
+
+- **RELAX NG: define bodies are sibling lists** — a `<ref>` to a
+  multi-member define matches the WHOLE body (an implicit group);
+  previously only the body's head pattern was matched, so the
+  metanorma `DocumentBody` shape (optional preface + required
+  sections) never matched its tail. Spec-pinned.
+- **RELAX NG: choice starvation fix** — inside a CHOICE,
+  alternatives that consume a child win over the zero-width
+  `<text/>`/empty branch (inline TextElement models stopped
+  failing). Spec-pinned.
+- **RELAX NG diagnostics: Jing `PatternMatcher` semantics** — refs
+  splice body members into the walk, the invalid-attribute-value
+  message enumerates every reachable VALUE leaf through refs,
+  `incomplete` reports the leftmost required position, and missing
+  required attributes collapse to one message. The metanorma
+  standoc corpus is now byte-identical to Jing. Spec-pinned (the
+  attribution survives ref splicing).
+- Engine 1.9.193.x fixes ride along (no public-symbol changes:
+  audit 323/323). The 1.9.193.2/.3 binding patches shipped without
+  changelog entries.
+
+### Added
+
+- **32-bit ARM platform gems: `arm-linux` and `arm-linux-musl`** —
+  no GitHub-hosted armv7 runner exists, so the release builds them
+  under qemu binfmt emulation (ruby:3.3-bookworm / ruby:3.3-alpine,
+  `--platform linux/arm/v7`); `LEPTRIS_PGO=0` on the emulated legs
+  (the two-stage trainer under qemu costs 10-20x for the same
+  library). The ruby variant vendors both, and the ffi vendor map
+  resolves `armv7l-linux`-style platforms — zero-setup
+  TruffleRuby/JRuby on armv7. Completes platform parity with the
+  sibling project's table.
+
 ## [1.9.193.0] - 2026-09-17
 
 ### Changed — libleptris 1.9.192 -> 1.9.193 (lockstep)
