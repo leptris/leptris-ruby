@@ -28,6 +28,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: prepare
     if: needs.prepare.outputs.push-for-tag != 'true'
+    # nokogiri (benchmark group only) source-builds on aarch64-Windows
+    # and dies on an expired mirror cert — the suite never requires it.
+    env:
+      BUNDLE_WITHOUT: benchmark
 
     continue-on-error: ${{ matrix.experimental }}
     strategy:
@@ -73,6 +77,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     if: needs.prepare.outputs.push-for-tag != 'true'
+    env:
+      BUNDLE_WITHOUT: benchmark
     steps:
       - uses: actions/checkout@v4
 
@@ -104,6 +110,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.push-for-tag != 'true'
     continue-on-error: true
+    env:
+      BUNDLE_WITHOUT: benchmark
     strategy:
       fail-fast: false
       matrix:
