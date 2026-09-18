@@ -243,10 +243,77 @@ jobs:
             lib/libleptris.*
             lib/libutf8proc.*
 
+  build-arm32:
+    # 32-bit ARM (armv7): no GitHub-hosted runner exists — build
+    # under qemu binfmt emulation in per-libc containers, the same
+    # shape the sibling project verified as true 32-bit ARM ELF.
+    # PGO is OFF for the emulated legs: the two-stage trainer's
+    # instrumented build + corpus run cost 10-20x under qemu; the
+    # plain single-stage build ships the identical library.
+    needs: bump
+    if: always() && !cancelled() && !failure()
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_WITHOUT: benchmark
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arm-linux
+            image: ruby:3.3-bookworm
+          - platform: arm-linux-musl
+            image: ruby:3.3-alpine
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || github.ref }}
+
+      - uses: docker/setup-qemu-action@v3
+
+      - name: Build gem in emulated armv7 container
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm \
+            --platform linux/arm/v7 \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
+            -e LEPTRIS_PGO=0 \
+            -e target_platform="${TARGET_PLATFORM}" \
+            '${{ matrix.image }}' sh -c '
+              set -eux
+              case "${{ matrix.image }}" in
+                *alpine*)
+                  apk add --no-cache build-base bash curl git cmake make
+                  ;;
+                *)
+                  apt-get update -qq
+                  apt-get install -y -qq build-essential cmake bash git curl
+                  ;;
+              esac
+              git config --global --add safe.directory /work
+              bundle install --jobs 4 --retry 3
+              bundle exec rake gem:native:"'"${TARGET_PLATFORM}"'"
+            '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform }}
+          path: pkg/*.gem
+
+      - name: Upload vendored binaries for the ruby variant
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.platform }}
+          path: |
+            lib/libleptris.*
+            lib/libutf8proc.*
+
   build-ruby:
     # Zero-setup TruffleRuby/JRuby (#160): assemble the ruby-platform
     # gem with per-OS vendored binaries gathered from every leg.
-    needs: [ bump, build, build-musl ]
+    needs: [ bump, build, build-musl, build-arm32 ]
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:
@@ -282,7 +349,7 @@ jobs:
           path: pkg/*.gem
 
   publish:
-    needs: [ bump, build, build-musl, build-ruby ]
+    needs: [ bump, build, build-musl, build-arm32, build-ruby ]
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:

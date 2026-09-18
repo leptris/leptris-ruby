@@ -21,6 +21,10 @@ module Leptris
         when /x86_64.*darwin/ then %w[x86_64-darwin]
         when /aarch64.*linux/ then %w[aarch64-linux aarch64-linux-musl]
         when /x86_64.*linux/ then %w[x86_64-linux x86_64-linux-musl]
+        # 32-bit ARM (armv[567l]: "arm-linux", "armv7l-linux",
+        # "armeb-linux", ...). Never matches aarch64 ("aarch" has
+        # no "arm" substring).
+        when /arm.*linux/ then %w[arm-linux arm-linux-musl]
         else []
         end
       end
