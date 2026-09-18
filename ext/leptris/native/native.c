@@ -2417,6 +2417,11 @@ void Init_native(void)
     rb_define_method(c_native_node, "content", nn_content, 0);
     rb_define_method(c_native_node, "attribute", nn_attribute, 1);
     rb_define_alias(c_native_node, "[]", "attribute");
+    /* Unshadowed aliases for consumers whose contract modules shadow
+     * attribute/content: a plain call resolves to these at normal
+     * method-cache cost instead of UnboundMethod#bind_call. */
+    rb_define_alias(c_native_node, "attr_read", "attribute");
+    rb_define_alias(c_native_node, "text_read", "content");
     rb_define_method(c_native_node, "children", nn_children, 0);
     rb_define_method(c_native_node, "element_children", nn_element_children, 0);
     rb_define_method(c_native_node, "next_sibling", nn_next_sibling, 0);
