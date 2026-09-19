@@ -234,8 +234,13 @@ RSpec.describe "Leptris::XML::FFI.vendor_platforms_for (ruby-variant vendor tree
     # HOST cpu-os via RbConfig — the vendored native binaries load
     # there (#160 zero-setup extended to JVM engines).
     resolved = Leptris::XML::FFI.vendor_platforms_for("java")
-    expect(resolved).not_to be_empty
-    expect(resolved).to include(a_string_matching(/\A(aarch64|x86_64|arm64)-(linux|darwin)/))
+    if Gem.win_platform?
+      expect(resolved).to eq([])
+    else
+      expect(resolved).not_to be_empty
+      expect(resolved).to include(
+        a_string_matching(/\A(aarch64|x86_64|arm64)-(linux|darwin)/))
+    end
   end
 
   it "resolves only directories that exist" do
