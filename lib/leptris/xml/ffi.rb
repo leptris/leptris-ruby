@@ -137,6 +137,7 @@ module Leptris
       typedef :pointer, :leptris_iterparse
       typedef :pointer, :leptris_xpath_var_set
       typedef :pointer, :leptris_sax_parser
+      typedef :pointer, :leptris_dtd
       typedef :int, :leptris_status
 
       class SAXHandler < ::FFI::Struct
@@ -1156,6 +1157,33 @@ attach_function :leptris_parse_string,
         [:leptris_document, :pointer, :pointer], :leptris_status
       attach_function :leptris_status_string, [:leptris_status], :string
       attach_function :leptris_error_message, [:leptris_status], :string
+      # Engine surface adopted with libleptris 1.9.206 (the FFI
+      # mirror audit keeps attachments and exports in lockstep):
+      # recover diagnostics (#1200), the standalone DTD family
+      # (leptris_dtd_*), declaration/doctype removal (#1094), the
+      # engine-heap buffer (#1219), one-shot SAX (#1178), and the
+      # exported error-recorder entry point.
+      attach_function :leptris_alloc_buffer, [:size_t], :pointer
+      attach_function :leptris_document_clear_declaration,
+        [:leptris_document], :leptris_status
+      attach_function :leptris_document_remove_doctype,
+        [:leptris_document], :leptris_status
+      attach_function :leptris_document_parse_diag_count,
+        [:leptris_document], :size_t
+      attach_function :leptris_document_parse_diag,
+        [:leptris_document, :size_t, :pointer, :pointer, :size_t], :int
+      attach_function :leptris_dtd_parse,
+        [:string, :size_t], :leptris_dtd
+      attach_function :leptris_dtd_free, [:leptris_dtd], :void
+      attach_function :leptris_dtd_parse_external_subset,
+        [:leptris_dtd, :string, :size_t], :int
+      attach_function :leptris_dtd_set_pe_loader,
+        [:leptris_dtd, :pointer, :pointer], :void
+      attach_function :leptris_dtd_validate,
+        [:leptris_document, :leptris_dtd, :pointer], :int
+      attach_function :leptris_dtd_error_free, [:pointer], :void
+      attach_function :leptris_sax_parser_set_one_shot,
+        [:leptris_sax_parser, :int], :void
       # Thread-global last-failure position (error.h): companion to
       # leptris_last_error; populated by recover parses (#547).
       attach_function :leptris_last_error_position,
