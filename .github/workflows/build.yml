@@ -184,6 +184,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # JRuby 10 needs Java 21; runners default to 17
+      # (UnsupportedClassVersionError otherwise).
+      - uses: actions/setup-java@v4
+        if: matrix.ruby-version == 'jruby'
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - uses: ruby/setup-ruby@master
         with:
           ruby-version: ${{ matrix.ruby-version }}
