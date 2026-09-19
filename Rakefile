@@ -111,7 +111,9 @@ task :compile do
     u8_dir => File.join(vsrc, "utf8proc"),
   }.each do |src, dest|
     cp_r(File.join(src, "."), dest)
-    rm_rf(File.join(dest, "build"))
+    # Build byproducts (the cmake tree and the install prefix
+    # carry symlinks + binaries — source only).
+    rm_rf([File.join(dest, "build"), File.join(dest, "prefix")])
   end
 
   # libleptris 1.9.18's xslt_functions.c:270 assigns LeptrisElement

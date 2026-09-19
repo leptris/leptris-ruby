@@ -174,7 +174,12 @@ jobs:
         include:
           - ruby-version: '3.3'
             expect: native
+          # TruffleRuby builds C exts natively these days — a full
+          # source install; JRuby is the true no-mkmf engine and
+          # must ride the vendored-binary FFI path.
           - ruby-version: truffleruby
+            expect: native
+          - ruby-version: jruby
             expect: ffi
     steps:
       - uses: actions/checkout@v4

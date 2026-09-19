@@ -27,7 +27,14 @@ rescue LoadError
   exit 0
 end
 
-if File.directory?(File.join(vendored, "libleptris")) && find_executable("cmake")
+# A prebuilt libleptris in lib/ (dev checkout after rake compile,
+# or any context that already provides one) means this extconf is
+# NOT an sdist install — skip the orchestration entirely (it also
+# keeps rake compile from redundantly rebuilding the engine into
+# vendor-src/).
+prebuilt = Dir.glob(File.join(lib_dir, "libleptris.{so,dylib,dll}")).first
+if !prebuilt && File.directory?(File.join(vendored, "libleptris")) &&
+   find_executable("cmake")
   begin
     u8_src = File.join(vendored, "utf8proc")
     u8_bld = File.join(vendored, "utf8proc-build")
