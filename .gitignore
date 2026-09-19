@@ -47,3 +47,4 @@ Thumbs.db
 # RSpec example-status artifact
 /.rspec_status
 lib/leptris/vendor/
+/vendor-src/

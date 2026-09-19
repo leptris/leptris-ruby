@@ -158,3 +158,56 @@ jobs:
               bundle exec rake compile audit:symbols
               bundle exec rspec
             '
+
+  source-install:
+    # Packaging doctrine proof: the ruby-platform gem is an sdist —
+    # MRI compiles libleptris + the native layer from the vendored
+    # sources at install; TruffleRuby (no mkmf) installs through
+    # the guarded no-op and runs the vendored binaries via FFI.
+    name: Source install on ${{ matrix.ruby-version }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.push-for-tag != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ruby-version: '3.3'
+            expect: native
+          - ruby-version: truffleruby
+            expect: ffi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@master
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: false
+
+      - run: bundle install --jobs 4 --retry 3
+        env:
+          BUNDLE_WITHOUT: benchmark
+
+      - run: bundle exec rake compile
+        env:
+          BUNDLE_WITHOUT: benchmark
+
+      - name: Stage vendored binaries (the no-mkmf install path)
+        run: |
+          mkdir -p lib/leptris/vendor/x86_64-linux
+          cp lib/libleptris.so lib/leptris/vendor/x86_64-linux/ 2>/dev/null || true
+          cp lib/libutf8proc.so* lib/leptris/vendor/x86_64-linux/ 2>/dev/null || true
+
+      - run: bundle exec rake platform:any gem
+        env:
+          BUNDLE_WITHOUT: benchmark
+
+      - name: Install from the built source gem and round-trip it
+        run: |
+          gem install --local pkg/leptris-*.gem --no-document
+          out=$(ruby scripts/gem_smoke.rb 2>&1)
+          echo "$out"
+          case "${{ matrix.expect }}" in
+            native) echo "$out" | grep -q "SMOKE OK (native layer)" ;;
+            ffi)    echo "$out" | grep -q "SMOKE OK (ffi layer)" ;;
+          esac
