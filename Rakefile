@@ -8,7 +8,7 @@ RSpec::Core::RakeTask.new(:spec)
 # Pin for `rake compile` and the platform-gem builds. Keep in lockstep
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
-LIBLEPTRIS_VERSION = "1.9.203"
+LIBLEPTRIS_VERSION = "1.9.204"
 # Vendored alongside libleptris for fn:normalize-unicode (TODO
 # .restructure/20): built per platform with a RELOCATABLE @rpath
 # install name, loaded by ffi.rb before libleptris so the
@@ -326,7 +326,13 @@ namespace :audit do
     unless lib
       abort "audit:symbols: vendored library not found — run rake compile"
     end
-    exported = `nm -gU #{lib}`
+    # Plain -g, not -U: GNU binutils nm (Debian bookworm 2.40)
+    # accepts -U but then ignores the file operand entirely
+    # ("nm: 'a.out': No such file", empty export list, guaranteed
+    # false drift — the ppc64le leg). Undefined externals print two
+    # columns (type, name), so split[2] is nil for them and the
+    # compact below already drops them on every nm flavor.
+    exported = `nm -g #{lib}`
       .lines.map { |l| l.split[2] }.compact
       .map { |n| n.sub(/\A_/, "") }
       .select { |n| n.start_with?("leptris_") }

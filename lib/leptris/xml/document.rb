@@ -635,6 +635,31 @@ class Leptris::XML::Document
     Leptris::XML::DocType.new(dt, self)
   end
 
+  # Un-set the XML declaration (libleptris 1.9.204, upstream
+  # #1229): the document stops being declaration-bearing and
+  # serialization emits none — exactly as if the input had none.
+  # Clears version/encoding and the standalone marker. Idempotent.
+  # Returns self.
+  def clear_declaration
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_clear_declaration(c_ptr))
+    @version += 1
+    self
+  end
+
+  # Un-set the document's DOCTYPE (libleptris 1.9.204, upstream
+  # #1229). The DocType stays pool-owned and readable via #doctype
+  # until #free; it leaves the child chain and the serializer's
+  # view. Returns true when removed, false when the document had
+  # none.
+  def remove_doctype
+    rc = Leptris::XML::FFI.leptris_document_remove_doctype(c_ptr)
+    return false if rc == Leptris::XML::FFI::LEPTRIS_ERROR_NOT_FOUND
+    Leptris::XML::FFI.check_status(rc)
+    @version += 1
+    true
+  end
+
   # Append a document-level comment (epilog position, after the
   # root element) — the add_pi twin (libleptris 1.9.160, #1032;
   # parsed document-level comments round-tripped since 1.9.3/#578,

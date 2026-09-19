@@ -382,6 +382,12 @@ attach_function :leptris_parse_string,
         [:leptris_document, :int], :leptris_status
       attach_function :leptris_document_set_doctype,
         [:leptris_document, :string, :string, :string], :leptris_doctype
+      # The #1229 remove-half (libleptris 1.9.204): un-set the
+      # declaration; un-set the DOCTYPE (NOT_FOUND when none set).
+      attach_function :leptris_document_clear_declaration,
+        [:leptris_document], :leptris_status
+      attach_function :leptris_document_remove_doctype,
+        [:leptris_document], :leptris_status
       attach_function :leptris_document_append_pi,
         [:leptris_document, :string, :string], :leptris_node_ref
       attach_function :leptris_document_remove_child,
@@ -850,6 +856,14 @@ attach_function :leptris_parse_string,
         [:leptris_sax_parser], :void
       attach_function :leptris_sax_parser_set_streaming,
         [:leptris_sax_parser, :int], :int
+      # One-shot input hint (libleptris 1.9.204): whole document in
+      # a single feed(), alive for the parser's lifetime — enables
+      # in-place scans. The binding's one-shot entry
+      # (leptris_sax_parse) is one-shot by construction; the engine
+      # sets this itself for pull's memory source. Attach-only
+      # until a chunked-feed face wants to opt in.
+      attach_function :leptris_sax_parser_set_one_shot,
+        [:leptris_sax_parser, :int], :void
 
       # Pull parsing (v1.6.0): StAX-style cursor over a document.
       attach_function :leptris_pull_new,
@@ -1125,6 +1139,11 @@ attach_function :leptris_parse_string,
         [:leptris_doctype], :string
 
       attach_function :leptris_free_string, [:pointer], :void
+      # Engine-heap allocation (libleptris 1.9.204): buffers handed
+      # to engine callbacks (the DTD PE loader) so the engine frees
+      # through its matching deallocation path. Release with
+      # leptris_free_string when NOT consumed by the engine.
+      attach_function :leptris_alloc_buffer, [:size_t], :pointer
       attach_function :leptris_explicit_cleanup, [], :void
       attach_function :leptris_set_memory_management_functions,
         [:pointer, :pointer], :void
