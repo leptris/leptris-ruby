@@ -232,14 +232,18 @@ RSpec.describe "Leptris::XML::FFI.vendor_platforms_for (ruby-variant vendor tree
     expect(Leptris::XML::FFI.vendor_platforms_for("x64-mingw-ucrt")).to eq([])
     # JVM engines ("x86_64-java" or bare "java") resolve to the
     # HOST cpu-os via RbConfig — the vendored native binaries load
-    # there (#160 zero-setup extended to JVM engines).
+    # there (#160 zero-setup extended to JVM engines). Whatever
+    # tier this host maps to, the JVM platform maps to the same
+    # one (the common four on CI; ppc64le where the tier exists).
     resolved = Leptris::XML::FFI.vendor_platforms_for("java")
     if Gem.win_platform?
       expect(resolved).to eq([])
     else
-      expect(resolved).not_to be_empty
-      expect(resolved).to include(
-        a_string_matching(/\A(aarch64|x86_64|arm64)-(linux|darwin)/))
+      host_os = RbConfig::CONFIG["host_os"].to_s
+      host = Leptris::XML::FFI.vendor_platforms_for(
+        "#{RbConfig::CONFIG["host_cpu"]}-" +
+        (host_os =~ /darwin/ ? "darwin" : "linux"))
+      expect(resolved).to eq(host)
     end
   end
 
