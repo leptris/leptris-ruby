@@ -58,6 +58,17 @@ jobs:
           # Ruby 3.3 is unavailable on the windows-arm runner
           - os: windows-11-arm
             ruby-version: '3.3'
+        include:
+          # leptris/leptris#1242 (leptris-ruby#279): ubuntu-latest
+          # Ruby 3.4 legs hit a per-machine engine state corruption
+          # with two symptoms so far (all-nil iterparse attribute
+          # reads; set_binding_root EINVAL with a stale XPath
+          # last_error). Unreproducible on every local shape
+          # tried. Non-blocking until the engine ships the fix —
+          # every other leg (incl. 3.4 on arm-linux) stays strict.
+          - ruby-version: '3.4'
+            os: ubuntu-latest
+            experimental: true
 
     steps:
     - uses: actions/checkout@v4
