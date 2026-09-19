@@ -12,7 +12,7 @@
 #     (vendored binaries or system library).
 # Platform gems ship the same sources but never run this at
 # install (they carry no extensions) — recompile rights only.
-gem_root = File.expand_path("../..", __dir__) # <gem>/ext/leptris/native
+gem_root = File.expand_path("../../..", __dir__) # <gem>/ext/leptris/native
 lib_dir = File.join(gem_root, "lib")
 vendored = File.join(gem_root, "vendor-src")
 
