@@ -26,6 +26,9 @@ module Leptris
           end
           cpu = RbConfig::CONFIG["host_cpu"].to_s
           cpu = "aarch64" if cpu.empty?
+          # RbConfig says "powerpc64le"; the gem/vendor tier is
+          # "ppc64le-linux" (the gem platform spelling).
+          cpu = "ppc64le" if cpu == "powerpc64le"
           os = host_os =~ /darwin/ ? "darwin" : "linux"
           ruby_platform = "#{cpu}-#{os}"
         end
