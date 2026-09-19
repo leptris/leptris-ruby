@@ -848,7 +848,10 @@ RSpec.describe "IterationScope: iterparse element lifetime and memoization (lept
   it "memoizes attribute reads within the iteration" do
     reads = []
     Leptris::XML::Iterparse.parse(xml) { |e| reads << e["id"] }
-    expect(reads.first(3)).to eq(%w[r0 r1 r2])
+    # Full-array compare: a strike shows the exact nil pattern
+    # (every element vs scattered) — 3 CI strikes only ever
+    # revealed first(3) == [nil, nil, nil].
+    expect(reads).to eq(Array.new(50) { |i| "r#{i}" })
   end
 
   it "keeps wrapper identity within a yielded subtree and resets across yields" do

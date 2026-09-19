@@ -240,9 +240,13 @@ RSpec.describe "Leptris::XML::FFI.vendor_platforms_for (ruby-variant vendor tree
       expect(resolved).to eq([])
     else
       host_os = RbConfig::CONFIG["host_os"].to_s
+      cpu = RbConfig::CONFIG["host_cpu"].to_s
+      # Gem-platform spelling — the JVM branch normalizes the same
+      # way ("powerpc64le" has no "ppc64le" substring, so the raw
+      # RbConfig name would miss the tier by construction).
+      cpu = "ppc64le" if cpu == "powerpc64le"
       host = Leptris::XML::FFI.vendor_platforms_for(
-        "#{RbConfig::CONFIG["host_cpu"]}-" +
-        (host_os =~ /darwin/ ? "darwin" : "linux"))
+        "#{cpu}-" + (host_os =~ /darwin/ ? "darwin" : "linux"))
       expect(resolved).to eq(host)
     end
   end
