@@ -218,8 +218,11 @@ jobs:
       - name: Install from the built source gem and round-trip it
         run: |
           gem install --local pkg/leptris-*.gem --no-document
-          out=$(ruby scripts/gem_smoke.rb 2>&1)
+          # Capture regardless of the smoke's exit code — bash -e
+          # would swallow the failure output before it can be read.
+          out=$(ruby scripts/gem_smoke.rb 2>&1) || rc=$?
           echo "$out"
+          if [ -n "${rc:-}" ]; then exit "$rc"; fi
           case "${{ matrix.expect }}" in
             native) echo "$out" | grep -q "SMOKE OK (native layer)" ;;
             ffi)    echo "$out" | grep -q "SMOKE OK (ffi layer)" ;;
