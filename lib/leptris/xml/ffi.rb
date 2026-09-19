@@ -16,6 +16,15 @@ module Leptris
       # preference order (glibc before musl — dlopen falls through
       # on musl hosts).
       def self.vendor_platforms_for(ruby_platform)
+        # JRuby/TruffleRuby-java report "x86_64-java" — the OS is
+        # lost. Re-attach it from RbConfig's host_os so the native
+        # vendor binaries resolve on JVM engines too.
+        if (m = ruby_platform.match(/\A([a-z0-9_]+)-java\z/))
+          # Capture BEFORE the next =~ — it would clobber
+          # Regexp.last_match.
+          os = RbConfig::CONFIG["host_os"] =~ /darwin/ ? "darwin" : "linux"
+          ruby_platform = "#{m[1]}-#{os}"
+        end
         case ruby_platform
         when /arm64.*darwin|aarch64.*darwin/ then %w[arm64-darwin]
         when /x86_64.*darwin/ then %w[x86_64-darwin]
