@@ -32,6 +32,12 @@ jobs:
     # and dies on an expired mirror cert — the suite never requires it.
     env:
       BUNDLE_WITHOUT: benchmark
+      # leptris/leptris#1242 (leptris-ruby#279): the iterparse
+      # attr-read spec intermittently reads all-nil on ubuntu-latest
+      # Ruby 3.4 legs (6 strikes; per-machine determinism suspected;
+      # unreproducible everywhere else). Quarantine ONE leg on ONE
+      # spec until the engine fixes it — remove this line then.
+      LEPTRIS_SKIP_1242: ${{ matrix.ruby-version == '3.4' && matrix.os == 'ubuntu-latest' && '1' || '' }}
 
     continue-on-error: ${{ matrix.experimental }}
     strategy:
