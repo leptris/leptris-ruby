@@ -20,9 +20,13 @@ module Leptris
         # (and sometimes the arch) is lost. Rebuild cpu-os from
         # RbConfig so the native vendor binaries resolve there too.
         if ruby_platform =~ /java/
+          host_os = RbConfig::CONFIG["host_os"].to_s
+          if host_os =~ /mingw|mswin|windows/
+            return [] # no windows vendor tree; the .dll is gem-local
+          end
           cpu = RbConfig::CONFIG["host_cpu"].to_s
           cpu = "aarch64" if cpu.empty?
-          os = RbConfig::CONFIG["host_os"] =~ /darwin/ ? "darwin" : "linux"
+          os = host_os =~ /darwin/ ? "darwin" : "linux"
           ruby_platform = "#{cpu}-#{os}"
         end
         case ruby_platform
