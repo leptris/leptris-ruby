@@ -54,25 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Not fixed despite upstream closes
 
 - **Iterparse attribute reads: all-nil runs on ubuntu-latest Ruby
-  3.4 CI legs** — filed upstream as leptris/leptris#1242
-  (leptris-ruby#279 tracks the investigation). Six strikes; the
-  last three were consecutive reruns of one job, suggesting
-  per-machine determinism. Unreproducible across ~75k local reads
-  on darwin/arm64 (native + FFI, GC.stress) and x86_64 linux
-  (qemu; native + FFI; threaded and not). The leg sets
-  `LEPTRIS_SKIP_1242=1` to quarantine exactly that one spec on
-  that one leg until the engine ships the fix; every other leg
-  keeps the full guard.
+## [1.9.207.0] - 2026-09-19
 
-- **#1220 reopened with the 1.9.203 repro**: HTML-document
-  mutations are still lost on serialization (the exact original
-  repro stands; node reads back mutated, serializer sees the old
-  tree). Tracking continues upstream.
-- **#1197 reopened with fresh 1.9.203 evidence**: the s390x qemu
-  leg failed 442/742 with the identical `malformed input`
-  signature at ASCII offsets; the reopen quotes the close
-  comment's own terms. (1.9.204's notes carry no BE fix; the leg
-  stays experimental until the engine ships one.)
+### Fixed — engine sync: big-endian close-tag parse (#1197 upstream)
+
+- Vendored libleptris 1.9.207: the close-tag fast-path compare
+  masked the wrong end of its 8-byte name load on big-endian hosts,
+  rejecting ordinary paired-tag documents with "malformed input"
+  (434/727 binding-suite failures under qemu s390x). The mask now
+  follows memory order per byte dialect; the s390x-linux-musl
+  platform gem becomes viable with this release.
+
+### Added — FFI mirror adopts the 1.9.202–1.9.207 engine surface
+
+- audit:symbols lockstep attachments: recover diagnostics
+  (leptris_document_parse_diag[_count]), the standalone DTD family
+  (leptris_dtd_*), declaration/doctype removal, engine-heap buffer
+  allocation, and one-shot SAX. leptris_set_error stays internal —
+  the engine now hides it on ELF too (leptris#1243), so the export
+  surface agrees across Linux/macOS/Windows.
 
 ## [1.9.201.3] - 2026-09-19
 
