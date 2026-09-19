@@ -369,7 +369,8 @@ task "platform:any" do
   # (extensions). Engines without mkmf (JRuby) install through the
   # guarded extconf no-op and run on the vendored binaries / FFI.
   spec.files += Dir.glob("vendor-src/**/*")
-  spec.files += Dir.glob("ext/leptris/native/*")
+  spec.files += %w[ext/leptris/native/extconf.rb
+                   ext/leptris/native/native.c]
   spec.extensions = ["ext/leptris/native/extconf.rb"]
   task = Gem::PackageTask.new(spec)
   task.define
@@ -406,7 +407,8 @@ platforms.each do |platform|
     # Binary gems carry the source too (recompile rights), but no
     # extensions — installing a platform gem never rebuilds.
     spec.files += Dir.glob("vendor-src/**/*")
-    spec.files += Dir.glob("ext/leptris/native/*")
+    spec.files += %w[ext/leptris/native/extconf.rb
+                     ext/leptris/native/native.c]
     if platform.include?("mingw")
       # #207/#227: per-Ruby-minor DLLs (PE must bind its Ruby).
       # DOT-FREE names — MRI derives the init symbol from the
