@@ -16,16 +16,19 @@ gem_root = File.expand_path("../../..", __dir__) # <gem>/ext/leptris/native
 lib_dir = File.join(gem_root, "lib")
 vendored = File.join(gem_root, "vendor-src")
 
-begin
-  require "mkmf"
-rescue LoadError
+# Only engines that genuinely build MRI C extensions attempt the
+# build. JRuby carries an mkmf STUB: require succeeds, but the
+# generated Makefile fails on ruby.h — route it to the no-op too.
+unless %w[ruby truffleruby].include?(RUBY_ENGINE)
   File.write("Makefile", <<~MAKE)
     all install clean:
-    \t@echo "leptris: no mkmf on this engine — skipping the native extension; the FFI surface applies"
+    \t@echo "leptris: no MRI C-ext toolchain on #{RUBY_ENGINE} — skipping the native extension; the FFI surface applies"
   MAKE
-  warn "leptris: mkmf unavailable (#{RUBY_ENGINE}) — installing without the compiled native layer"
+  warn "leptris: #{RUBY_ENGINE} cannot build MRI C extensions — " \
+       "installing without the compiled native layer"
   exit 0
 end
+require "mkmf"
 
 # A prebuilt libleptris in lib/ (dev checkout after rake compile,
 # or any context that already provides one) means this extconf is
