@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.201.1] - 2026-09-19
+
+### Changed — source-distribution doctrine
+
+- **Every platform gem now carries the full source** (engine +
+  utf8proc + `ext/`, staged under `vendor-src/` at build time,
+  ~8 MB) alongside the precompiled bundles — recompile rights per
+  the packaging doctrine. No extensions: installing a platform
+  gem never rebuilds.
+- **The ruby-platform gem is now a real sdist**: it compiles at
+  install. `extconf.rb` orchestrates the vendored sources through
+  cmake (libleptris + utf8proc into the gem's `lib/`) before
+  building the native extension. Graceful degradation is the
+  contract: no mkmf (JRuby/TruffleRuby) → no-op Makefile, install
+  proceeds on the vendored binaries / FFI; no cmake or build
+  failure → loud skip, FFI surface applies.
+- New CI proof legs (`source-install`): MRI installs the built
+  source gem and must round-trip on the **native layer**
+  (compiled at install); TruffleRuby installs the same gem and
+  must round-trip on the **FFI layer** (vendored binaries).
+  Verified locally end-to-end in an isolated GEM_HOME:
+  `SMOKE OK (native layer)`.
+
 ## [1.9.201.0] - 2026-09-19
 
 ### Changed — libleptris 1.9.199 → 1.9.201 (lockstep)

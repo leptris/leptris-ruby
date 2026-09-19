@@ -97,6 +97,23 @@ task :compile do
   sh "cmake --build #{u8_dir}/build --config Release -j 4"
   sh "cmake --install #{u8_dir}/build --prefix #{u8_prefix}"
 
+  # Source distribution (packaging doctrine): EVERY gem — binary
+  # platform gems and the ruby source gem — carries the full
+  # engine + utf8proc + ext sources so users can recompile; the
+  # ruby variant additionally compiles at install (extconf.rb
+  # orchestrates these trees). Staged under vendor-src/ at build
+  # time (gitignored); binary dirs excluded.
+  vsrc = File.expand_path("vendor-src", __dir__)
+  rm_rf(vsrc)
+  mkdir_p(vsrc)
+  {
+    build => File.join(vsrc, "libleptris"),
+    u8_dir => File.join(vsrc, "utf8proc"),
+  }.each do |src, dest|
+    cp_r(File.join(src, "."), dest)
+    rm_rf(File.join(dest, "build"))
+  end
+
   # libleptris 1.9.18's xslt_functions.c:270 assigns LeptrisElement
   # to LeptrisNodeRef — GCC 14 (Alpine/musl) makes incompatible
   # pointer types an error by default and the musl platform gems
@@ -347,6 +364,13 @@ task "platform:any" do
   # checkout — the variant then carries no binaries and the
   # system-library / LEPTRIS_LIB_PATH path applies as before.
   spec.files += Dir.glob("lib/leptris/vendor/**/*")
+  # Source distribution: the ruby variant is the sdist — it carries
+  # the engine + utf8proc + ext sources AND compiles at install
+  # (extensions). Engines without mkmf (JRuby) install through the
+  # guarded extconf no-op and run on the vendored binaries / FFI.
+  spec.files += Dir.glob("vendor-src/**/*")
+  spec.files += Dir.glob("ext/leptris/native/*")
+  spec.extensions = ["ext/leptris/native/extconf.rb"]
   task = Gem::PackageTask.new(spec)
   task.define
 end
@@ -379,6 +403,10 @@ platforms.each do |platform|
     spec.platform = Gem::Platform.new(platform)
     spec.files += Dir.glob("lib/libleptris.{dll,so,dylib}")
     spec.files += Dir.glob("lib/{libutf8proc.3.dylib,libutf8proc.so.3,libutf8proc.so,utf8proc.dll}")
+    # Binary gems carry the source too (recompile rights), but no
+    # extensions — installing a platform gem never rebuilds.
+    spec.files += Dir.glob("vendor-src/**/*")
+    spec.files += Dir.glob("ext/leptris/native/*")
     if platform.include?("mingw")
       # #207/#227: per-Ruby-minor DLLs (PE must bind its Ruby).
       # DOT-FREE names — MRI derives the init symbol from the
