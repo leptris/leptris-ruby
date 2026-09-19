@@ -847,12 +847,32 @@ RSpec.describe "IterationScope: iterparse element lifetime and memoization (lept
 
   it "memoizes attribute reads within the iteration" do
     reads = []
-    Leptris::XML::Iterparse.parse(xml) { |e| reads << e["id"] }
+    forensics = []
+    Leptris::XML::Iterparse.parse(xml) do |e|
+      v = e["id"]
+      # #1242 strike forensics (zero cost on green runs): on the
+      # FIRST nil, ask the engine directly and walk the chain —
+      #   direct=nil, chain empty  => engine chain really empty
+      #   direct="rN", chain empty => engine fine, binding [] wrong
+      #   direct="rN", chain full  => pure Ruby memo corruption
+      # The direct FFI call also exercises the engine's
+      # LEPTRIS_DEBUG_ATTR_MISS dump path.
+      if v.nil? && forensics.empty?
+        direct = Leptris::XML::FFI.leptris_element_attribute(
+          e.c_ptr, "id")
+        chain = []
+        e.each_attribute { |a| chain << [a.name, a.value] }
+        forensics << "elem=#{e.name} direct=#{direct.inspect} " \
+                     "chain=#{chain.inspect}"
+      end
+      reads << v
+    end
     # Full-array compare: a strike shows the exact nil pattern
     # (every element vs scattered) — the discriminator for the
-    # 6-strike CI flake, root-caused and fixed engine-side as
-    # leptris/leptris#1242 (TLS last-hit memo on recycled
-    # addresses), verified from 1.9.208 on.
+    # 9-strike CI flake (leptris/leptris#1242; the 1.9.208 engine
+    # fix did not cure it, and the ATTR_MISS dump proved the
+    # engine never saw the striking lookups on either lane).
+    warn forensics unless forensics.empty?
     expect(reads).to eq(Array.new(50) { |i| "r#{i}" })
   end
 
