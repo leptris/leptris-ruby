@@ -32,6 +32,12 @@ jobs:
     # and dies on an expired mirror cert — the suite never requires it.
     env:
       BUNDLE_WITHOUT: benchmark
+      # leptris/leptris#1242: the fix shipped in 1.9.208 did NOT
+      # cure the all-nil iterparse reads on this leg (strike 7,
+      # identical signature). The engine's miss discriminator dumps
+      # attribute-chain state on lookup misses — armed here to
+      # capture it on the next strike.
+      LEPTRIS_DEBUG_ATTR_MISS: ${{ matrix.ruby-version == '3.4' && matrix.os == 'ubuntu-latest' && '1' || '' }}
 
     continue-on-error: ${{ matrix.experimental }}
     strategy:
