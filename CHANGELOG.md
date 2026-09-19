@@ -5,6 +5,30 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.201.3] - 2026-09-19
+
+### Added — the HTML facade (Nokogiri-shaped entry points)
+
+- **`Leptris::HTML` / `Leptris::HTML4` / `Leptris::HTML5`** —
+  top-level parse entry points over the one DOM. The engine has a
+  single DOM with multiple parser front-ends (an HTML document IS
+  a `Leptris::XML::Document`; every node/query/serializer face
+  applies), but that left HTML discoverable only as
+  `Leptris::XML.parse_html` — porters scanning for an `HTML`
+  module (the `Nokogiri::HTML5.parse` reflex) concluded the
+  binding had no HTML support. The facade fixes the shape:
+  `Leptris::HTML(html)` = the html4/Nokogiri-parity lane,
+  `Leptris::HTML5.parse` = the WHATWG engine, `HTML4.parse` =
+  the explicit parity lane. Pure delegates — no parallel class
+  hierarchy; identity and the whole XML surface carry over.
+- Spec battery `spec/xml/html_facade_spec.rb`; `spec_helper` now
+  requires the public entry (`leptris`) rather than reaching into
+  `leptris/xml` — the suite exercises the gem's real bootstrap.
+- Surfaced while pinning: **mutations on HTML-parsed documents
+  are lost on serialization** (both lanes, FFI and native —
+  engine-side). Filed as leptris/leptris#1220 with the
+  two-line repro; the facade spec pins the working half.
+
 ## [1.9.201.1] - 2026-09-19
 
 ### Changed — source-distribution doctrine
