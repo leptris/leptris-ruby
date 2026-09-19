@@ -391,6 +391,15 @@ jobs:
             cp "${d}"/libleptris.* "${d}"/libutf8proc.* "lib/leptris/vendor/${plat}/" 2>/dev/null || true
           done
           find lib/leptris/vendor -type f
+          # The sdist needs vendor-src/ (the engine + utf8proc
+          # sources the extconf compiles at install) — only rake
+          # compile stages it, and no earlier step in THIS job
+          # runs compile. 1.9.201.2 shipped extensions with zero
+          # sources because of exactly that. PGO=0: the engine
+          # binary this job builds is throwaway (the vendored
+          # binaries above are the artifacts users load).
+          LEPTRIS_PGO=0 bundle exec rake compile
+          rm -rf pkg
           bundle exec rake platform:any gem
 
       - uses: actions/upload-artifact@v4
