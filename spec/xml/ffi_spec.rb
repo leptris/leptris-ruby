@@ -230,7 +230,12 @@ RSpec.describe "Leptris::XML::FFI.vendor_platforms_for (ruby-variant vendor tree
     expect(Leptris::XML::FFI.vendor_platforms_for("x86_64-linux"))
       .to eq(%w[x86_64-linux x86_64-linux-musl])
     expect(Leptris::XML::FFI.vendor_platforms_for("x64-mingw-ucrt")).to eq([])
-    expect(Leptris::XML::FFI.vendor_platforms_for("java")).to eq([])
+    # JVM engines ("x86_64-java" or bare "java") resolve to the
+    # HOST cpu-os via RbConfig — the vendored native binaries load
+    # there (#160 zero-setup extended to JVM engines).
+    resolved = Leptris::XML::FFI.vendor_platforms_for("java")
+    expect(resolved).not_to be_empty
+    expect(resolved).to include(a_string_matching(/\A(aarch64|x86_64|arm64)-(linux|darwin)/))
   end
 
   it "resolves only directories that exist" do
