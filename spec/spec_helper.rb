@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
-require "leptris/xml"
+require "leptris"
+# Explicit: some contexts resolve a root without the facade
+# autoloads registered; the require is idempotent.
+require "leptris/html"
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"
