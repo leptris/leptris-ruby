@@ -32,12 +32,16 @@ jobs:
     # and dies on an expired mirror cert — the suite never requires it.
     env:
       BUNDLE_WITHOUT: benchmark
-      # leptris/leptris#1242: the fix shipped in 1.9.208 did NOT
-      # cure the all-nil iterparse reads on this leg (strike 7,
-      # identical signature). The engine's miss discriminator dumps
-      # attribute-chain state on lookup misses — armed here to
-      # capture it on the next strike.
+      # leptris/leptris#1242 strikes 7-8: all-nil iterparse reads
+      # persisted on 1.9.208, and the ATTR_MISS dump proved the
+      # engine never saw those lookups (no dump lines during the
+      # failing spec — the visible ones belong to the DTD spec's
+      # intentional invalid docs). Lane discriminator: FFI lane
+      # (live FFI::Pointer, no raw-address dlsym call) + the dump —
+      # a strike WITH dumps = engine miss; a strike WITHOUT = the
+      # short-circuit is binding-side (memo layer or native face).
       LEPTRIS_DEBUG_ATTR_MISS: ${{ matrix.ruby-version == '3.4' && matrix.os == 'ubuntu-latest' && '1' || '' }}
+      LEPTRIS_NO_NATIVE: ${{ matrix.ruby-version == '3.4' && matrix.os == 'ubuntu-latest' && '1' || '' }}
 
     continue-on-error: ${{ matrix.experimental }}
     strategy:
