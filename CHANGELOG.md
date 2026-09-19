@@ -21,13 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sets a fresh thread-local error on every rejection (no more
   stale XPath messages), and `LEPTRIS_DEBUG_ATTR_MISS=1` dumps
   attribute-chain state on lookup misses.
-- **CI un-quarantined, fully strict again**: the ubuntu-latest
-  Ruby 3.4 leg (LEPTRIS_SKIP_1242 + the experimental include are
-  gone), the s390x/ppc64le qemu test legs (#1197 fixed in 1.9.206,
-  both green on main's 1.9.207 grid), and the armv7/ppc64le/
-  s390x-musl release-build cells (#1174's ILP32 port shipped;
-  arm gems publish from every release since). A red cell blocks
-  again — as it should.
+- **CI un-quarantine where the evidence holds**: the s390x/ppc64le
+  qemu test legs are strict again (#1197 fixed in 1.9.206, both
+  green on main's 1.9.207 grid), and so are the armv7/ppc64le/
+  s390x-musl release-build cells (#1174's ILP32 port shipped; arm
+  gems publish from every release since). The ubuntu-latest Ruby
+  3.4 leg stays non-blocking: strikes 7-9 on 1.9.208 show the
+  all-nil iterparse flake is BINDING-side (lane-independent, and
+  the engine's ATTR_MISS dump proved the engine never saw the
+  lookups) — tracked as leptris-ruby#279 with the dump env +
+  in-spec forensics armed on that leg until the fix.
 - ffi.rb dedupe: the 1.9.206-surface block re-attached ten
   symbols the 1.9.204 wiring had already attached (audit counted
   345 attachments against 335 exports). The typed 1.9.206 block
