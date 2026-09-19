@@ -846,11 +846,21 @@ RSpec.describe "IterationScope: iterparse element lifetime and memoization (lept
   end
 
   it "memoizes attribute reads within the iteration" do
+    # leptris/leptris#1242 (leptris-ruby#279): on ubuntu-latest
+    # Ruby 3.4 CI legs this intermittently — per machine, it seems —
+    # returns nil for every read of the run. Unreproducible across
+    # ~75k local reads on darwin/arm64 (native + FFI) and x86_64
+    # (qemu, native + FFI, threaded and not). The leg sets
+    # LEPTRIS_SKIP_1242=1 until the engine ships the fix; every
+    # other leg keeps the full guard.
+    if ENV["LEPTRIS_SKIP_1242"] == "1"
+      skip "known engine defect: all-nil iterparse attribute reads (leptris/leptris#1242, leptris-ruby#279)"
+    end
     reads = []
     Leptris::XML::Iterparse.parse(xml) { |e| reads << e["id"] }
     # Full-array compare: a strike shows the exact nil pattern
-    # (every element vs scattered) — 3 CI strikes only ever
-    # revealed first(3) == [nil, nil, nil].
+    # (every element vs scattered) — 6 CI strikes total, the
+    # visible ones all systematic (all 50 nil).
     expect(reads).to eq(Array.new(50) { |i| "r#{i}" })
   end
 

@@ -53,6 +53,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Not fixed despite upstream closes
 
+- **Iterparse attribute reads: all-nil runs on ubuntu-latest Ruby
+  3.4 CI legs** — filed upstream as leptris/leptris#1242
+  (leptris-ruby#279 tracks the investigation). Six strikes; the
+  last three were consecutive reruns of one job, suggesting
+  per-machine determinism. Unreproducible across ~75k local reads
+  on darwin/arm64 (native + FFI, GC.stress) and x86_64 linux
+  (qemu; native + FFI; threaded and not). The leg sets
+  `LEPTRIS_SKIP_1242=1` to quarantine exactly that one spec on
+  that one leg until the engine ships the fix; every other leg
+  keeps the full guard.
+
 - **#1220 reopened with the 1.9.203 repro**: HTML-document
   mutations are still lost on serialization (the exact original
   repro stands; node reads back mutated, serializer sees the old
