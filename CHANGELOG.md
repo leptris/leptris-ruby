@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for callback-owned buffers like the DTD PE loader, released via
   the already-bound `leptris_free_string`). Audit 333/333.
 
-### Fixed — audit:symbols portability (the ppc64le leg)
+### Fixed — portability (audit:symbols + POWER vendor mapping)
 
 - `nm -gU` → `nm -g`: GNU binutils nm (Debian bookworm 2.40)
   accepts `-U` but then ignores the file operand entirely
@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existing `split[2]` + `compact` already skips them on every nm
   flavor. The engine build itself succeeded on ppc64le this round
   — #1196's LTO crash did not reproduce.
+- `vendor_platforms_for` normalizes RbConfig's `powerpc64le` to
+  the gem-tier spelling `ppc64le`: the JVM-host rebuild ("java" →
+  host cpu-os) matched no tier on POWER hosts, so JRuby/
+  TruffleRuby there missed their vendored binary. Surfaced by the
+  ppc64le qemu leg (ffi_spec:223) once the audit fix let the suite
+  run; the spec now asserts JVM ≡ host tier.
 
 ### Not fixed despite upstream closes
 
