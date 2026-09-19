@@ -8,7 +8,7 @@ RSpec::Core::RakeTask.new(:spec)
 # Pin for `rake compile` and the platform-gem builds. Keep in lockstep
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
-LIBLEPTRIS_VERSION = "1.9.207"
+LIBLEPTRIS_VERSION = "1.9.208"
 # Vendored alongside libleptris for fn:normalize-unicode (TODO
 # .restructure/20): built per platform with a RELOCATABLE @rpath
 # install name, loaded by ffi.rb before libleptris so the
@@ -77,13 +77,14 @@ task :compile do
   fetch_tarball.call(
     "https://api.github.com/repos/leptris/leptris/tarball/v#{version}", build)
 
-  # NOTE: 32-bit ARM (armv7) is an ENGINE port task — the round-19
+  # NOTE: 32-bit ARM (armv7) WAS an engine port task — the round-19
   # ABI asserts pin layouts to 8-byte-pointer sizes and correctly
-  # abort the build on 32-bit. Filed upstream as leptris/leptris
-  # #1174; the release legs stay experimental (continue-on-error)
-  # and flip green automatically when the port ships. We patch
-  # nothing here — the emulated-leg smoke validates whatever the
-  # engine provides.
+  # aborted the build on 32-bit. Upstream shipped the ILP32 port
+  # (leptris/leptris#1174, closed; per-wordsize layout pins +
+  # inline-value gate landed in 1.9.199) and arm-linux /
+  # arm-linux-musl gems publish from every release since — the
+  # emulated release legs are strict again. We patch nothing here;
+  # the emulated-leg smoke validates whatever the engine provides.
 
   # utf8proc: shared build only, @rpath install name, local prefix.
   u8_dir = File.expand_path("tmp/utf8proc-#{UTF8PROC_VERSION}", __dir__)

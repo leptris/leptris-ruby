@@ -266,11 +266,14 @@ jobs:
     # 10-20x under qemu; the plain single-stage build ships the
     # identical library.
     #
-    # The two armv7 rows are EXPERIMENTAL until upstream ports the
-    # 64-bit-pinned layouts (leptris/leptris#1174: the round-19 ABI
-    # asserts correctly abort on 32-bit — sizeof(leptris_element)
-    # is 72 only where pointers are 8 bytes). Their failure is loud
-    # but non-blocking; aarch64 stays strict.
+    # The armv7 rows and the qemu POWER/Z rows all went strict at
+    # 1.9.208: upstream shipped the ILP32 port (#1174, closed —
+    # arm-linux + arm-linux-musl gems published in consecutive
+    # releases), ppc64le built clean since the audit nm fix, and
+    # the big-endian close-tag bug (#1197) was fixed engine-side in
+    # 1.9.206 with both qemu test legs green on main's 1.9.207
+    # grid. A red cell here blocks the release again — as it
+    # should.
     continue-on-error: ${{ matrix.experimental }}
     needs: bump
     if: always() && !cancelled() && !failure()
@@ -288,25 +291,22 @@ jobs:
           - platform: arm-linux
             image: ruby:3.3-bookworm
             qplatform: linux/arm/v7
-            experimental: true
+            experimental: false
           - platform: arm-linux-musl
             image: ruby:3.3-alpine
             qplatform: linux/arm/v7
-            experimental: true
-          # POWER8+ LE and IBM Z: qemu-built platform gems. s390x is
-          # big-endian — the engine's first exposure to a BE target;
-          # experimental until a release proves it (engine bugs file
-          # upstream, like armv7's #1174).
+            experimental: false
+          # POWER8+ LE and IBM Z: qemu-built platform gems.
           - platform: ppc64le-linux
             image: ruby:3.3-bookworm
             qplatform: linux/ppc64le
-            experimental: true
+            experimental: false
           # s390x ships as MUSL: official ruby images dropped s390x
           # entirely, but Alpine still builds ruby 3.3 for it
           - platform: s390x-linux-musl
             image: ruby:3.3-alpine
             qplatform: linux/s390x
-            experimental: true
+            experimental: false
     steps:
       - uses: actions/checkout@v4
         with:
