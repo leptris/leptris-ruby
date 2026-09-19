@@ -329,7 +329,7 @@ jobs:
               set -eux
               case "${{ matrix.image }}" in
                 *alpine*)
-                  apk add --no-cache build-base bash curl git cmake make
+                  apk add --no-cache build-base bash curl git cmake make linux-headers
                   ;;
                 *)
                   apt-get update -qq
