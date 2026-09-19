@@ -5,26 +5,45 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.203.0] - 2026-09-19
+## [1.9.204.0] - 2026-09-19
 
-### Added — DTD validation (the 1.9.202-exported surface)
+### Added — document-level mutation completed: #1229 (the 1.9.204 surface)
 
-- **`Leptris::XML::DTD`** — the RelaxNG-shaped face over the
-  exported DTD validation API (the `leptris validate --dtd` CLI's
-  library face): `DTD.parse(internal_subset)` →
-  `#valid?(doc)` / `#validate(doc)` /
-  `#first_error(doc)` with structured
-  `{message:, element:, line:, column:}` errors;
-  `DTD.from_document(doc)` validates against the document's own
-  DOCTYPE internal subset (document-owned handle);
-  `#merge_external_subset(content)` merges external declarations
-  with first-declaration-wins semantics (the library never does
-  I/O — the application reads the resource named by the system id).
-  Seven-case spec battery: required attributes, content models,
-  broken-DTD errors, external merge, from-document.
-- 1.9.203: `leptris_dtd_parse` honors the NULL-on-error contract
-  (upstream #1211).
-- Audit 329/329 (six new symbols attached).
+- **`Document#clear_declaration`** — un-sets the XML declaration
+  (clears version/encoding and the standalone marker); the
+  document serializes exactly as if the input had none.
+  Idempotent; returns self.
+- **`Document#remove_doctype`** — un-sets the DOCTYPE; it leaves
+  the child chain and the serializer's view while the DocType
+  stays pool-owned and readable (`doc.doctype.name` et al.) until
+  `#free`. Returns true when removed, false when the document had
+  none. Rounds out the write-half next to `#set_doctype` /
+  `doc.doctype` (the read/create faces wired earlier).
+- Completes upstream leptris/leptris#1229 and, with it, the
+  leptris-ruby#275 umbrella (PI removal 1.9.9, declaration clear +
+  DOCTYPE unset 1.9.204). Spec battery in
+  `document_construction_spec.rb`.
+- Engine adoption: 1.9.203 (`leptris_dtd_parse` honors the
+  NULL-on-error contract, upstream #1211) and 1.9.204 (html.h
+  subsystem header, one-shot name fast paths, one-call buffer-mode
+  pull feeds). #1229's two exports are wired as the
+  `Document#clear_declaration` / `#remove_doctype` faces; the
+  other two 1.9.204 exports attach for lockstep parity
+  (`leptris_sax_parser_set_one_shot` — the binding's one-shot SAX
+  entry is one-shot by construction and pull's memory source sets
+  it engine-side; `leptris_alloc_buffer` — engine-heap allocation
+  for callback-owned buffers like the DTD PE loader, released via
+  the already-bound `leptris_free_string`). Audit 333/333.
+
+### Fixed — audit:symbols portability (the ppc64le leg)
+
+- `nm -gU` → `nm -g`: GNU binutils nm (Debian bookworm 2.40)
+  accepts `-U` but then ignores the file operand entirely
+  (`nm: 'a.out': No such file`, empty export list, guaranteed
+  false drift). Undefined externals print two columns, so the
+  existing `split[2]` + `compact` already skips them on every nm
+  flavor. The engine build itself succeeded on ppc64le this round
+  — #1196's LTO crash did not reproduce.
 
 ### Not fixed despite upstream closes
 
@@ -32,13 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mutations are still lost on serialization (the exact original
   repro stands; node reads back mutated, serializer sees the old
   tree). Tracking continues upstream.
-- #1229's declaration-clear and DOCTYPE-unset did NOT land in
-  1.9.203 despite the completed close — leptris-ruby#275 remains
-  the umbrella.
-- #1197 (s390x BE), #1196 (ppc64le LTO), #1204 (trainer LTO)
-  closed completed; this lockstep's CI legs are the verdict (the
-  s390x/ppc64le qemu legs and the PGO trainer build run on every
-  grid pass).
+- **#1197 reopened with fresh 1.9.203 evidence**: the s390x qemu
+  leg failed 442/742 with the identical `malformed input`
+  signature at ASCII offsets; the reopen quotes the close
+  comment's own terms. (1.9.204's notes carry no BE fix; the leg
+  stays experimental until the engine ships one.)
 
 ## [1.9.201.3] - 2026-09-19
 
