@@ -118,6 +118,7 @@ module Leptris
       typedef :pointer, :leptris_node_ref
       typedef :pointer, :leptris_attribute
       typedef :pointer, :leptris_doctype
+      typedef :pointer, :leptris_dtd
       typedef :pointer, :leptris_xpath_result
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
@@ -1023,6 +1024,30 @@ attach_function :leptris_parse_string,
       # pre-scan at C speed instead of a Ruby regex.
       attach_function :leptris_str_has_nonstandard_entity,
         [:string, :size_t], :int
+
+      # DTD validation (exported 1.9.202; the surface existed
+      # since the CLI work): parse an internal subset, merge an
+      # external subset (application-owned I/O), validate a
+      # document. Errors carry message/element/line/column.
+      class DTDErrorStruct < ::FFI::Struct
+        layout :message, :string,
+               :element_name, :string,
+               :line, :int,
+               :column, :int
+      end
+      attach_function :leptris_dtd_parse,
+        [:string, :size_t], :pointer
+      # leptris_document_get_dtd attached above with the readers
+      attach_function :leptris_dtd_parse_external_subset,
+        [:pointer, :string, :size_t], :int
+      attach_function :leptris_dtd_set_pe_loader,
+        [:pointer, :pointer, :pointer], :void
+      attach_function :leptris_dtd_validate,
+        [:leptris_document, :pointer, :pointer], :int
+      attach_function :leptris_dtd_free,
+        [:pointer], :void
+      attach_function :leptris_dtd_error_free,
+        [:pointer], :void
 
       attach_function :leptris_rng_parse,
         [:string, :size_t, :pointer], :leptris_relaxng

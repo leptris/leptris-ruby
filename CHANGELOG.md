@@ -5,6 +5,41 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.203.0] - 2026-09-19
+
+### Added — DTD validation (the 1.9.202-exported surface)
+
+- **`Leptris::XML::DTD`** — the RelaxNG-shaped face over the
+  exported DTD validation API (the `leptris validate --dtd` CLI's
+  library face): `DTD.parse(internal_subset)` →
+  `#valid?(doc)` / `#validate(doc)` /
+  `#first_error(doc)` with structured
+  `{message:, element:, line:, column:}` errors;
+  `DTD.from_document(doc)` validates against the document's own
+  DOCTYPE internal subset (document-owned handle);
+  `#merge_external_subset(content)` merges external declarations
+  with first-declaration-wins semantics (the library never does
+  I/O — the application reads the resource named by the system id).
+  Seven-case spec battery: required attributes, content models,
+  broken-DTD errors, external merge, from-document.
+- 1.9.203: `leptris_dtd_parse` honors the NULL-on-error contract
+  (upstream #1211).
+- Audit 329/329 (six new symbols attached).
+
+### Not fixed despite upstream closes
+
+- **#1220 reopened with the 1.9.203 repro**: HTML-document
+  mutations are still lost on serialization (the exact original
+  repro stands; node reads back mutated, serializer sees the old
+  tree). Tracking continues upstream.
+- #1229's declaration-clear and DOCTYPE-unset did NOT land in
+  1.9.203 despite the completed close — leptris-ruby#275 remains
+  the umbrella.
+- #1197 (s390x BE), #1196 (ppc64le LTO), #1204 (trainer LTO)
+  closed completed; this lockstep's CI legs are the verdict (the
+  s390x/ppc64le qemu legs and the PGO trainer build run on every
+  grid pass).
+
 ## [1.9.201.3] - 2026-09-19
 
 ### Added — the HTML facade (Nokogiri-shaped entry points)
