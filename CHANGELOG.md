@@ -5,6 +5,54 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.208.0] - 2026-09-20
+
+### Fixed — engine sync: the #1242 TLS-memo corruption (1.9.208)
+
+- Vendored libleptris 1.9.208: the TLS `(root, doc)` last-hit memo
+  in `leptris_element_get_document` trusted the root address and
+  was cleared only by document identity — an element-level
+  unregistration left `(freed_address, doc)` behind, and a
+  recycled address resolved the WRONG document, poisoning
+  attribute ownership (whole-run all-NULL
+  `leptris_element_attribute` reads; set_root's cross-document
+  check tripping EINVAL). The memo is now cleared whenever the
+  outgoing root address matches. `leptris_document_set_root` also
+  sets a fresh thread-local error on every rejection (no more
+  stale XPath messages), and `LEPTRIS_DEBUG_ATTR_MISS=1` dumps
+  attribute-chain state on lookup misses.
+- **CI un-quarantined, fully strict again**: the ubuntu-latest
+  Ruby 3.4 leg (LEPTRIS_SKIP_1242 + the experimental include are
+  gone), the s390x/ppc64le qemu test legs (#1197 fixed in 1.9.206,
+  both green on main's 1.9.207 grid), and the armv7/ppc64le/
+  s390x-musl release-build cells (#1174's ILP32 port shipped;
+  arm gems publish from every release since). A red cell blocks
+  again — as it should.
+- ffi.rb dedupe: the 1.9.206-surface block re-attached ten
+  symbols the 1.9.204 wiring had already attached (audit counted
+  345 attachments against 335 exports). The typed 1.9.206 block
+  is kept; audit 335/335.
+
+## [1.9.207.0] - 2026-09-19
+
+### Fixed — engine sync: big-endian close-tag parse (#1197 upstream)
+
+- Vendored libleptris 1.9.207: the close-tag fast-path compare
+  masked the wrong end of its 8-byte name load on big-endian hosts,
+  rejecting ordinary paired-tag documents with "malformed input"
+  (434/727 binding-suite failures under qemu s390x). The mask now
+  follows memory order per byte dialect; the s390x-linux-musl
+  platform gem becomes viable with this release.
+
+### Added — FFI mirror adopts the 1.9.202–1.9.207 engine surface
+
+- audit:symbols lockstep attachments: recover diagnostics
+  (leptris_document_parse_diag[_count]), the standalone DTD family
+  (leptris_dtd_*), declaration/doctype removal, engine-heap buffer
+  allocation, and one-shot SAX. leptris_set_error stays internal —
+  the engine now hides it on ELF too (leptris#1243), so the export
+  surface agrees across Linux/macOS/Windows.
+
 ## [1.9.204.0] - 2026-09-19
 
 ### Added — document-level mutation completed: #1229 (the 1.9.204 surface)
@@ -54,26 +102,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Not fixed despite upstream closes
 
 - **Iterparse attribute reads: all-nil runs on ubuntu-latest Ruby
-## [1.9.207.0] - 2026-09-19
-
-### Fixed — engine sync: big-endian close-tag parse (#1197 upstream)
-
-- Vendored libleptris 1.9.207: the close-tag fast-path compare
-  masked the wrong end of its 8-byte name load on big-endian hosts,
-  rejecting ordinary paired-tag documents with "malformed input"
-  (434/727 binding-suite failures under qemu s390x). The mask now
-  follows memory order per byte dialect; the s390x-linux-musl
-  platform gem becomes viable with this release.
-
-### Added — FFI mirror adopts the 1.9.202–1.9.207 engine surface
-
-- audit:symbols lockstep attachments: recover diagnostics
-  (leptris_document_parse_diag[_count]), the standalone DTD family
-  (leptris_dtd_*), declaration/doctype removal, engine-heap buffer
-  allocation, and one-shot SAX. leptris_set_error stays internal —
-  the engine now hides it on ELF too (leptris#1243), so the export
-  surface agrees across Linux/macOS/Windows.
-
 ## [1.9.201.3] - 2026-09-19
 
 ### Added — the HTML facade (Nokogiri-shaped entry points)
