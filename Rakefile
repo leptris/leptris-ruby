@@ -240,7 +240,7 @@ task :compile do
     # the release workflow runs the build script under 3.3/3.4/
     # 4.0 to produce the full set.
     sh "#{RbConfig.ruby} ext/build_windows_native.rb"
-  else
+  elsif %w[ruby truffleruby].include?(RUBY_ENGINE)
     ext_dir = "ext/leptris/native"
     Dir.chdir(ext_dir) do
       sh "ruby extconf.rb"
@@ -271,18 +271,26 @@ task :compile do
       end
     end
     bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
-    raise "native layer bundle not found after build" unless bundle
-    if RUBY_PLATFORM =~ /darwin/
-      # Build-log proof of the linkage contract: libSystem only.
-      puts `otool -L #{bundle}`
+    if bundle.nil?
+      # Engines without an MRI C-ext toolchain (JRuby's mkmf is a
+      # stub): no native layer here — the FFI surface + vendored
+      # binaries apply (the sdist extconf mirrors this gate).
+      raise "native layer bundle not found after build" if
+        %w[ruby truffleruby].include?(RUBY_ENGINE)
+      warn "leptris: #{RUBY_ENGINE} — no native layer in rake compile"
+    else
+      if RUBY_PLATFORM =~ /darwin/
+        # Build-log proof of the linkage contract: libSystem only.
+        puts `otool -L #{bundle}`
+      end
+      # Atomic replace: overwriting a bundle another process still
+      # has mapped gets that loader SIGKILLed (CODESIGNING Invalid
+      # Page) — cp to a temp name, then mv.
+      dest = "lib/leptris/xml/#{File.basename(bundle)}"
+      cp(bundle, "#{dest}.new")
+      mv("#{dest}.new", dest)
+      puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
     end
-    # Atomic replace: overwriting a bundle another process still
-    # has mapped gets that loader SIGKILLed (CODESIGNING Invalid
-    # Page) — cp to a temp name, then mv.
-    dest = "lib/leptris/xml/#{File.basename(bundle)}"
-    cp(bundle, "#{dest}.new")
-    mv("#{dest}.new", dest)
-    puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
   end
 end
 
