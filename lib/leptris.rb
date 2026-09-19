@@ -4,6 +4,11 @@ require "leptris/version"
 
 module Leptris
   autoload :XML, "leptris/xml"
+  # One file, three entry constants (HTML/HTML4/HTML5) — each
+  # autoload maps so any reference loads the facade.
+  autoload :HTML, "leptris/html"
+  autoload :HTML4, "leptris/html"
+  autoload :HTML5, "leptris/html"
 end
 
 # Eager library resolution (issue leptris-ruby#49): resolve the
