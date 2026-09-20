@@ -29,10 +29,13 @@ begin
 rescue LoadError => e
   raise LoadError, <<~MSG
     Leptris could not load the native libleptris library.
-    The ruby-platform gem is a fallback variant and ships no
-    binary; install the platform-specific variant for your system
-    (e.g. `gem install leptris --platform=arm64-darwin`), or set
-    LEPTRIS_LIB_PATH to a libleptris.{so,dylib,dll} file.
+    The ruby-platform gem carries the engine sources under
+    vendor-src/ and builds them at install time — a failed build
+    here usually means cmake or a C toolchain is missing (check
+    the gem install output). Alternatively install the
+    platform-specific variant for your system (e.g. `gem install
+    leptris --platform=arm64-darwin`), or set LEPTRIS_LIB_PATH to
+    a libleptris.{so,dylib,dll} file.
     (Underlying error: #{e.message})
   MSG
 end
