@@ -98,3 +98,67 @@ RSpec.describe "Leptris::XML::Descriptor (libleptris 1.9.162, upstream #1039)" d
     expect(doc.root.at("n").byte_offset).to eq(3)
   end
 end
+
+RSpec.describe "Leptris::XML::Descriptor typed scalars + materialize (#230's fused-consumer contract)" do
+  let(:descriptor) do
+    Leptris::XML::Descriptor.build(
+      name: "catalog",
+      attributes: [{ name: "version", kind: :scalar, type: :integer }],
+      children: [
+        { name: "item", kind: :nested, plan: {
+            name: "item",
+            attributes: [
+              { name: "id", kind: :scalar, type: :integer },
+              { name: "weight", kind: :scalar, type: :float },
+              { name: "in_stock", kind: :scalar, type: :boolean },
+            ],
+            children: [
+              { name: "price", kind: :scalar, type: :float },
+              { name: "title", kind: :scalar },
+              { name: "note", kind: :scalar, type: :integer },
+            ] } },
+      ])
+  end
+
+  let(:xml) do
+    %(<catalog version="2"><item id="7" weight="1.25" in_stock="true") +
+      %(><price>9.99</price><title>Book</title><note>n/a</note></item></catalog>)
+  end
+
+  it "casts element and attribute scalars per the row's type" do
+    tree = descriptor.walk(Leptris::XML::Document.parse(xml).root).to_ruby
+    expect(tree[:attributes]["version"]).to eq(2)
+    item = tree[:children].first
+    expect(item[:attributes]).to eq(
+      "id" => 7, "weight" => 1.25, "in_stock" => true)
+    price, title, note = item[:children]
+    expect(price).to eq(9.99)
+    expect(title).to eq("Book")
+    expect(note).to eq("n/a") # lenient: unparseable int falls back
+  end
+
+  it "keeps #string_value raw regardless of tag" do
+    root = descriptor.walk(Leptris::XML::Document.parse(xml).root)
+    price_scalar = root.at(0).at(0) # item element's first child row
+    expect(price_scalar.string_value).to eq("9.99")
+  end
+
+  it "rejects unknown types at the boundary" do
+    expect {
+      Leptris::XML::Descriptor.build(
+        name: "r", children: [{ name: "x", kind: :scalar, type: :bogus }])
+    }.to raise_error(ArgumentError, /type must be one of/)
+  end
+
+  it "materializes from source bytes in one call, standalone from the document" do
+    fused = descriptor.materialize(xml)
+    parsed = descriptor.walk(Leptris::XML::Document.parse(xml).root)
+    expect(fused.to_ruby).to eq(parsed.to_ruby)
+    expect(fused.to_ruby[:children].first[:attributes]["id"]).to eq(7)
+  end
+
+  it "rejects rootless sources at parse (the no-root guard is defensive)" do
+    expect { descriptor.materialize("<!-- comment only -->") }
+      .to raise_error(Leptris::XML::ParseError)
+  end
+end

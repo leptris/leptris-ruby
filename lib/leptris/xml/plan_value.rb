@@ -94,11 +94,39 @@ class Leptris::XML::PlanValue
     when :callback
       { value: string_value, position: position, type_tag: type_tag }
     else
-      string_value
+      typed_string_value
     end
   end
 
   private
+
+  # SCALAR honoring the plan row's type tag (#230's typed-scalars
+  # contract): 1=Integer, 2=Float, 3=boolean. Lenient on
+  # unparseable input — the raw String wins (first-wins house
+  # style; strict validation belongs to the consumer's callback
+  # rows). #string_value stays the raw escape.
+  def typed_string_value
+    case type_tag
+    when 1
+      s = string_value
+      Integer(s, 10) rescue s
+    when 2
+      s = string_value
+      begin
+        Float(s)
+      rescue ArgumentError, TypeError
+        s
+      end
+    when 3
+      case string_value
+      when "true", "1" then true
+      when "false", "0" then false
+      else string_value
+      end
+    else
+      string_value
+    end
+  end
 
   # The element plan that a child row with this wire_name recurses
   # into (nil for non-nested rows — their values carry no plan).
@@ -114,8 +142,31 @@ class Leptris::XML::PlanValue
     result = {}
     ((@plan && @plan[:attributes]) || []).each do |row|
       v = attribute(row[:name])
-      result[row[:name]] = v unless v.nil?
+      result[row[:name]] = cast_attribute(v, row) unless v.nil?
     end
     result
+  end
+
+  # Attribute values come back as plain Strings from the walk;
+  # apply the row's type tag with the same lenient semantics as
+  # typed_string_value.
+  def cast_attribute(value, row)
+    tag = Leptris::XML::Descriptor.type_tag_code(row)
+    case tag
+    when 1 then Integer(value, 10) rescue value
+    when 2
+      begin
+        Float(value)
+      rescue ArgumentError, TypeError
+        value
+      end
+    when 3
+      case value
+      when "true", "1" then true
+      when "false", "0" then false
+      else value
+      end
+    else value
+    end
   end
 end
