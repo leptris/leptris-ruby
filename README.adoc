@@ -67,8 +67,11 @@ vendors precompiled `libleptris` + `libutf8proc` binaries for the
 common engine platforms under `lib/leptris/vendor/`:
 
 - `arm64-darwin`, `x86_64-darwin`
-- `x86_64-linux`, `aarch64-linux` (glibc; the musl variants are
-  tried as fallback for Alpine hosts)
+- `x86_64-linux`, `aarch64-linux` (glibc) and `x86_64-linux-musl`,
+  `aarch64-linux-musl` (tried as fallback for Alpine hosts)
+- `arm-linux`, `arm-linux-musl` (32-bit ARM EABI5)
+- `ppc64le-linux`, `s390x-linux`, `s390x-linux-musl` (POWER8+ LE
+  and IBM Z, qemu-built)
 
 `gem install leptris` just works on both engines — the FFI layer
 selects the matching vendored binary at require time (the binding
@@ -127,7 +130,10 @@ Leptris::XML::FFI.leptris_last_error    # => "..."
 `Leptris::XML.parse_html(html)` parses tolerant HTML4/5 into a
 standard Document — the same nodes, pool, serializer, and
 XPath/XSLT/XQuery machinery as XML (libleptris 1.9.75, the last
-Nokogiri capability gap):
+Nokogiri capability gap). The `Leptris::HTML`, `Leptris::HTML4`,
+and `Leptris::HTML5` module facades provide the
+Nokogiri-shaped entry points over the same engine
+(`Leptris::HTML5.parse(html)`, `Leptris::HTML(html)`):
 
 [source,ruby]
 ----
@@ -345,17 +351,44 @@ puts doc.to_xml
 `Element#replace(node)` / `#swap(node)` :: replace in parent.
 `Element#wrap(node_or_markup)` :: wrap this element in a new one.
 `Node#unlink` :: detach from the tree.
+`Element#attribute_pairs` :: bulk read-only attribute listing — `[[name, value], ...]` in document order, duplicates included; one C crossing on the native layer (libleptris 1.9.210 era).
+
+Document diffing (`Leptris::XML.diff(a, b)`) yields an op list with
+`#ops`, per-kind counts via `#summary`
+(`{update_attr: 1, insert: 1}`, `{}` when identical), and `#to_json`
+for the op list — the `leptris diff --summary/--json` CLI modes'
+library face.
 
 === Building from scratch (no parse)
 
+`Document.create` starts an empty document; build up from there
+(document-level prolog parts included — PIs, comments, the XML
+declaration, and the DOCTYPE are all first-class):
+
 [source,ruby]
 ----
-# Create an empty Document by parsing a sentinel and replacing the root,
-# or build incrementally on a one-element seed.
-doc = Leptris::XML.parse("<root/>")
-doc.root.name = "catalog"
-# ... then create_element / add_child as above.
+doc   = Leptris::XML::Document.create
+book  = doc.create_element("book")
+book[:id] = "b3"
+book << doc.create_element("title")
+doc.root = doc.create_element("catalog")
+doc.root << book
+doc.add_comment("built programmatically")   # epilog comment
+doc.set_doctype("catalog", system_id: "catalog.dtd")
+
+puts doc.to_xml
 ----
+
+[horizontal]
+`Document.create` :: empty document (no root yet).
+`Document#root=` :: attach the root element (bottom-up construction).
+`Document#set_doctype(name, public_id:, system_id:)` :: programmatic DOCTYPE.
+`Document#doctype` (alias `#internal_subset`) :: the `DocType` reader (name/root_name/public_id/system_id/internal_subset).
+`Document#clear_declaration` :: un-set the XML declaration (serialize as if the input had none; idempotent).
+`Document#remove_doctype` :: un-set the DOCTYPE (true when removed; the DocType stays readable until `#free`).
+`Document#add_pi(target, data)` / `#remove_pi(target_or_index)` :: document-level processing instructions.
+`Document#add_comment(str)` :: epilog comment.
+`Document#create_entity_reference(name)` :: `&name;` node, serializes verbatim once attached.
 
 == Namespaces
 
@@ -711,11 +744,16 @@ Notable differences:
   past Document disposal will see the error; silence-replace-UAF patterns
   from Nokogiri do not apply.
 * No `Nokogiri::CSS` parser. HTML parsing is supported
-  (`Leptris::XML.parse_html`, libleptris 1.9.75); Nokogiri's
+  (`Leptris::HTML` / `Leptris::HTML4` / `Leptris::HTML5` facades
+  over `Leptris::XML.parse_html`, libleptris 1.9.75); Nokogiri's
   HTML-specific node subclasses have no equivalent.
-* No RelaxNG / DTD validation, no schema caching (XSLT 1.0–3.0
+* RelaxNG and DTD validation ARE supported (`Leptris::XML::RelaxNG`,
+  `Leptris::XML::DTD` — parse once, validate many, structured
+  errors). No W3C XML Schema and no schema caching (XSLT 1.0–3.0
   and an XQuery 1.0 core are supported — see above).
-* No built-in JRuby / TruffleRuby support — only CRuby via `ffi`.
+* TruffleRuby and JRuby ARE supported out of the box (#160): the
+  `ruby`-platform variant vendors precompiled binaries and the
+  binding is FFI-based (no MRI C extension required to load).
 
 == Performance
 
