@@ -35,3 +35,34 @@ RSpec.describe "Leptris::XML.diff (libleptris 1.9.144 family)" do
     expect(Leptris::XML::Diff.identical?(ws_a, ws_b, ignore_ws: true)).to be(true)
   end
 end
+
+RSpec.describe "Leptris::XML.diff output modes (libleptris >= 1.9.200)" do
+  it "summarizes per-kind op counts" do
+    a = Leptris::XML::Document.parse("<r><i id='1'/><del/><keep/></r>")
+    b = Leptris::XML::Document.parse("<r><i id='2'/><ins/><keep/></r>")
+    summary = Leptris::XML.diff(a, b).summary
+    expect(summary).to eq(
+      update_attr: 1,
+      insert: 1,
+      delete: 1
+    )
+  end
+
+  it "returns an empty summary for identical documents" do
+    doc = Leptris::XML::Document.parse("<r><i/></r>")
+    expect(Leptris::XML.diff(doc, doc).summary).to eq({})
+  end
+
+  it "serializes the op list as JSON" do
+    a = Leptris::XML::Document.parse("<r><i id='1'>x</i></r>")
+    b = Leptris::XML::Document.parse("<r><i id='2'>y</i></r>")
+    json = Leptris::XML.diff(a, b).to_json
+    parsed = JSON.parse(json, symbolize_names: true)
+    expect(parsed).to include(
+      a_hash_including(type: "update_attr", path: "/r/i", name: "id",
+                       before: "1", after: "2"),
+      a_hash_including(type: "update_text", path: "/r/i",
+                       before: "x", after: "y")
+    )
+  end
+end

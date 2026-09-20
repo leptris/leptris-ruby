@@ -71,4 +71,18 @@ class Leptris::XML::Diff
     str_ptr = Leptris::XML::FFI.leptris_diff_serialize(@handle)
     Leptris::XML::FFI.read_owned_string(str_ptr)
   end
+
+  # Per-kind op counts (#1184): {update_attr: 1, insert: 1, ...} —
+  # {} when identical.
+  def summary
+    ops.each_with_object(Hash.new(0)) { |op, h| h[op[:type]] += 1 }
+  end
+
+  # The op list as JSON (#1184) — the same shape #ops yields, with
+  # stringified ops. Requires the json standard library lazily.
+  def to_json(*args)
+    require "json"
+    ops.map { |op| op.transform_values { |v| v.nil? ? nil : v.to_s } }
+      .to_json(*args)
+  end
 end
