@@ -117,6 +117,35 @@ task :compile do
     rm_rf([File.join(dest, "build"), File.join(dest, "prefix")])
   end
 
+  # Rebuild notes ride every gem beside the sources (packaging
+  # doctrine): the exact pins and the commands to reproduce the
+  # vendored libraries. The ruby variant's extconf runs these
+  # trees automatically at install time.
+  File.write(File.join(vsrc, "README.md"), <<~README)
+    Sources vendored in this gem (recompile rights; the ruby
+    variant builds them at install via extconf.rb):
+
+    - libleptris v#{LIBLEPTRIS_VERSION}
+    - utf8proc v#{UTF8PROC_VERSION}
+
+    Rebuild by hand:
+
+        cmake -B vendor-src/utf8proc/build -S vendor-src/utf8proc \
+          -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+          -DUTF8PROC_ENABLE_TESTING=OFF
+        cmake --build vendor-src/utf8proc/build --config Release
+        cmake --install vendor-src/utf8proc/build --prefix <prefix>
+
+        cmake -B vendor-src/libleptris/build -S vendor-src/libleptris \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLEPTRIS_BUILD_SHARED=ON -DLEPTRIS_BUILD_STATIC=OFF \
+          -DBUILD_TESTING=OFF -DLEPTRIS_BUILD_CLI=OFF \
+          -DLEPTRIS_BUILD_BENCHMARKS=OFF -DLEPTRIS_BUILD_MAN_PAGES=OFF \
+          -DLEPTRIS_ENABLE_UTF8PROC=ON \
+          -DCMAKE_PREFIX_PATH=<utf8proc-prefix>
+        cmake --build vendor-src/libleptris/build --config Release
+  README
+
   # libleptris 1.9.18's xslt_functions.c:270 assigns LeptrisElement
   # to LeptrisNodeRef — GCC 14 (Alpine/musl) makes incompatible
   # pointer types an error by default and the musl platform gems
@@ -354,6 +383,46 @@ namespace :audit do
       puts "audit:symbols: #{attached.length}/#{exported.length} symbols in lockstep"
     else
       abort "audit:symbols: drift detected"
+    end
+  end
+
+  # Packaging doctrine (#271): every BUILT gem carries the engine
+  # source (vendor-src/libleptris build inputs) and the ext sources;
+  # platform gems additionally carry the prebuilt libraries and must
+  # NOT carry extensions; the pure ruby gem compiles at install
+  # (extensions present). Run over pkg/*.gem before publishing —
+  # the gate is what keeps the doctrine from regressing silently.
+  desc "Audit built gems for the packaging doctrine (source + binaries + extension policy)"
+  task :doctrine do
+    gems = Dir.glob("pkg/*.gem")
+    abort "audit:doctrine: no gems in pkg/ — build first (rake gem:native:...)" if gems.empty?
+
+    gems.each do |path|
+      spec = Gem::Package.new(path).spec
+      files = spec.files.map { |f| f.gsub("\\", "/") }
+
+      missing = []
+      missing << "vendor-src/libleptris/CMakeLists.txt" unless
+        files.include?("vendor-src/libleptris/CMakeLists.txt")
+      missing << "vendor-src/README.md" unless files.include?("vendor-src/README.md")
+      missing << "ext/leptris/native/extconf.rb" unless
+        files.include?("ext/leptris/native/extconf.rb")
+
+      if spec.platform.to_s == "ruby"
+        missing << "extensions (compile-at-install)" if spec.extensions.empty?
+      else
+        binary = files.any? { |f| f =~ %r{\Alib/libleptris\.(so|dylib|dll)\z} } ||
+                 files.any? { |f| f.start_with?("lib/leptris/vendor/") }
+        missing << "prebuilt engine binary" unless binary
+        missing << "extensions (platform gems never rebuild)" unless spec.extensions.empty?
+      end
+
+      if missing.empty?
+        puts "audit:doctrine: #{File.basename(path)} OK " \
+             "(#{spec.platform}, #{files.length} files)"
+      else
+        abort "audit:doctrine: #{File.basename(path)} MISSING: #{missing.join(', ')}"
+      end
     end
   end
 
