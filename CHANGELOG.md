@@ -5,7 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.209.0] - 2026-09-20
+
+### Performance — engine sync (1.9.209)
+
+- Vendored libleptris 1.9.209: WHATWG HTML parse round 2
+  (#1218) — the per-close-tag implied-end/open-side name-list
+  scans (40 + 33 names, ~7% of parse self-time on table-heavy
+  pages) became membership bits on the first-char-bucketed tag
+  classifier; bench_html_parse 24.1 → 25.1-26.7 MB/s. No
+  binding-facing surface changes; audit holds.
 
 ### Added — `Diff#summary` / `Diff#to_json` (the 1.9.200 output modes, #1184)
 
