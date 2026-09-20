@@ -295,6 +295,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_alive!
     return @attribute_pairs if memo_hit?(@attribute_pairs_version)
     result = if @c_address && @document &&
+                defined?(::Leptris::XML::Native) &&
                 ::Leptris::XML::Native.respond_to?(:attribute_pairs)
                 ::Leptris::XML::Native.attribute_pairs(@document, @c_address)
                     .each_slice(2).to_a
