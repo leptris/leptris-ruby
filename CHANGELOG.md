@@ -5,6 +5,27 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.210.0] - 2026-09-20
+
+### Performance — engine sync (1.9.210)
+
+- Vendored libleptris 1.9.210: the node-layout fork's document
+  block (slice 1, #1253) — two contiguous geometrically-grown
+  regions per document (dense node array + string arena) with
+  region-relative byte-offset edges, so growth never invalidates
+  an offset; and the parse-arena retain ceiling raised 32 → 96MB
+  with a thread-cleanup drain (#1222/#1238 lane): repeated large
+  parses stop freeing/re-mallocing tens of MB per cycle. Measured
+  engine-side: 13MB attr shape 341 → 472 MB/s (+38%); the text
+  shape's size-decline eliminated (~605-627 flat across
+  1.5-13MB). No binding-facing surface changes; audit holds.
+- Note: #1242 was closed upstream before our strikes 7-10
+  forensics landed; reopened with the post-fix evidence (the
+  1.9.208 memo clear is incomplete — direct-call NULL + empty
+  chain on a live element; set_root cross-document false
+  positive on windows-4.0). The ubuntu-3.4 gate and armed
+  forensics stay until the engine ships the residual fix.
+
 ## [1.9.209.0] - 2026-09-20
 
 ### Performance — engine sync (1.9.209)
