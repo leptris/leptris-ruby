@@ -284,6 +284,30 @@ class Leptris::XML::Element < Leptris::XML::Node
     result
   end
 
+  # Read-only attribute listing as [name, value] pairs — no Attr
+  # objects. Names are interned frozen strings (shared across
+  # documents; dup before mutating), values fresh UTF-8 strings.
+  # Document order, duplicates included. One C crossing per element
+  # on the native layer (leptris-ruby#278) — the walk-hot shape for
+  # consumers that only read name/value. Mutation and per-attribute
+  # namespace resolution stay on attribute_nodes.
+  def attribute_pairs
+    ensure_alive!
+    return @attribute_pairs if memo_hit?(@attribute_pairs_version)
+    result = if @c_address && @document &&
+                ::Leptris::XML::Native.respond_to?(:attribute_pairs)
+                ::Leptris::XML::Native.attribute_pairs(@document, @c_address)
+                    .each_slice(2).to_a
+              else
+                each_attribute.to_a.map { |a| [a.name, a.value] }
+              end
+    if @document
+      @attribute_pairs = result
+      @attribute_pairs_version = @document.version
+    end
+    result
+  end
+
   def attribute_nodes
     return @attribute_nodes if memo_hit?(@attribute_nodes_version)
     result = each_attribute.to_a

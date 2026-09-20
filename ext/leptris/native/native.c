@@ -1932,6 +1932,32 @@ static void walk_rows_impl(void *node, int depth, VALUE out)
     }
 }
 
+/* ---- Attribute pairs (leptris-ruby#278) --------------------------
+ * Read-only attribute listing as a flat [name, value, ...] array —
+ * names interned (they repeat across documents), values fresh
+ * UTF-8 strings, document order, duplicates included, NO Attr
+ * objects minted. One crossing per element; the walk-hot shape for
+ * consumers that only read name/value. Mutation and per-attribute
+ * namespace resolution stay on attribute_nodes. */
+static VALUE nf_attribute_pairs(VALUE self, VALUE document, VALUE addr)
+{
+    (void)self;
+    (void)document;
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    VALUE out = rb_ary_new();
+    if (f_node_type(node) != WS_NODE_ELEMENT) return out;
+
+    for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
+        const char *an = f_attr_name(a);
+        const char *av = f_attr_value(node, a);
+        rb_ary_push(out, an ? rb_enc_interned_str(an, strlen(an),
+                                                  rb_utf8_encoding())
+                            : Qnil);
+        rb_ary_push(out, av ? rb_utf8_str_new_cstr(av) : Qnil);
+    }
+    return out;
+}
+
 static VALUE nf_snapshot_rows(VALUE self, VALUE document, VALUE addr)
 {
     (void)self;
@@ -2606,6 +2632,8 @@ void Init_native(void)
                               nf_snapshot_subtree, 2);
     rb_define_module_function(m_native, "snapshot_rows",
                               nf_snapshot_rows, 2);
+    rb_define_module_function(m_native, "attribute_pairs",
+                              nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
                               nf_plan_structs, 3);
     rb_define_module_function(m_native, "doc_handle_attach",
