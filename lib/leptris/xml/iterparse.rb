@@ -46,6 +46,12 @@ class Leptris::XML::Iterparse
     xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
     iterator = new(Leptris::XML::FFI.leptris_iterparse_new_ex(
       xml, xml.bytesize, mode_code(mode)))
+    # leptris_iterparse_new_ex retains the buffer and reads it
+    # lazily in bounded slices (#1207-class): without this
+    # reference the input String is collectable the moment parse
+    # returns, and the iterator walks freed memory — attribute
+    # reads intermittently come back nil (#279)
+    iterator.keepalive_input(xml)
     return iterator unless block
     begin
       iterator.run(&block)
@@ -78,7 +84,15 @@ class Leptris::XML::Iterparse
   def initialize(handle)
     raise Leptris::XML::ParseError, "leptris_iterparse_new failed" if handle.null?
     @handle = handle
+    @input_keepalive = nil
     @scope = Leptris::XML::IterationScope.new(handle)
+  end
+
+  # Pins the input buffer for the iterator's lifetime (see
+  # self.parse). Public but internal — not part of the API.
+  def keepalive_input(buffer)
+    @input_keepalive = buffer
+    self
   end
 
   # Yields completed elements until the document is exhausted or the
