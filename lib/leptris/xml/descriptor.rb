@@ -28,7 +28,33 @@ require "ffi"
 # Namespace binding per plan: +ns:+ is :none (default), :any, or
 # { exact: "urn:..." }; +flags: [:mixed_content, :ordered, :cdata,
 # :ns_lenient].
+#
+# == Typed scalars (#230's fused-consumer contract, mirroring the
+# yeptris schema ABI)
+#
+# Attribute and child rows accept +type: :string (default),
+# :integer, :float, or :boolean+. The tag travels through the plan
+# ABI (host-defined, echoed verbatim) and PlanValue#to_ruby returns
+# the cast value — Integer / Float / true / false — so per-value
+# cast probes disappear from the consumer. Unparseable values fall
+# back to the raw String (lenient, first-wins house style);
+# #string_value always returns the raw String regardless of tag.
+#
+#     descriptor = Leptris::XML::Descriptor.build(
+#       name: "catalog",
+#       children: [
+#         { name: "price", kind: :scalar, type: :float },
+#         { name: "in_stock", kind: :scalar, type: :boolean },
+#       ])
+#     descriptor.materialize(xml_source).to_ruby  # typed, one call
 class Leptris::XML::Descriptor
+  TYPE_TAGS = {
+    string: 0,
+    integer: 1,
+    float: 2,
+    boolean: 3,
+  }.freeze
+  private_constant :TYPE_TAGS
   class Handle < ::FFI::AutoPointer
     def self.release(ptr)
       Leptris::XML::FFI.leptris_plan_free(ptr)
@@ -136,7 +162,7 @@ class Leptris::XML::Descriptor
         ap = Leptris::XML::FFI::AttrPlan.new(attr_memory[j])
         ap[:wire_name] = anchor_string(anchors, row.fetch(:name))
         ap[:kind] = kind_code(row[:kind] || :scalar)
-        ap[:type_tag] = row[:type_tag] || 0
+        ap[:type_tag] = type_tag_code(row)
       end
       ep[:attribute_count] = attrs.size
       ep[:attribute_plans] = attr_memory
@@ -148,7 +174,7 @@ class Leptris::XML::Descriptor
         cp = Leptris::XML::FFI::ChildPlan.new(child_memory[j])
         cp[:wire_name] = anchor_string(anchors, row.fetch(:name))
         cp[:kind] = kind_code(row[:kind] || :scalar)
-        cp[:type_tag] = row[:type_tag] || 0
+        cp[:type_tag] = type_tag_code(row)
         cp[:child_plan_index] = row[:child_plan_index] || -1
         # Rule-level ns form (libleptris 1.9.178, #1115): siblings
         # under one parent can require different URIs when set;
@@ -189,6 +215,20 @@ class Leptris::XML::Descriptor
   end
   private_class_method :kind_code
 
+  # +type: :string/:integer/:float/:boolean+ (or a raw numeric
+  # type_tag passthrough for hosts with their own vocabulary).
+  # Public: PlanValue's attribute casts share the vocabulary.
+  def self.type_tag_code(row)
+    if row.key?(:type)
+      TYPE_TAGS.fetch(row[:type]) do
+        raise ArgumentError,
+          "type must be one of #{TYPE_TAGS.keys.inspect}, got #{row[:type].inspect}"
+      end
+    else
+      row[:type_tag] || 0
+    end
+  end
+
   def initialize(handle, plans, root_index)
     @handle = handle
     @plans = plans
@@ -210,5 +250,22 @@ class Leptris::XML::Descriptor
     end
     Leptris::XML::PlanValue.new(ResultHandle.new(raw),
                                 owner: true, plans: @plans, plan: @plans[0])
+  end
+
+  # The fused loop (#230, pointed at the parse): source bytes →
+  # typed rows in ONE call — parse, walk the compiled plan, free
+  # the document; the returned PlanValue tree is standalone and
+  # the Document never surfaces. Byte-for-byte parity with
+  # #walk on the same source's root element.
+  def materialize(source)
+    document = Leptris::XML::Document.parse(source)
+    begin
+      root = document.root
+      raise Leptris::XML::Error,
+        "materialize: document has no root element" if root.nil?
+      walk(root)
+    ensure
+      document.free
+    end
   end
 end

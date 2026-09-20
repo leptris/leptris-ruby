@@ -5,6 +5,29 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Descriptor typed scalars + the fused materialize entry (#230's consumer contract)
+
+- **Typed scalars**: attribute and child plan rows accept
+  `type: :string | :integer | :float | :boolean`. The tag travels
+  through the plan ABI (host-defined, echoed verbatim) and
+  `PlanValue#to_ruby` returns the cast value — Integer / Float /
+  true / false — on element scalars AND collected attributes, so
+  per-value cast probes disappear from the consumer's loop
+  (lutaml-model's `cast_element_present`/`apply_value_map` class
+  of cost). Lenient on unparseable input (raw String wins);
+  `#string_value` stays the raw escape hatch regardless of tag.
+- **`Descriptor#materialize(source)`** — the fused loop, pointed
+  at the parse: source bytes → typed rows in ONE call (parse,
+  plan walk, document free; the standalone PlanValue tree is all
+  that surfaces). Byte-parity with parse + `#walk(root)`.
+- Mirrors the yeptris schema-ABI shape (leptris/yeptris#238:
+  SCALAR + type_tag STR|INT|FLOAT|BOOL, whole-document results)
+  so a framework compiles one descriptor vocabulary and runs it
+  on every engine. Native in-pass int/float parsing (no string
+  round-trip) is the recorded engine-side headroom.
+
 ## [1.9.210.0] - 2026-09-20
 
 ### Performance — engine sync (1.9.210)
