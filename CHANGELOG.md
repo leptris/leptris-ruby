@@ -5,6 +5,16 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — `Diff#summary` / `Diff#to_json` (the 1.9.200 output modes, #1184)
+
+- The `leptris diff --summary` / `--json` CLI modes' library face:
+  per-kind op counts (`{update_attr: 1, insert: 1}`, `{}` when
+  identical) and the op list as JSON — pure Ruby over the existing
+  `#ops` face, no new engine symbols. Salvaged from #269's unique
+  half (its DTD half was superseded by the 1.9.204 wiring).
+
 ## [1.9.208.0] - 2026-09-20
 
 ### Fixed — engine sync: the #1242 TLS-memo corruption (1.9.208)
@@ -21,16 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sets a fresh thread-local error on every rejection (no more
   stale XPath messages), and `LEPTRIS_DEBUG_ATTR_MISS=1` dumps
   attribute-chain state on lookup misses.
+- **First IBM Z gem: `s390x-linux-musl`** ships from this release —
+  the 14th variant (qemu-built, in-container smoked). The release
+  build-musl containers needed `linux-headers` (the ffi gem's
+  bundled libffi includes `linux/limits.h` under musl; #283 fixed
+  the wrong apk line, #284 the one s390x runs). With #1197 fixed
+  (1.9.206) and strict s390x CI legs green since 1.9.207, the
+  big-endian platform is fully shippable.
 - **CI un-quarantine where the evidence holds**: the s390x/ppc64le
-  qemu test legs are strict again (#1197 fixed in 1.9.206, both
-  green on main's 1.9.207 grid), and so are the armv7/ppc64le/
+  qemu test legs are strict again, and so are the armv7/ppc64le/
   s390x-musl release-build cells (#1174's ILP32 port shipped; arm
   gems publish from every release since). The ubuntu-latest Ruby
-  3.4 leg stays non-blocking: strikes 7-9 on 1.9.208 show the
-  all-nil iterparse flake is BINDING-side (lane-independent, and
-  the engine's ATTR_MISS dump proved the engine never saw the
-  lookups) — tracked as leptris-ruby#279 with the dump env +
-  in-spec forensics armed on that leg until the fix.
+  3.4 leg stays non-blocking: strikes 7-10 on 1.9.208 show the
+  engine's memo clear was incomplete — in-spec forensics captured
+  a direct `leptris_element_attribute` call returning NULL with an
+  EMPTY chain on a live yielded element, and windows-4.0 produced
+  the fresh `set_root: element belongs to a different document`
+  for a same-document element. One mechanism: the TLS memo
+  resolving elements to a wrong document under address-recycling
+  interleavings. Tracked as leptris-ruby#279 / leptris/leptris#1242
+  with the dump env + forensics armed on the leg until the
+  residual engine fix lands.
 - ffi.rb dedupe: the 1.9.206-surface block re-attached ten
   symbols the 1.9.204 wiring had already attached (audit counted
   345 attachments against 335 exports). The typed 1.9.206 block
@@ -102,9 +123,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ppc64le qemu leg (ffi_spec:223) once the audit fix let the suite
   run; the spec now asserts JVM ≡ host tier.
 
-### Not fixed despite upstream closes
+### Resolved upstream threads (final state)
 
+- **#1220 (HTML mutations lost on serialization) — fixed in
+  1.9.204** (engine commit 737fe977 / #1228). Verified from the
+  binding on 1.9.208: the original reopen repro serializes the
+  mutation on both the whatwg and html4 lanes.
 - **Iterparse attribute reads: all-nil runs on ubuntu-latest Ruby
+  3.4 legs** — filed upstream as leptris/leptris#1242
+  (leptris-ruby#279 tracks the investigation). Originally
+  suspected binding-side, finally root-caused engine-side by
+  in-spec forensics (see the 1.9.208.0 entry); the engine's
+  1.9.208 fix is incomplete and the flake persists. The leg is
+  gated with diagnostics armed until the residual engine fix.
 ## [1.9.201.3] - 2026-09-19
 
 ### Added — the HTML facade (Nokogiri-shaped entry points)
