@@ -162,3 +162,73 @@ RSpec.describe "Leptris::XML::Descriptor typed scalars + materialize (#230's fus
       .to raise_error(Leptris::XML::ParseError)
   end
 end
+
+RSpec.describe "Leptris::XML.PlanValue#as_kwarg_hash (#298's bulk dispatch floor)" do
+  let(:descriptor) do
+    Leptris::XML::Descriptor.build(
+      name: "row",
+      attributes: [
+        { name: "id", kind: :scalar, type: :integer },
+        { name: "ts", kind: :scalar, type: :string },
+      ],
+      children: [
+        { name: "name", kind: :scalar },
+        { name: "price", kind: :scalar, type: :float },
+        { name: "active", kind: :scalar, type: :boolean },
+      ])
+  end
+
+  let(:row_xml) do
+    %(<row id="7" ts="2026-09-20T12:00:00Z"><name>Item</name>) +
+      %(<price>3.99</price><active>true</active></row>)
+  end
+
+  it "yields the per-row kwarg hash in one Ruby method call" do
+    result = descriptor.materialize(row_xml)
+    hash = result.as_kwarg_hash
+    expect(hash.keys).to contain_exactly(:name, :type_tag, :attributes, :children)
+    expect(hash[:attributes]).to eq("id" => 7, "ts" => "2026-09-20T12:00:00Z")
+    expect(hash[:children]["name"]).to eq("Item")
+    expect(hash[:children]["price"]).to eq(3.99)
+    expect(hash[:children]["active"]).to be(true)
+  end
+
+  it "counts FFI accessor crossings on the result handle" do
+    result = descriptor.materialize(row_xml)
+    result.reset_crossings!
+    result.as_kwarg_hash
+    expect(result.crossings).to be > 0
+  end
+
+  describe "the 5k-row ISO fixture (#298.1 — crossings floor)" do
+    let(:iso) do
+      rows = (0...5000).map do |i|
+        %(<row id="#{i}" ts="2026-09-20T12:00:00Z"><name>Item #{i}</name>) +
+          %(<price>#{i}.99</price><active>true</active></row>)
+      end
+      %(<?xml version="1.0"?><iso>) + rows.join + %(</iso>)
+    end
+
+    let(:iso_descriptor) do
+      Leptris::XML::Descriptor.build(
+        name: "iso",
+        children: [{ name: "row", kind: :collection, plan: {
+          name: "row",
+          attributes: [{ name: "id", kind: :scalar, type: :integer }],
+          children: [{ name: "name", kind: :scalar }] } }])
+    end
+
+    it "materialize + bulk face on 5000 rows: ~5 FFI crossings per row" do
+      result = iso_descriptor.materialize(iso)
+      result.reset_crossings!
+      result.as_kwarg_hash
+      per_row = result.crossings / 5000.0
+      # Documented floor: the engine emits collection items as
+      # scalars; the bulk face crosses once per (kind + name +
+      # type_tag + count + at) ≈ 5/row. Native in-pass fusion
+      # (leptris#1269) would drop this further.
+      expect(per_row).to be_within(0.5).of(5.0)
+      expect(per_row).to be < 10
+    end
+  end
+end

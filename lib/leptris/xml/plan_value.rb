@@ -22,55 +22,114 @@ class Leptris::XML::PlanValue
   }.freeze
   private_constant :VALUE_KINDS
 
-  def initialize(ptr, owner: nil, plans: nil, plan: nil)
+  def initialize(ptr, owner: nil, plans: nil, plan: nil, counter: nil)
     @ptr = ptr
     @owner = owner
     @plans = plans
     @plan = plan
+    @counter = counter || [0]
   end
 
   def kind
+    inc_crossing
     VALUE_KINDS.fetch(Leptris::XML::FFI.leptris_plan_value_kind(@ptr))
   end
 
   # wire_name of the plan row that produced this value.
   def name
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_name(@ptr)
   end
 
   # Host type_tag echoed verbatim (0 when the row had none).
   def type_tag
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_type_tag(@ptr)
   end
 
   # SCALAR / RAW / CALLBACK string value.
   def string_value
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_string(@ptr)
   end
 
   # CALLBACK: document byte offset of the source node (0 unknown).
   def position
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_position(@ptr)
   end
 
   # ELEMENT: child-value count. COLLECTION: item count.
   def count
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_count(@ptr)
   end
 
   # ELEMENT child value / COLLECTION item at +i+ (nil out of
   # range). Borrowed: the owning root must stay alive.
   def at(i)
+    inc_crossing
     ptr = Leptris::XML::FFI.leptris_plan_value_at(@ptr, i)
     return nil if ptr.null?
+    inc_crossing
     child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
     child_plan = @plan ? child_row_plan(child_name) : nil
-    Leptris::XML::PlanValue.new(ptr, plans: @plans, plan: child_plan)
+    Leptris::XML::PlanValue.new(ptr, plans: @plans, plan: child_plan, counter: @counter)
   end
 
   # ELEMENT: attribute value by wire_name (nil when absent).
   def attribute(wire_name)
+    inc_crossing
     Leptris::XML::FFI.leptris_plan_value_attribute(@ptr, wire_name.to_s)
+  end
+
+  # The number of FFI accessor calls this PlanValue (and its
+  # #as_kwarg_hash descendants, via the borrowed-#at chain) have
+  # counted. Reset with #reset_crossings! before the work you want
+  # to count. Counts FFI crossings only — engine-internal walks
+  # during `leptris_plan_walk` are not exposed (they belong to
+  # leptris/leptris#1269's headroom).
+  def crossings
+    @counter[0]
+  end
+
+  def reset_crossings!
+    @counter[0] = 0
+    self
+  end
+
+  # Bulk kwarg view (#298's binding ask): one Ruby method yields
+  # the hash the consumer's hydrator wants per row — no per-field
+  # dispatch on the hot path. Honors the row type tags (typed
+  # scalars and collected attributes; the nested rows recurse via
+  # the same face so the whole row-graph collapses into one Ruby
+  # method call per node).
+  #
+  #   { name:, type_tag:,
+  #     attributes: { wire_name => typed_value, ... },
+  #     children:   { wire_name => typed_value | [typed_value, ...] } }
+  #
+  # The +name+ is the element wire_name (nil on the root, by
+  # engine contract); +type_tag+ echoes the plan row's type tag
+  # (0 when absent). Collection rows appear as Arrays; callbacks
+  # are emitted as +{value:, position:, type_tag:}+ like #to_ruby.
+  def as_kwarg_hash
+    inc_crossing # the kind probe + name + type_tag are one logical fetch
+    case kind
+    when :element
+      {
+        name: name,
+        type_tag: type_tag,
+        attributes: kwarg_attributes,
+        children: kwarg_children,
+      }
+    when :collection
+      kwarg_collection_children
+    when :callback
+      { value: string_value, position: position, type_tag: type_tag }
+    else
+      typed_string_value
+    end
   end
 
   # The eager Ruby tree:
@@ -100,7 +159,72 @@ class Leptris::XML::PlanValue
 
   private
 
-  # SCALAR honoring the plan row's type tag (#230's typed-scalars
+  def inc_crossing
+    @counter[0] += 1
+  end
+
+  def kwarg_attributes
+    ((@plan && @plan[:attributes]) || []).each_with_object({}) do |row, result|
+      v = attribute(row[:name])
+      result[row[:name]] = cast_attribute(v, row) unless v.nil?
+    end
+  end
+
+  def kwarg_children
+    rows = ((@plan && @plan[:children]) || [])
+    result = {}
+    rows.each_with_index do |row, i|
+      value = at(i)
+      next if value.nil?
+      key = row[:name]
+      coerced = coerce_kwarg(value, row[:kind])
+      result[key] = if result.key?(key)
+        Array(result[key]) << coerced
+      else
+        coerced
+      end
+    end
+    result
+  end
+
+  def kwarg_collection_children
+    Array.new(count) { |i| coerce_kwarg(at(i)) }
+  end
+
+  # Coerce a PlanValue row to the shape the consumer's hydrator
+  # wants: scalars/ra→raw/callback collapse to typed values;
+  # :element children recurse into the kwarg hash; :collection
+  # children yield the array of typed items.
+  def coerce_kwarg(value, kind = nil)
+    v_kind = kind || value.kind
+    case v_kind
+    when :element then value.as_kwarg_hash
+    when :collection then Array.new(value.count) { |i| coerce_kwarg(value.at(i)) }
+    when :callback
+      { value: value.string_value, position: value.position,
+        type_tag: value.type_tag }
+    else
+      typed_string_value_for(value)
+    end
+  end
+
+  def typed_string_value_for(value)
+    case value.type_tag
+    when 1
+      s = value.string_value
+      Integer(s, 10) rescue s
+    when 2
+      s = value.string_value
+      begin; Float(s); rescue ArgumentError, TypeError; s; end
+    when 3
+      case value.string_value
+      when "true", "1" then true
+      when "false", "0" then false
+      else value.string_value
+      end
+    else value.string_value
+    end
+  end
   # contract): 1=Integer, 2=Float, 3=boolean. Lenient on
   # unparseable input — the raw String wins (first-wins house
   # style; strict validation belongs to the consumer's callback
