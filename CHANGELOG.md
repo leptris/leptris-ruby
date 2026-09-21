@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.213.0] - 2026-09-21
+
+### Engine sync — 1.9.211–1.9.213 (perf + the QT3 date/time family)
+
+- 1.9.211: the **interleaved parse lane** landed behind
+  `LEPTRIS_INTERLEAVED=1` (engine-side opt-in; sentinel-discipline
+  scans, fused 48-byte SIMD probes, names as zero-copy views —
+  1633/1633 parity). The XSLT append-tail memo (single-slot
+  validated last-child hint) also rides.
+- 1.9.212/1.9.213: the **QT3 date/time function family** for
+  XPath/XSLT (extractors, timezone + `fn:parse-ietf-date`,
+  `op:date` arithmetic, the yearMonthDuration family — 17 test
+  sets, 782/782 engine-side) plus int64/`long long` portability
+  fixes for MSVC/ILP32.
+- No binding-facing surface changes: audit holds at 335/335,
+  suite 760/0.
+
 ## [Unreleased]
 
 ### Added — Descriptor typed scalars + the fused materialize entry (#230's consumer contract)
