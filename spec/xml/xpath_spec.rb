@@ -115,9 +115,10 @@ RSpec.describe "standalone XPath 2/3.1 expression subset (libleptris 1.9.35+)" d
     end
   end
 
-  it "rejects XQuery-only FLWOR clauses outside a stylesheet (leptris/leptris#692)" do
-    expect { doc.xpath("for $a in //a order by $a return $a") }
-      .to raise_error(Leptris::XML::XPathError)
+  it "accepts FLWOR order-by in the standalone face (engine 1.9.215 grew the #692 family)" do
+    result = doc.xpath("for $a in //a order by $a return $a")
+    expect(result).to be_a(Leptris::XML::NodeSet)
+    expect(result.size).to eq(2)
   end
 
   it "raises explicitly when an XPath 3.0 function item would cross the FFI boundary" do

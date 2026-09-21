@@ -225,10 +225,20 @@ module Leptris
       # leptris_plan_walk materializes a whole subtree in one
       # native pass. The plan/result structs mirror descriptor.h
       # — POD, ABI-frozen at v1 (leptris_plan_abi_version).
+      # #1272 (additive v1, trailing fields): attribute-predicate
+      # rows — same-wire siblings partition by (attr, expected)
+      # pairs, AND across pairs, exclusive per occurrence.
+      class AttrPredicate < ::FFI::Struct
+        layout :wire_name, :pointer,
+               :expected_value, :pointer
+      end
       class AttrPlan < ::FFI::Struct
         layout :wire_name, :pointer,
                :kind, :uint8,
-               :type_tag, :uint8
+               :type_tag, :uint8,
+               :predicate_count, :uint16,
+               :pad_pred, :uint16,
+               :predicates, :pointer
       end
       class ChildPlan < ::FFI::Struct
         layout :wire_name, :pointer,
@@ -239,7 +249,11 @@ module Leptris
                # forms on ChildPlan (additive to the frozen v1 ABI).
                :ns_form, :uint8,
                :pad0, :uint8,
-               :ns_uri, :pointer
+               :ns_uri, :pointer,
+               # #1272: element-side predicates (same semantics).
+               :predicate_count, :uint16,
+               :pad_pred, :uint16,
+               :predicates, :pointer
       end
       class ElementPlan < ::FFI::Struct
         layout :element_name, :pointer,
@@ -272,6 +286,9 @@ module Leptris
       PLAN_FLAG_ORDERED = 0x2
       PLAN_FLAG_CDATA = 0x4
       PLAN_FLAG_NS_LENIENT = 0x8
+      # #1273: walk also emits unmatched sibling text/comment/PI
+      # runs as SCALAR values (position + node_kind populated).
+      PLAN_FLAG_EMIT_ORDER_SPINE = 0x10
 
       PLAN_NS_NONE = 0
       PLAN_NS_EXACT = 1
@@ -315,6 +332,36 @@ module Leptris
         [:leptris_plan_result, :size_t], :leptris_plan_result
       attach_function :leptris_plan_value_attribute,
         [:leptris_plan_result, :string], :string
+      # #1254 (leptris 1.9.216): one-call flat attribute read —
+      # parallel name/value/handle arrays, capacity-bounded; total
+      # count returned (min(total, max_count) copied). Also the
+      # substrate for the native layer's attribute_pairs face.
+      attach_function :leptris_element_attribute_pairs,
+        [:leptris_element, :pointer, :pointer, :pointer, :size_t],
+        :size_t
+      # #1273: document-order identity. node_kind is the source
+      # node's LEPTRIS_NODE_TYPE_* (0 for wrappers/synthesized);
+      # order_index is the dense sibling rank inside the producing
+      # element (0 if unranked).
+      attach_function :leptris_plan_value_node_kind,
+        [:leptris_plan_result], :uint8
+      attach_function :leptris_plan_value_order_index,
+        [:leptris_plan_result], :uint32
+      # #1269a: in-pass type execution — the walk parsed
+      # type_tag ∈ {1=int, 2=float, 3=bool} values once; the
+      # accessor returns 0 on success, non-zero on parse failure
+      # (host falls back to #string).
+      attach_function :leptris_plan_value_int,
+        [:leptris_plan_result, :pointer], :int
+      attach_function :leptris_plan_value_float,
+        [:leptris_plan_result, :pointer], :int
+      attach_function :leptris_plan_value_bool,
+        [:leptris_plan_result, :pointer], :int
+      # #1269b: fused parse→walk→free (byte-parity with
+      # parse_string + plan_walk(root) + document_free).
+      attach_function :leptris_plan_materialize,
+        [:string, :size_t, :leptris_plan, :pointer],
+        :leptris_plan_result
 
       attach_function :leptris_version, [], :string
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void

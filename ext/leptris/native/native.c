@@ -35,6 +35,8 @@ typedef void *(*attr_first_fn)(void *);
 typedef void *(*attr_next_fn)(void *);
 typedef const char *(*attr_name_fn)(void *);
 typedef const char *(*attr_value_fn)(void *, void *);
+typedef size_t (*attr_pairs_fn)(void *, const char **, const char **,
+                                void **, size_t);
 typedef unsigned int (*node_line_fn)(void *);
 typedef size_t (*node_offset_fn)(void *);
 typedef const char *(*element_text_fn)(void *);
@@ -67,6 +69,7 @@ static attr_first_fn f_attr_first;
 static attr_next_fn f_attr_next;
 static attr_name_fn f_attr_name;
 static attr_value_fn f_attr_value;
+static attr_pairs_fn f_attr_pairs;
 static node_line_fn f_node_line;
 static node_offset_fn f_node_offset;
 static element_text_fn f_element_text;
@@ -205,6 +208,7 @@ static void resolve_symbols(const char *lib_path)
     f_attr_next = (attr_next_fn)lib_sym(h, "leptris_attribute_next");
     f_attr_name = (attr_name_fn)lib_sym(h, "leptris_attribute_get_name");
     f_attr_value = (attr_value_fn)lib_sym(h, "leptris_attribute_get_value");
+    f_attr_pairs = (attr_pairs_fn)lib_sym(h, "leptris_element_attribute_pairs");
     f_node_line = (node_line_fn)lib_sym(h, "leptris_node_line");
     f_node_offset = (node_offset_fn)lib_sym(h, "leptris_node_byte_offset");
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
@@ -1947,14 +1951,25 @@ static VALUE nf_attribute_pairs(VALUE self, VALUE document, VALUE addr)
     VALUE out = rb_ary_new();
     if (f_node_type(node) != WS_NODE_ELEMENT) return out;
 
-    for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
-        const char *an = f_attr_name(a);
-        const char *av = f_attr_value(node, a);
-        rb_ary_push(out, an ? rb_enc_interned_str(an, strlen(an),
-                                                  rb_utf8_encoding())
-                            : Qnil);
-        rb_ary_push(out, av ? rb_utf8_str_new_cstr(av) : Qnil);
+    /* Engine one-call export (leptris 1.9.216, leptris-ruby#1254):
+     * total → caller-allocated parallel arrays → one copy pass.
+     * Two crossings per element regardless of attribute count,
+     * vs 4 accessors per attribute on the walk shape. */
+    size_t total = f_attr_pairs(node, NULL, NULL, NULL, 0);
+    if (total == 0) return out;
+    const char **names = ALLOC_N(const char *, total);
+    const char **values = ALLOC_N(const char *, total);
+    size_t n = f_attr_pairs(node, names, values, NULL, total);
+    out = rb_ary_new_capa(2 * n);
+    for (size_t i = 0; i < n; i++) {
+        rb_ary_push(out, names[i]
+                             ? rb_enc_interned_str(names[i], strlen(names[i]),
+                                                   rb_utf8_encoding())
+                             : Qnil);
+        rb_ary_push(out, values[i] ? rb_utf8_str_new_cstr(values[i]) : Qnil);
     }
+    xfree(names);
+    xfree(values);
     return out;
 }
 

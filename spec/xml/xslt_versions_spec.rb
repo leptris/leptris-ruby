@@ -142,12 +142,13 @@ RSpec.describe "XSLT 3.0 completion (libleptris 1.9.33-1.9.43)" do
     XSL
   end
 
-  it "rejects XQuery-only syntax in XPath expressions (1.9.34, leptris/leptris#692)" do
-    expect { transform(<<~XSL) }.to raise_error(Leptris::XML::XPathError)
+  it "accepts FLWOR order-by in XPath expressions (engine 1.9.215 grew the #692 family)" do
+    out = transform(<<~XSL)
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
         <xsl:template match="/"><out><xsl:value-of select="for $a in //a order by $a return $a"/></out></xsl:template>
       </xsl:stylesheet>
     XSL
+    expect(out).to include("<out>")
   end
 end
 

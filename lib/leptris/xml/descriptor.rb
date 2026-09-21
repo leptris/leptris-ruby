@@ -82,6 +82,10 @@ class Leptris::XML::Descriptor
     ordered: Leptris::XML::FFI::PLAN_FLAG_ORDERED,
     cdata: Leptris::XML::FFI::PLAN_FLAG_CDATA,
     ns_lenient: Leptris::XML::FFI::PLAN_FLAG_NS_LENIENT,
+    # #1273: also emit unmatched sibling text runs / comments / PIs
+    # as SCALAR values (position + node_kind populated) so ordered
+    # hosts rebuild element_order without re-parsing the source.
+    order_spine: Leptris::XML::FFI::PLAN_FLAG_EMIT_ORDER_SPINE,
   }.freeze
   private_constant :FLAGS
 
@@ -163,6 +167,7 @@ class Leptris::XML::Descriptor
         ap[:wire_name] = anchor_string(anchors, row.fetch(:name))
         ap[:kind] = kind_code(row[:kind] || :scalar)
         ap[:type_tag] = type_tag_code(row)
+        pack_predicates(ap, row, anchors)
       end
       ep[:attribute_count] = attrs.size
       ep[:attribute_plans] = attr_memory
@@ -188,6 +193,7 @@ class Leptris::XML::Descriptor
         cp[:ns_uri] =
           row[:ns].is_a?(Hash) ?
             anchor_string(anchors, row[:ns].fetch(:exact)) : nil
+        pack_predicates(cp, row, anchors)
       end
       ep[:child_count] = children.size
       ep[:child_plans] = child_memory
@@ -229,6 +235,35 @@ class Leptris::XML::Descriptor
     end
   end
 
+  # #1272 attribute-predicate rows: +when:+ accepts
+  # {attr => value} (AND across pairs) or [[attr, value], ...].
+  # Same-wire-name rows with different predicates partition the
+  # match space exclusively (first matching row wins per
+  # occurrence). Nil expected values are rejected — the engine's
+  # predicate is string-equal only.
+  def self.pack_predicates(plan_struct, row, anchors)
+    preds = row[:when] or return
+    pairs = case preds
+            when Hash then preds.to_a
+            when Array then preds
+            else raise ArgumentError,
+              "when must be a Hash or an Array of [attr, value] pairs"
+            end
+    pairs.each do |(name, value)|
+      raise ArgumentError, "when: expected values must be non-nil" if value.nil?
+    end
+    memory = ::FFI::MemoryPointer.new(
+      Leptris::XML::FFI::AttrPredicate, pairs.size)
+    anchors << memory
+    pairs.each_with_index do |(name, value), k|
+      pr = Leptris::XML::FFI::AttrPredicate.new(memory[k])
+      pr[:wire_name] = anchor_string(anchors, name.to_s)
+      pr[:expected_value] = anchor_string(anchors, value.to_s)
+    end
+    plan_struct[:predicate_count] = pairs.size
+    plan_struct[:predicates] = pairs.empty? ? nil : memory
+  end
+
   def initialize(handle, plans, root_index)
     @handle = handle
     @plans = plans
@@ -252,20 +287,23 @@ class Leptris::XML::Descriptor
                                 owner: true, plans: @plans, plan: @plans[0])
   end
 
-  # The fused loop (#230, pointed at the parse): source bytes →
-  # typed rows in ONE call — parse, walk the compiled plan, free
-  # the document; the returned PlanValue tree is standalone and
-  # the Document never surfaces. Byte-for-byte parity with
-  # #walk on the same source's root element.
+  # The fused loop (#1269b): source bytes → typed rows in ONE C
+  # call — leptris_plan_materialize runs parse, walk, and free
+  # natively; the returned PlanValue tree is standalone and the
+  # Document never exists. Byte-parity with #walk on the source's
+  # root element.
   def materialize(source)
-    document = Leptris::XML::Document.parse(source)
-    begin
-      root = document.root
-      raise Leptris::XML::Error,
-        "materialize: document has no root element" if root.nil?
-      walk(root)
-    ensure
-      document.free
+    s = source.to_s
+    status = ::FFI::MemoryPointer.new(:int)
+    raw = Leptris::XML::FFI.leptris_plan_materialize(
+      s, s.bytesize, @handle, status)
+    if raw.null?
+      code = status.read_int
+      klass = code == Leptris::XML::FFI::LEPTRIS_ERROR_PARSE ?
+        Leptris::XML::ParseError : Leptris::XML::Error
+      raise klass, "plan materialize failed (status=#{code})"
     end
+    Leptris::XML::PlanValue.new(ResultHandle.new(raw),
+                                owner: true, plans: @plans, plan: @plans[0])
   end
 end
