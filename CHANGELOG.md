@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.214.0] - 2026-09-21
+
+### Engine sync — 1.9.214 (the QT3 lane-15 expression core)
+
+- `switch` / `group by` / `if` expressions land in the XQuery
+  engine (fn-items #1268, lane-15 core #1270): bare/multi-spec
+  grouping variables, WHERE-after-GROUP-BY, ctor-enclosed FLWOR
+  hoisting, tuple-owned attribute/namespace node clones (the
+  group-by dangling-key fix), nested direct ctors, `prefix:*` vs
+  multiply disambiguation — 1640/1640 engine-side. Also ships the
+  typed-descriptor bulk face from 1.9.210.1 (`as_kwarg_hash`).
+- No binding-facing surface changes; audit holds at 335/335.
+
 ## [1.9.213.0] - 2026-09-21
 
 ### Engine sync — 1.9.211–1.9.213 (perf + the QT3 date/time family)
