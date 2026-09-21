@@ -45,6 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on every engine. Native in-pass int/float parsing (no string
   round-trip) is the recorded engine-side headroom.
 
+## [Unreleased]
+
+### Added — `PlanValue#as_kwarg_hash` bulk dispatch (#298)
+
+- One Ruby method yields the hash the consumer's hydrator wants per
+  node (typed attributes + typed scalar/collection/element children,
+  per the row type tags) — the per-field `value.attribute(name)` /
+  `value.children` / `value.at(i)` dispatch on the hot path
+  collapses. Native in-pass fusion (leptris#1269) would drop the
+  FFI floor further; today the documented floor on the 5k-row ISO
+  shape is **~5 crossings per row** (verified by
+  `result.crossings / 5000`).
+
 ## [1.9.210.0] - 2026-09-20
 
 ### Performance — engine sync (1.9.210)
