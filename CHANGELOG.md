@@ -5,6 +5,17 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.220.0] - 2026-09-22
+
+### Performance — engine sync (1.9.217–1.9.220)
+
+- Vendored libleptris 1.9.220: four perf releases — the HTML
+  parse tag-id classifier stack + in-place borrowed text runs
+  (#1218 slices 1-2), the authoritative content_len text-join
+  pass (#1285 slice 1), and borrowed string-values for
+  `value-of select="."` (#682). No binding-facing surface
+  changes; audit 342/342, suite 770/0.
+
 ## [1.9.216.0] - 2026-09-21
 
 ### Added — the plan-ABI consumer contract (#298 fully bound; engine 1.9.214–216)
