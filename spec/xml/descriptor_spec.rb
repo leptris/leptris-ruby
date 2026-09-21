@@ -224,11 +224,157 @@ RSpec.describe "Leptris::XML.PlanValue#as_kwarg_hash (#298's bulk dispatch floor
       result.as_kwarg_hash
       per_row = result.crossings / 5000.0
       # Documented floor: the engine emits collection items as
-      # scalars; the bulk face crosses once per (kind + name +
-      # type_tag + count + at) ≈ 5/row. Native in-pass fusion
-      # (leptris#1269) would drop this further.
-      expect(per_row).to be_within(0.5).of(5.0)
-      expect(per_row).to be < 10
+      # scalars; the bulk face crosses ≈4/row (at + type_tag +
+      # typed accessor + string fallback). In-pass fusion
+      # (leptris#1269) already removed the parse/walk legs; a
+      # native bulk-fields call would collapse the rest.
+      expect(per_row).to be_within(0.5).of(4.0)
+      expect(per_row).to be < 6
+    end
+  end
+end
+
+RSpec.describe "Leptris::XML::Descriptor plan-ABI wiring (#1272/#1273/#1269 — engine lang/plan-abi-1272)" do
+  # #1272: same-wire-name rows with different predicates partition
+  # the match space exclusively; AND across pairs.
+  describe "attribute-predicate rows" do
+    let(:descriptor) do
+      Leptris::XML::Descriptor.build(
+        name: "r",
+        children: [
+          { name: "item", kind: :collection, when: { "kind" => "a" },
+            plan: { name: "item",
+                    attributes: [{ name: "kind", kind: :scalar }],
+                    children: [{ name: "name", kind: :scalar }] } },
+          { name: "item", kind: :collection, when: { "kind" => "b" },
+            plan: { name: "item",
+                    attributes: [{ name: "kind", kind: :scalar }],
+                    children: [{ name: "name", kind: :scalar }] } },
+        ])
+    end
+
+    let(:xml) do
+      %(<r>) +
+        %(<item kind="a">alpha</item>) +
+        %(<item kind="b">beta</item>) +
+        %(<item kind="a">gamma</item>) +
+        %(
+</r>)
+    end
+
+    it "partitions same-name siblings by predicate, exclusively" do
+      tree = descriptor.materialize(xml).to_ruby
+      children = tree[:children]
+      a_rows = children[0]
+      b_rows = children[1]
+      # each collection holds only its own partition
+      expect(a_rows).to eq(["alpha", "gamma"])
+      expect(b_rows).to eq(["beta"])
+    end
+
+    it "rejects nil expected values at the boundary" do
+      expect {
+        Leptris::XML::Descriptor.build(
+          name: "r", children: [{ name: "x", kind: :scalar, when: { "k" => nil } }])
+      }.to raise_error(ArgumentError, /non-nil/)
+    end
+  end
+
+  # #1273: document-order identity
+  describe "order identity" do
+    let(:xml) { %(<r><a>1</a>plain<b>2</b></r>) }
+    let(:descriptor) do
+      Leptris::XML::Descriptor.build(
+        name: "r", flags: [:order_spine],
+        children: [
+          { name: "a", kind: :scalar },
+          { name: "b", kind: :scalar },
+        ])
+    end
+
+    it "exposes node_kind and order_index on rows" do
+      result = descriptor.materialize(xml)
+      a = result.at(0)
+      b = result.at(1)
+      expect(a.order_index).to be < b.order_index
+      expect([a.order_index, b.order_index].uniq.length).to eq(2)
+    end
+  end
+
+  # #1269a: in-pass type execution
+  describe "in-pass typed values" do
+    let(:xml) { %(<r><n>42</n><p>2.5</p><ok>true</ok><bad>zzz</bad></r>) }
+    let(:descriptor) do
+      Leptris::XML::Descriptor.build(
+        name: "r", children: [
+          { name: "n", kind: :scalar, type: :integer },
+          { name: "p", kind: :scalar, type: :float },
+          { name: "ok", kind: :scalar, type: :boolean },
+          { name: "bad", kind: :scalar, type: :integer },
+        ])
+    end
+
+    it "executes int/float/bool during the walk" do
+      result = descriptor.materialize(xml)
+      n = result.at(0); p = result.at(1); ok = result.at(2); bad = result.at(3)
+      expect(n.int_value).to eq(42)
+      expect(p.float_value).to eq(2.5)
+      expect(ok.bool_value).to be(true)
+      # soft-fail: non-numeric source → nil from the accessor
+      expect(bad.int_value).to be_nil
+      # and the lenient Ruby path in to_ruby still answers the raw string
+      expect(bad.to_ruby).to eq("zzz")
+    end
+
+    it "keeps string_value populated for backward compatibility" do
+      result = descriptor.materialize(xml)
+      expect(result.at(0).string_value).to eq("42")
+    end
+  end
+
+  # #1269b: fused parse→walk→free
+  describe "materialize fusion" do
+    it "stays byte-parity with parse + walk(root)" do
+      xml = %(<r><x k="1">v</x><y>2</y></r>)
+      descriptor = Leptris::XML::Descriptor.build(
+        name: "r", children: [
+          { name: "x", kind: :nested, plan: {
+              name: "x", attributes: [{ name: "k", kind: :scalar, type: :integer }],
+              children: [] } },
+          { name: "y", kind: :scalar, type: :integer },
+        ])
+      doc = Leptris::XML::Document.parse(xml)
+      fused = descriptor.materialize(xml).to_ruby
+      walked = descriptor.walk(doc.root).to_ruby
+      doc.free
+      expect(fused).to eq(walked)
+    end
+  end
+
+  # #298.1: the crossings floor collapses with the fusion + in-pass types
+  describe "the 5k-row ISO crossings floor (post-fusion)" do
+    let(:iso) do
+      rows = (0...5000).map do |i|
+        %(<row id="#{i}" ts="t"><name>Item #{i}</name><price>#{i}.99</price><active>true</active></row>)
+      end
+      %(<?xml version="1.0"?><iso>) + rows.join + %(</iso>)
+    end
+
+    let(:iso_descriptor) do
+      Leptris::XML::Descriptor.build(
+        name: "iso",
+        children: [{ name: "row", kind: :collection, plan: {
+          name: "row",
+          attributes: [{ name: "id", kind: :scalar, type: :integer }],
+          children: [{ name: "name", kind: :scalar }] } }])
+    end
+
+    it "drops below the pre-fusion ~5/row floor" do
+      result = iso_descriptor.materialize(iso)
+      result.reset_crossings!
+      result.as_kwarg_hash
+      per_row = result.crossings / 5000.0
+      expect(per_row).to be < 5.0
     end
   end
 end

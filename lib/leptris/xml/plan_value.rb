@@ -47,6 +47,42 @@ class Leptris::XML::PlanValue
     Leptris::XML::FFI.leptris_plan_value_type_tag(@ptr)
   end
 
+  # #1273: LEPTRIS_NODE_TYPE_* of this value's source node (0 for
+  # ELEMENT/COLLECTION wrappers and synthesized text).
+  def node_kind
+    inc_crossing
+    Leptris::XML::FFI.leptris_plan_value_node_kind(@ptr)
+  end
+
+  # #1273: dense sibling rank inside the producing element (0 if
+  # unranked) — document-order identity without byte offsets.
+  def order_index
+    inc_crossing
+    Leptris::XML::FFI.leptris_plan_value_order_index(@ptr)
+  end
+
+  # #1269a: the walk parsed type_tag ∈ {1,2,3} values natively.
+  # Returns the typed value, or nil when the row's tag isn't a
+  # typed one or the source text didn't parse (host falls back to
+  # #string_value / the lenient Ruby path).
+  def int_value
+    out = ::FFI::MemoryPointer.new(:int64)
+    return nil unless Leptris::XML::FFI.leptris_plan_value_int(@ptr, out).zero?
+    out.read_int64
+  end
+
+  def float_value
+    out = ::FFI::MemoryPointer.new(:double)
+    return nil unless Leptris::XML::FFI.leptris_plan_value_float(@ptr, out).zero?
+    out.read_double
+  end
+
+  def bool_value
+    out = ::FFI::MemoryPointer.new(:int)
+    return nil unless Leptris::XML::FFI.leptris_plan_value_bool(@ptr, out).zero?
+    out.read_int != 0
+  end
+
   # SCALAR / RAW / CALLBACK string value.
   def string_value
     inc_crossing
@@ -71,10 +107,9 @@ class Leptris::XML::PlanValue
     inc_crossing
     ptr = Leptris::XML::FFI.leptris_plan_value_at(@ptr, i)
     return nil if ptr.null?
-    inc_crossing
-    child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
-    child_plan = @plan ? child_row_plan(child_name) : nil
-    Leptris::XML::PlanValue.new(ptr, plans: @plans, plan: child_plan, counter: @counter)
+    child_plan = child_plan_for_position(ptr)
+    Leptris::XML::PlanValue.new(ptr, plans: @plans, plan: child_plan,
+                                    counter: @counter)
   end
 
   # ELEMENT: attribute value by wire_name (nil when absent).
@@ -210,50 +245,59 @@ class Leptris::XML::PlanValue
 
   def typed_string_value_for(value)
     case value.type_tag
-    when 1
-      s = value.string_value
-      Integer(s, 10) rescue s
-    when 2
-      s = value.string_value
-      begin; Float(s); rescue ArgumentError, TypeError; s; end
+    when 1 then value.int_value || (Integer(value.string_value, 10) rescue value.string_value)
+    when 2 then value.float_value || (Float(value.string_value) rescue value.string_value)
     when 3
-      case value.string_value
-      when "true", "1" then true
-      when "false", "0" then false
-      else value.string_value
-      end
+      v = value.bool_value
+      v.nil? ? typed_bool_fallback(value.string_value) : v
     else value.string_value
     end
   end
-  # contract): 1=Integer, 2=Float, 3=boolean. Lenient on
-  # unparseable input — the raw String wins (first-wins house
-  # style; strict validation belongs to the consumer's callback
-  # rows). #string_value stays the raw escape.
+  # contract): 1=Integer, 2=Float, 3=boolean. Executed in-pass by
+  # the engine (#1269a); on its soft-fail (non-numeric source) the
+  # lenient Ruby path applies, then the raw String wins.
+  # #string_value stays the raw escape.
   def typed_string_value
     case type_tag
     when 1
-      s = string_value
-      Integer(s, 10) rescue s
+      int_value || (string_value && (Integer(string_value, 10) rescue string_value))
     when 2
-      s = string_value
-      begin
-        Float(s)
-      rescue ArgumentError, TypeError
-        s
-      end
+      float_value || (string_value && (Float(string_value) rescue string_value))
     when 3
-      case string_value
-      when "true", "1" then true
-      when "false", "0" then false
-      else string_value
-      end
+      v = bool_value
+      v.nil? ? typed_bool_fallback(string_value) : v
     else
       string_value
     end
   end
 
-  # The element plan that a child row with this wire_name recurses
-  # into (nil for non-nested rows — their values carry no plan).
+  def typed_bool_fallback(s)
+    case s
+    when "true", "1" then true
+    when "false", "0" then false
+    else s
+    end
+  end
+
+  # The element plan that the child value +ptr+ recurses into (nil
+  # for non-nested rows — their values carry no plan). Fast path:
+  # with exactly ONE child row, every matched value must be that
+  # row — the FFI name probe is skipped (#298 crossings floor).
+  # Multi-row plans probe by wire_name (result positions only
+  # cover matched children, so positional mapping is unsafe).
+  def child_plan_for_position(ptr)
+    return nil unless @plan
+    rows = @plan[:children] || []
+    row = rows.size == 1 ? rows.first : nil
+    unless row
+      inc_crossing
+      child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
+      row = rows.find { |r| r[:name] == child_name }
+    end
+    return nil unless row && @plans
+    row[:kind] == :nested ? @plans[row[:child_plan_index]] : nil
+  end
+
   def child_row_plan(child_wire_name)
     row = (@plan[:children] || []).find do |r|
       r[:kind] == :nested && r[:name] == child_wire_name

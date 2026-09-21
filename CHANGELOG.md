@@ -5,6 +5,45 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.216.0] - 2026-09-21
+
+### Added — the plan-ABI consumer contract (#298 fully bound; engine 1.9.214–216)
+
+- **#1272 attribute-predicate rows**: plan rows accept
+  `when: {attr => value}` (or `[[attr, value], ...]` — AND across
+  pairs). Same-wire-name rows with different predicates partition
+  the match space exclusively (first matching row wins per
+  occurrence); nil expected values rejected at the boundary.
+- **#1273 document-order identity**: `PlanValue#node_kind` (the
+  source node's LEPTRIS_NODE_TYPE_*) and `#order_index` (dense
+  sibling rank); `flags: [:order_spine]` emits unmatched sibling
+  text/comment/PI runs as SCALAR values with position — ordered
+  hosts rebuild element_order without re-parsing.
+- **#1269a in-pass type execution**: the walk parses
+  `type_tag ∈ {1,2,3}` scalars natively;
+  `PlanValue#int_value/#float_value/#bool_value` read the parsed
+  values (nil on soft-fail; `#string_value` stays the raw escape;
+  the lenient Ruby path remains the last resort).
+- **#1269b fused materialize**: `Descriptor#materialize(source)`
+  is now ONE C call (`leptris_plan_materialize`) — parse, walk,
+  and free natively; PARSE failures surface as ParseError.
+- **#1254 answered**: `leptris_element_attribute_pairs` attached;
+  the native `attribute_pairs` face re-pointed at it — two
+  crossings per element regardless of attribute count (was 4
+  accessors per attribute).
+- **Crossings floor (#298.1)**: the 5k-row ISO fixture measures
+  **~4 FFI crossings per row** (single-child-row plans skip the
+  name probe; the pinned spec gates regressions).
+- **CI gate removed**: the ubuntu-latest Ruby 3.4 leg returns to
+  blocking — engine 1.9.216 carries leptris#1277 (the TLS
+  root→document memo generation counter) fixing leptris-ruby#279's
+  12-strike flake at the root cause. Every leg is strict again.
+- Obsolete pins flipped (the engine grew the capability):
+  FLWOR order-by is accepted in the standalone XPath face and in
+  XSLT value-of (the #692 rejects-pins), and group-by returns
+  every tuple's binding (5 = 3+2, the tuple-ownership fix).
+- Audit 342/342 (seven new symbols attached).
+
 ## [1.9.214.0] - 2026-09-21
 
 ### Engine sync — 1.9.214 (the QT3 lane-15 expression core)
