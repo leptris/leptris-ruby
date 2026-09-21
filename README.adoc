@@ -504,10 +504,69 @@ Row kinds: `:scalar`, `:collection`, `:nested` (via `plan:`), `:raw`
 offset + `type_tag` echo, matching `Node#byte_offset`). Namespace
 binding lives on plans: `ns:` is `:none` (default), `:any`, or
 `{ exact: "urn:..." }`; `flags:` also accepts `:cdata`, `:ordered`,
-`:ns_lenient` (#754 out-of-namespace adoption). Children the plan
-does not describe are skipped; undescribed document order within a
-row is preserved. `#walk` returns a lazy `PlanValue` tree (the
-result outlives the document); `#to_ruby` materializes it.
+`:ns_lenient` (#754 out-of-namespace adoption), and `:order_spine`
+(#1273 — unmatched sibling text/comment/PI runs emit as positioned
+scalars so ordered hosts rebuild element order without re-parsing).
+Children the plan does not describe are skipped; undescribed document
+order within a row is preserved. `#walk` returns a lazy `PlanValue`
+tree (the result outlives the document); `#to_ruby` materializes it.
+
+=== Typed scalars and the fused entry (#230/#298)
+
+Plan rows accept `type: :integer | :float | :boolean` — the walk
+parses the values natively (in-pass, libleptris #1269a) and
+`#to_ruby` / the bulk face return `Integer` / `Float` / `true` /
+`false`. Unparseable values fall back to the raw String;
+`PlanValue#string_value` stays the raw escape, and
+`#int_value` / `#float_value` / `#bool_value` expose the parsed
+accessors directly.
+
+`Descriptor#materialize(source)` is the fused entry: source bytes →
+typed rows in ONE C call — parse, walk, and free happen natively
+(#1269b); the standalone `PlanValue` tree is all that surfaces.
+
+[source,ruby]
+----
+descriptor = Leptris::XML::Descriptor.build(
+  name: "iso",
+  children: [{ name: "row", kind: :collection, plan: {
+    name: "row",
+    attributes: [{ name: "id", kind: :scalar, type: :integer }],
+    children: [
+      { name: "price", kind: :scalar, type: :float },
+      { name: "active", kind: :scalar, type: :boolean },
+    ] } },
+  ])
+
+rows = descriptor.materialize(xml_source)   # one C call
+rows.as_kwarg_hash[:children]["row"]        # typed, hydrator-ready
+----
+
+=== Predicate rows (#1272) and order identity (#1273)
+
+Same-wire-name rows can partition on attribute values with `when:` —
+AND across pairs, exclusive routing (first matching row wins per
+occurrence):
+
+[source,ruby]
+----
+Leptris::XML::Descriptor.build(
+  name: "r",
+  children: [
+    { name: "item", kind: :collection, when: { "kind" => "a" },
+      plan: { name: "item", children: [{ name: "name", kind: :scalar }] } },
+    { name: "item", kind: :collection, when: { "kind" => "b" },
+      plan: { name: "item", children: [{ name: "name", kind: :scalar }] } },
+  ])
+----
+
+`PlanValue#node_kind` and `#order_index` carry document-order
+identity for matched rows (and, under `:order_spine`, for the
+interleaved text runs) — ordered/mixed content reconstructs
+without fragment re-parsing. `PlanValue#as_kwarg_hash` is the
+bulk hydrator face: one Ruby call per node returns the typed
+attribute/children hash (the crossings floor on the 5k-row ISO
+fixture is ~4 FFI crossings per row, pinned by spec).
 
 == XQuery
 
