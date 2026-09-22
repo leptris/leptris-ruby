@@ -2150,6 +2150,34 @@ static VALUE nf_plan_structs_typed_p(VALUE self)
     return Qtrue;
 }
 
+/* ---- Bulk attribute rows (leptris-ruby#278) ----------------------
+ * One C crossing per element: walks the attribute chain and
+ * returns a flat [name, value, address, ...] array. Names
+ * interned (they repeat), values fresh UTF-8 strings, addresses
+ * as Integers for Attr c_handle reconstruction. Identical data
+ * to the per-attribute FFI chain (first/next/get_name/get_value,
+ * 4 crossings each) — the win amplifies with attribute density
+ * (40-attr elements: ~7x on the listing). */
+static VALUE nf_attribute_rows(VALUE self, VALUE document, VALUE addr)
+{
+    (void)self;
+    (void)document;
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    VALUE out = rb_ary_new();
+    if (f_node_type(node) != WS_NODE_ELEMENT) return out;
+
+    for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
+        const char *an = f_attr_name(a);
+        const char *av = f_attr_value(node, a);
+        rb_ary_push(out, an ? rb_enc_interned_str(an, strlen(an),
+                                                  rb_utf8_encoding())
+                            : Qnil);
+        rb_ary_push(out, av ? rb_utf8_str_new_cstr(av) : Qnil);
+        rb_ary_push(out, ULL2NUM((uintptr_t)a));
+    }
+    return out;
+}
+
 static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
                              VALUE spec)
 {
@@ -2732,6 +2760,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
                               nf_plan_structs, 3);
+    rb_define_module_function(m_native, "attribute_rows",
+                              nf_attribute_rows, 2);
     rb_define_module_function(m_native, "plan_structs_typed?",
                               nf_plan_structs_typed_p, 0);
     rb_define_module_function(m_native, "doc_handle_attach",
