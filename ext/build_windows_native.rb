@@ -22,8 +22,15 @@ root = File.expand_path("..", __dir__)
 ext_dir = File.join(root, "ext", "leptris", "native")
 minor = RUBY_VERSION[/\A\d+\.\d+/]
 minor_us = minor.tr(".", "_")
+INIT_PREFIX = "Init_native_"
 
 Dir.chdir(ext_dir) do
+  # aarch64-ucrt 1.9.221.0 shipped a DLL exporting only Init_native
+  # because make reused a stale native.obj from a failed earlier
+  # attempt (the log shows "creating Makefile -> linking" with no
+  # compile). Force a clean compile on every invocation.
+  FileUtils.rm_f(Dir.glob("#{ext_dir}/native.{o,obj,so,dll}"))
+  FileUtils.rm_f("#{ext_dir}/leptris/xml/native.so")
   system(RbConfig.ruby, "extconf.rb") or abort "extconf failed under #{RUBY_VERSION}"
   # mkmf's link binds the CURRENT Ruby's runtime DLL — exactly
   # what the versioned naming is for.
@@ -31,6 +38,18 @@ Dir.chdir(ext_dir) do
   abort "make failed under #{RUBY_VERSION}" unless success
   so = Dir.glob("native.{so,dll}").first
   abort "native bundle not produced under #{RUBY_VERSION}" unless so
+  # Functional export gate: dlopen the built DLL and resolve the
+  # MINOR-SUFFIXED init symbol. A PE DLL can carry the symbol in its
+  # string table while exporting only mkmf's Init_native (the arm64
+  # toolchain ignores our .def when its own wins the link) — only a
+  # real lookup proves native_<minor>.so will load.
+  require "fiddle"
+  begin
+    Fiddle.dlopen(File.expand_path(so))[INIT_PREFIX + minor_us]
+  rescue Fiddle::DLError => e
+    abort "#{so} does not export #{INIT_PREFIX + minor_us} — refusing to " \
+          "install a DLL that would 127 at require (#{e.message})"
+  end
   dest = File.join(root, "lib", "leptris", "xml", "native_#{minor_us}.so")
   # The artifact must reference only this minor's Ruby DLL.
   imported = `strings #{so} 2>/dev/null`[/[a-z0-9-]*ruby\d{3,}\.dll/i]
