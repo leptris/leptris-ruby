@@ -35,19 +35,16 @@ RSpec.describe Leptris::XML::Element do
 end
 
 RSpec.describe "Leptris::XML::Element attribute_nodes via the rows face" do
-  let(:xml) do
-    %(<r>) + 3.times.map { |i| %(<e a#{i}="v#{i}" b="c"/>) }.join + %(</r>)
-  end
+  let(:xml) { %(<r><e a="v" xmlns:p="urn:p" p:b="w"/></r>) }
   let(:doc) { Leptris::XML::Document.parse(xml) }
 
-  it "equals the chain path" do
-    fast = doc.root.children.flat_map { |e| e.attribute_nodes.map { |a| [a.name, a.value] } }
-    slow = doc.root.children.flat_map { |e| e.each_attribute.to_a.map { |a| [a.name, a.value] } }
+  it "equals the chain path and carries usable handles" do
+    fast = doc.root.children.first.attribute_nodes.map { |a| [a.name, a.value] }
+    slow = doc.root.children.first.each_attribute.to_a.map { |a| [a.name, a.value] }
     expect(fast).to eq(slow)
-  end
 
-  it "carries c_handle for namespace lookups" do
-    node = doc.root.children.first.attribute_nodes.first
-    expect(node.c_handle).not_to be_nil
+    namespaced = doc.root.children.first.attribute_nodes
+      .find { |a| a.name == "p:b" }
+    expect(namespaced.namespace_uri).to eq("urn:p")
   end
 end
