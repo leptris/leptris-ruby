@@ -756,6 +756,13 @@ class Leptris::XML::Element < Leptris::XML::Node
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
 
+  # HTML5 serialization of this element subtree (#309 — see
+  # Document#to_html for the semantics).
+  def to_html
+    ensure_alive!
+    Leptris::XML::HTMLSerialize.element(self)
+  end
+
   def canonicalize(version = Leptris::XML::FFI::C14N_1_0,
                    inclusive_namespaces = nil,
                    with_comments: false,
