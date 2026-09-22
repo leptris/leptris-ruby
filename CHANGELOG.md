@@ -5,6 +5,19 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.222.0] - 2026-09-22
+
+### Fixed — engine sync (1.9.222): the interleaved lane's namespace regression
+
+- Vendored libleptris 1.9.222: the interleaved parse lane
+  (`LEPTRIS_INTERLEAVED=1`) dropped the namespace URI of every
+  prefixed attribute — `xml:space` lost the XML namespace
+  (leptris#1295, Canon-reported). The lane now stamps the #542 ns
+  side-cache exactly like the classic parser; regression-tested
+  against both lanes (leptris#1300). Also: the borrowed-text
+  contract is lane-explicit. No binding-facing surface changes;
+  audit 342/342, suite 770/0.
+
 ## [1.9.221.0] - 2026-09-22
 
 ### Performance — engine sync (1.9.221)
