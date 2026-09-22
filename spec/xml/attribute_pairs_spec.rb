@@ -36,7 +36,7 @@ end
 
 RSpec.describe "Leptris::XML::Element attribute_nodes via the rows face" do
   let(:xml) do
-    %(<r>) + 3.times.map { |i| %(<e a#{i}="v#{i}" b="c"/> ) }.join + %(</r>)
+    %(<r>) + 3.times.map { |i| %(<e a#{i}="v#{i}" b="c"/>) }.join + %(</r>)
   end
   let(:doc) { Leptris::XML::Document.parse(xml) }
 
