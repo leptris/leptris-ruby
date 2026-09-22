@@ -33,3 +33,21 @@ RSpec.describe Leptris::XML::Element do
     expect(record.attribute_pairs).to eq([%w[id r0], %w[kind k9]])
   end
 end
+
+RSpec.describe "Leptris::XML::Element attribute_nodes via the rows face" do
+  let(:xml) do
+    %(<r>) + 3.times.map { |i| %(<e a#{i}="v#{i}" b="c"/> ) }.join + %(</r>)
+  end
+  let(:doc) { Leptris::XML::Document.parse(xml) }
+
+  it "equals the chain path" do
+    fast = doc.root.children.flat_map { |e| e.attribute_nodes.map { |a| [a.name, a.value] } }
+    slow = doc.root.children.flat_map { |e| e.each_attribute.to_a.map { |a| [a.name, a.value] } }
+    expect(fast).to eq(slow)
+  end
+
+  it "carries c_handle for namespace lookups" do
+    node = doc.root.children.first.attribute_nodes.first
+    expect(node.c_handle).not_to be_nil
+  end
+end
