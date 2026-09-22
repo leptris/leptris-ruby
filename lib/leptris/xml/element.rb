@@ -784,7 +784,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # Document#to_html for the semantics).
   def to_html
     ensure_alive!
-    Leptris::XML::HTMLSerialize.element(self)
+    Leptris::XML::Serialization.element_html(c_ptr)
   end
 
   def canonicalize(version = Leptris::XML::FFI::C14N_1_0,

@@ -5,6 +5,33 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.225.0] - 2026-09-22
+
+### Added — native HTML serialization, construction, and the bulk SAX drain (engine 1.9.223–225)
+
+- **`to_html` re-pointed at the engine's native HTML mode**
+  (1.9.225, upstream #1309/#1311 — our filing answered in one
+  release): `Document#to_html` → `leptris_document_serialize_html`,
+  `Element#to_html` → the ext serializer with `html_method: 1`.
+  Byte-parity with the interim Ruby walk is pinned by the #309
+  spec battery; the native path also fixes the walk's PI branch
+  (the Ruby walk crashed on processing instructions — target/data
+  readers don't exist on the wrapper). The Ruby walk is removed.
+- **`Document#save(path, mode: :html)`** → `leptris_document_save_html`.
+- **`leptris_document_create_html` attached** (native HTML-mode
+  documents — serialize AS HTML by default, Nokogiri behavior);
+  the facade's `create` stays on the XML base + doctype preset so
+  `to_xml` output on facade docs is unchanged. `html_method`
+  (tri-state) rides `SerializeExtStruct` — `to_xml` on an HTML
+  document can force XML with `-1` when the face needs it.
+- **Bulk SAX record drain attached** (1.9.223, upstream #1298,
+  Canon-reported): `leptris_sax_records_*` — one call yields the
+  whole document as a flat record table (tree edges, source
+  offsets, flat attribute table with §3.3.3 normalization flags).
+  Attach-only until the SAX face wants the bulk lane.
+- 1.9.224 rides along (LeakSanitizer fix on the direct-parse
+  failure path). Audit 351/351, suite 780/0.
+
 ## [1.9.222.0] - 2026-09-22
 
 ### Fixed — engine sync (1.9.222): the interleaved lane's namespace regression
