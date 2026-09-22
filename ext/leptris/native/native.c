@@ -2027,19 +2027,73 @@ static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
                                       rb_enc_interned_str(an, strlen(an),
                                                           rb_utf8_encoding()))
                                 : Qnil;
-                if (!NIL_P(slot)) {
-                    const char *av = f_attr_value(node, a);
-                    rb_struct_aset(value, slot,
+                const char *av = f_attr_value(node, a);
+                if (NIL_P(slot)) continue;
+                if (RB_TYPE_P(slot, T_ARRAY) && RARRAY_LEN(slot) == 2) {
+                    /* Typed entry [slot, tag]: 1 = integer, 2 = float
+                     * (strtod — the engine's float getter is 32-bit
+                     * and loses 19.99), 3 = boolean. Parsed C-side
+                     * from the fetched bytes: no Ruby String is
+                     * materialized for typed slots; unparseable
+                     * input degrades to the raw String (#1269a
+                     * lenient). */
+                    VALUE typed_slot = RARRAY_AREF(slot, 0);
+                    int tag = FIX2INT(RARRAY_AREF(slot, 1));
+                    char *end = NULL;
+                    if (av && tag == 1) {
+                        long lv = strtol(av, &end, 10);
+                        if (end != av) {
+                            rb_struct_aset(value, typed_slot, LONG2NUM(lv));
+                            continue;
+                        }
+                    } else if (av && tag == 2) {
+                        double dv = strtod(av, &end);
+                        if (end != av) {
+                            rb_struct_aset(value, typed_slot, DBL2NUM(dv));
+                            continue;
+                        }
+                    } else if (av && tag == 3) {
+                        if (av[0] == 't' || av[0] == '1' ||
+                            av[0] == 'y' || av[0] == 'Y') {
+                            rb_struct_aset(value, typed_slot, Qtrue);
+                        } else {
+                            rb_struct_aset(value, typed_slot, Qfalse);
+                        }
+                        continue;
+                    }
+                    rb_struct_aset(value, typed_slot,
                                    av ? rb_utf8_str_new_cstr(av) : Qnil);
+                    continue;
                 }
+                rb_struct_aset(value, slot,
+                               av ? rb_utf8_str_new_cstr(av) : Qnil);
             }
             if (!NIL_P(text_slot)) {
+                VALUE t_slot = text_slot;
+                int t_tag = 0;
+                if (RB_TYPE_P(t_slot, T_ARRAY) && RARRAY_LEN(t_slot) == 2) {
+                    t_tag = FIX2INT(RARRAY_AREF(t_slot, 1));
+                    t_slot = RARRAY_AREF(t_slot, 0);
+                }
                 void *c;
                 for (c = f_first_child(node); c; c = f_next_sibling(c)) {
                     if (f_node_type(c) == WS_NODE_TEXT) {
                         const char *t = f_text_content(c);
-                        rb_struct_aset(value, text_slot,
-                                       t ? rb_utf8_str_new_cstr(t) : Qnil);
+                        if (!t) {
+                            rb_struct_aset(value, t_slot, Qnil);
+                        } else if (t_tag == 1) {
+                            rb_struct_aset(value, t_slot,
+                                           LONG2NUM(strtol(t, NULL, 10)));
+                        } else if (t_tag == 2) {
+                            rb_struct_aset(value, t_slot,
+                                           DBL2NUM(strtod(t, NULL)));
+                        } else if (t_tag == 3) {
+                            rb_struct_aset(value, t_slot,
+                                           (t[0] == 't' || t[0] == '1') ? Qtrue : Qfalse);
+                        } else {
+                            rb_struct_aset(value, t_slot,
+                                           rb_utf8_str_new_cstr(t));
+                        }
                         break;
                     }
                 }
@@ -2083,6 +2137,17 @@ static void plan_walk(void *node, int depth, VALUE spec, VALUE stack,
             dc = f_next_sibling(dc);
         }
     }
+}
+
+/* Capability marker (moxml): the executor understands typed spec
+ * entries ([slot, tag] attr/text slots; 1 = integer, 2 = float via
+ * strtod, 3 = boolean, lenient raw-String fallback). Consumers
+ * probe this instead of version-gating — lockstep releases can
+ * publish without the face. */
+static VALUE nf_plan_structs_typed_p(VALUE self)
+{
+    (void)self;
+    return Qtrue;
 }
 
 static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
@@ -2667,6 +2732,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
                               nf_plan_structs, 3);
+    rb_define_module_function(m_native, "plan_structs_typed?",
+                              nf_plan_structs_typed_p, 0);
     rb_define_module_function(m_native, "doc_handle_attach",
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
