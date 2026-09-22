@@ -90,3 +90,69 @@ RSpec.describe "Leptris::HTML.create / HTML4.create / HTML5.create (programmatic
       .to raise_error(ArgumentError, /doctype must be/)
   end
 end
+
+RSpec.describe "Document#to_html / Element#to_html (#309's HTML serialization mode)" do
+  it "leaves script/style content raw and voids unclosed (the #309 repro)" do
+    doc = Leptris::HTML5.create
+    body = doc.at_css("body")
+    meta = doc.create_element("meta")
+    meta["charset"] = "UTF-8"
+    body.add_child(meta)
+    style = doc.create_element("style")
+    style.add_child(doc.create_text_node("a > b { color: red }"))
+    body.add_child(style)
+    script = doc.create_element("script")
+    script.add_child(doc.create_text_node("if (a & b) { x = 1 < 2 }"))
+    body.add_child(script)
+    expect(doc.to_html).to eq(
+      "<!DOCTYPE html><html><head></head><body>" \
+      "<meta charset=\"UTF-8\">" \
+      "<style>a > b { color: red }</style>" \
+      "<script>if (a & b) { x = 1 < 2 }</script>" \
+      "</body></html>")
+  end
+
+  it "closes childless non-void elements explicitly and escapes normal text" do
+    doc = Leptris::HTML5.create
+    body = doc.at_css("body")
+    div = doc.create_element("div")
+    body.add_child(div)
+    p_el = doc.create_element("p")
+    p_el.add_child(doc.create_text_node("a < b & c"))
+    body.add_child(p_el)
+    t = doc.create_element("title")
+    t.add_child(doc.create_text_node("t & u"))
+    doc.at_css("head").add_child(t)
+    html = doc.to_html
+    expect(html).to include("<div></div>")
+    expect(html).to include("<p>a &lt; b &amp; c</p>")
+    expect(html).to include("<title>t &amp; u</title>")
+  end
+
+  it "escapes attribute values and round-trips through parse" do
+    doc = Leptris::HTML5.create
+    a = doc.create_element("a")
+    a["href"] = "/x?y=1&z=2"
+    a["title"] = 'say "hi"'
+    a.add_child(doc.create_text_node("link"))
+    doc.at_css("body").add_child(a)
+    html = doc.to_html
+    expect(html).to include("href=\"/x?y=1&amp;z=2\"")
+    expect(html).to include("title=\"say &quot;hi&quot;\"")
+    back = Leptris::HTML5.parse(html)
+    expect(back.at_css("a")["href"]).to eq("/x?y=1&z=2")
+  end
+
+  it "serializes a subtree with Element#to_html" do
+    doc = Leptris::HTML5.create
+    body = doc.at_css("body")
+    ul = doc.create_element("ul")
+    li = doc.create_element("li")
+    li.add_child(doc.create_text_node("x"))
+    ul.add_child(li)
+    body.add_child(ul)
+    hr = doc.create_element("hr")
+    body.add_child(hr)
+    expect(body.to_html).to eq("<body><ul><li>x</li></ul><hr></body>")
+  end
+end

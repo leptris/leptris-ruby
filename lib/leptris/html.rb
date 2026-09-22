@@ -32,11 +32,11 @@ module Leptris
     # Fresh document with the HTML 4.01 Transitional doctype preset
     # (Nokogiri::HTML::Builder's .doc carries the same). Pass
     # +doctype: nil+ for a bare document.
-    def create(doctype: :transitional)
-      create_document(doctype)
+    def create(doctype: :transitional, skeleton: true)
+      create_document(doctype, skeleton: skeleton)
     end
 
-    def create_document(doctype)
+    def create_document(doctype, skeleton: true)
       doc = Leptris::XML::Document.create
       case doctype
       when :html5, true
@@ -50,6 +50,13 @@ module Leptris
       else raise ArgumentError,
         "doctype must be :html5, :transitional, nil, or false, got #{doctype.inspect}"
       end
+      return doc unless skeleton
+      html = doc.create_element("html")
+      head = doc.create_element("head")
+      body = doc.create_element("body")
+      html.add_child(head)
+      html.add_child(body)
+      doc.root = html
       doc
     end
   end
@@ -61,8 +68,8 @@ module Leptris
       Leptris::XML.parse_html(html, mode: :html4)
     end
 
-    def create(doctype: :transitional)
-      Leptris::HTML.create_document(doctype)
+    def create(doctype: :transitional, skeleton: true)
+      Leptris::HTML.create_document(doctype, skeleton: skeleton)
     end
   end
 
@@ -78,8 +85,8 @@ module Leptris
 
     # Fresh document with the HTML5 doctype (`<!DOCTYPE html>`)
     # preset; pass +doctype: nil+ for a bare document.
-    def create(doctype: :html5)
-      Leptris::HTML.create_document(doctype)
+    def create(doctype: :html5, skeleton: true)
+      Leptris::HTML.create_document(doctype, skeleton: skeleton)
     end
   end
 end

@@ -474,6 +474,16 @@ class Leptris::XML::Document
   alias_method :to_s, :to_xml
   alias_method :serialize, :to_xml
 
+  # HTML5 serialization (#309): void elements without a trailing
+  # slash (`<br>`), script/style content as raw text, text/attr
+  # entity escaping per HTML rules, the DOCTYPE emitted first.
+  # Walks the tree in Ruby — the engine-side serialization mode is
+  # the perf headroom this face gates on.
+  def to_html
+    raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    Leptris::XML::HTMLSerialize.document(self)
+  end
+
   def save(path, **opts)
     opts_struct, _encoding_anchor = Leptris::XML::Serialization.build_options(
       indent: opts.fetch(:indent, 0),
