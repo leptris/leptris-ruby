@@ -46,3 +46,47 @@ RSpec.describe "Leptris::HTML facade" do
   end
 
 end
+
+RSpec.describe "Leptris::HTML.create / HTML4.create / HTML5.create (programmatic HTML construction)" do
+  it "returns a fresh document with the HTML5 doctype preset" do
+    doc = Leptris::HTML5.create
+    expect(doc).to be_a(Leptris::XML::Document)
+    expect(doc.doctype).to be_a(Leptris::XML::DocType)
+    expect(doc.doctype.name).to eq("html")
+    doc.root = doc.create_element("html")
+    expect(doc.to_xml(no_decl: true)).to start_with("<!DOCTYPE html>")
+  end
+
+  it "carries the HTML 4.01 Transitional doctype on the html4 lanes" do
+    doc = Leptris::HTML.create
+    expect(doc.doctype.public_id).to eq("-//W3C//DTD HTML 4.01 Transitional//EN")
+    doc.root = doc.create_element("html")
+    out = doc.to_xml(no_decl: true)
+    expect(out).to include("<!DOCTYPE HTML PUBLIC")
+    expect(out).to include("HTML 4.01 Transitional")
+    other = Leptris::HTML4.create
+    other.root = other.create_element("html")
+    expect(other.to_xml(no_decl: true)).to eq(out)
+  end
+
+  it "builds a complete HTML document through the XML face" do
+    doc = Leptris::HTML5.create
+    html = doc.create_element("html")
+    body = doc.create_element("body")
+    br = doc.create_element("br")
+    p_el = doc.create_element("p")
+    p_el.add_child(doc.create_text_node("hi"))
+    body.add_child(br)
+    body.add_child(p_el)
+    html.add_child(body)
+    doc.root = html
+    out = doc.to_xml(no_decl: true)
+    expect(out).to eq("<!DOCTYPE html><html><body><br/><p>hi</p></body></html>")
+  end
+
+  it "skips the doctype when asked" do
+    expect(Leptris::HTML5.create(doctype: nil).doctype).to be_nil
+    expect { Leptris::HTML5.create(doctype: :bogus) }
+      .to raise_error(ArgumentError, /doctype must be/)
+  end
+end
