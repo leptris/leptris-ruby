@@ -2524,7 +2524,23 @@ static VALUE leptris_native_resolve_rb(VALUE self, VALUE lib_path)
     return Qnil;
 }
 
-void Init_native(void)
+/*
+ * Windows export discipline: a PE DLL exports only what a .def file or
+ * __declspec(dllexport) names. native_layer requires the MINOR-SUFFIXED
+ * symbol (native_3_4.so -> Init_native_3_4), but mkmf generates its own
+ * .def listing just Init_native, and depending on toolchain that def
+ * can win over ours (aarch64-ucrt ld does not auto-export the rest, so
+ * the lookup 127s and the platform silently degrades to the FFI
+ * surface). dllexport pins all four entry points into the export table
+ * on every Windows toolchain; it is a no-op elsewhere.
+ */
+#if defined(_WIN32)
+#  define LEPTRIS_INIT_EXPORT __declspec(dllexport)
+#else
+#  define LEPTRIS_INIT_EXPORT
+#endif
+
+LEPTRIS_INIT_EXPORT void Init_native(void)
 {
     VALUE m_leptris, m_xml, m_native;
 
@@ -2683,7 +2699,7 @@ void Init_native(void)
  * each needs its exact init name exported. All are defined here
  * unconditionally: a DLL only ever loads under the Ruby minor it
  * was built against (PE binds its build Ruby's runtime DLL). */
-void Init_native_3_3(void) { Init_native(); }
-void Init_native_3_4(void) { Init_native(); }
-void Init_native_4_0(void) { Init_native(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { Init_native(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { Init_native(); }
+LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { Init_native(); }
 #endif
