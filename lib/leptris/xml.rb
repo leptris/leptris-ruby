@@ -21,7 +21,6 @@ module Leptris
     autoload :CssToXPath, "leptris/xml/css_to_xpath"
     autoload :CStringArray, "leptris/xml/c_string_array"
     autoload :Serialization, "leptris/xml/serialization"
-    autoload :HTMLSerialize, "leptris/xml/html_serialize"
     autoload :SAX, "leptris/xml/sax"
     autoload :XPath, "leptris/xml/xpath"
     autoload :EvaluationContext, "leptris/xml/evaluation_context"

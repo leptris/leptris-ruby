@@ -169,7 +169,11 @@ module Leptris
       class SerializeExtStruct < ::FFI::Struct
         layout :indent_text, :int,
                :indent_unit, :pointer,
-               :expand_empty, :int
+               :expand_empty, :int,
+               # libleptris 1.9.225 (#1311): tri-state — 0 = the
+               # document's default method, 1 = force HTML, -1 =
+               # force XML (to_xml on an HTML document).
+               :html_method, :int
       end
 
       # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
@@ -992,6 +996,28 @@ attach_function :leptris_parse_string,
         [:leptris_element, :pointer, :size_t, :pointer, :pointer], :size_t
       attach_function :leptris_document_save_file,
         [:leptris_document, :string, :pointer], :leptris_status
+      # HTML construction + serialization (libleptris 1.9.225,
+      # upstream #1309/#1311 — the engine side of #309): native HTML
+      # documents carry the html serialization mode (voids unclosed,
+      # raw-text script/style, explicit closes, no declaration).
+      attach_function :leptris_document_create_html, [], :leptris_document
+      attach_function :leptris_document_serialize_html,
+        [:leptris_document, :pointer], :pointer
+      attach_function :leptris_document_save_html,
+        [:leptris_document, :string, :pointer], :leptris_status
+      # Bulk SAX record drain (libleptris 1.9.223, upstream #1298):
+      # ONE call parses the document into a flat record table —
+      # tree edges, source offsets, and a flat attribute table, all
+      # offset-views into a parser-owned buffer. Attach-only until
+      # the SAX face wants the bulk lane.
+      attach_function :leptris_sax_records_parse,
+        [:string, :size_t, :uint, :pointer], :leptris_status
+      attach_function :leptris_sax_records_count, [:pointer], :size_t
+      attach_function :leptris_sax_records_data, [:pointer], :pointer
+      attach_function :leptris_sax_records_attrs,
+        [:pointer, :pointer], :pointer
+      attach_function :leptris_sax_records_buffer, [:pointer], :string
+      attach_function :leptris_sax_records_free, [:pointer], :void
       # XSLT 1.0 engine (libleptris 1.9.1): compile once, apply many.
       # XQuery 1.0 core (libleptris 1.9.64-1.9.66): orchestration
       # over the XPath engine — prolog (declare variable/namespace/
