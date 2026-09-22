@@ -43,12 +43,27 @@ Dir.chdir(ext_dir) do
   # string table while exporting only mkmf's Init_native (the arm64
   # toolchain ignores our .def when its own wins the link) — only a
   # real lookup proves native_<minor>.so will load.
-  require "fiddle"
+  #
+  # Ruby 4.0 moved fiddle out of the default gems (bundled_gems
+  # intercepts the require → LoadError when it's not in the
+  # Gemfile), so the gate is conditional there: skip loudly — the
+  # release workflow's strings gate still hard-verifies the
+  # export, and native.c pins the symbols with dllexport at the
+  # source level.
   begin
-    Fiddle.dlopen(File.expand_path(so))[INIT_PREFIX + minor_us]
-  rescue Fiddle::DLError => e
-    abort "#{so} does not export #{INIT_PREFIX + minor_us} — refusing to " \
-          "install a DLL that would 127 at require (#{e.message})"
+    require "fiddle"
+  rescue LoadError => e
+    warn "fiddle unavailable under #{RUBY_VERSION} (#{e.message}) — " \
+         "skipping the functional export gate; the release workflow's " \
+         "strings gate still applies"
+  end
+  if defined?(Fiddle)
+    begin
+      Fiddle.dlopen(File.expand_path(so))[INIT_PREFIX + minor_us]
+    rescue Fiddle::DLError => e
+      abort "#{so} does not export #{INIT_PREFIX + minor_us} — refusing to " \
+            "install a DLL that would 127 at require (#{e.message})"
+    end
   end
   dest = File.join(root, "lib", "leptris", "xml", "native_#{minor_us}.so")
   # The artifact must reference only this minor's Ruby DLL.
