@@ -58,6 +58,33 @@ module Leptris::XML::Serialization
   # Default-options element serialization for inner_html's per-child
   # loop: no kwargs, no options rebuild, no method allocation —
   # one FFI fast-path dispatch per child.
+  # Document HTML serialization (libleptris 1.9.225, #1311): the
+  # native HTML mode — voids unclosed, raw-text script/style,
+  # explicit closes, no declaration, DOCTYPE first.
+  def self.document_html(c_ptr)
+    Leptris::XML::FFI.read_owned_string(
+      Leptris::XML::FFI.leptris_document_serialize_html(c_ptr, nil))
+  end
+
+  # Element-level HTML mode through the ext serializer (the
+  # html_method tri-state forces HTML regardless of the document
+  # flavor).
+  HTML_METHOD_EXT = begin
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    ext[:indent_text] = 0
+    ext[:indent_unit] = nil
+    ext[:expand_empty] = 0
+    ext[:html_method] = 1
+    ext
+  end
+  private_constant :HTML_METHOD_EXT
+
+  def self.element_html(c_ptr)
+    Leptris::XML::FFI.read_owned_string(
+      Leptris::XML::FFI.leptris_element_serialize_ext(
+        c_ptr, nil, HTML_METHOD_EXT.pointer))
+  end
+
   def self.element_xml_default(c_ptr)
     return Leptris::XML::Native.fast_element_xml(c_ptr.address, 0, true,
                                                   nil) if

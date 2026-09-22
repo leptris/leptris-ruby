@@ -481,16 +481,24 @@ class Leptris::XML::Document
   # the perf headroom this face gates on.
   def to_html
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
-    Leptris::XML::HTMLSerialize.document(self)
+    Leptris::XML::Serialization.document_html(c_ptr)
   end
 
-  def save(path, **opts)
+  def save(path, mode: :xml, **opts)
     opts_struct, _encoding_anchor = Leptris::XML::Serialization.build_options(
       indent: opts.fetch(:indent, 0),
       no_decl: opts.fetch(:no_decl, false),
       encoding: opts[:encoding])
-    status = Leptris::XML::FFI.leptris_document_save_file(
-      c_ptr, path, opts_struct.pointer)
+    status =
+      if mode == :html
+        Leptris::XML::FFI.leptris_document_save_html(
+          c_ptr, path, opts_struct.pointer)
+      elsif mode != :xml
+        raise ArgumentError, "mode must be :xml or :html, got #{mode.inspect}"
+      else
+        Leptris::XML::FFI.leptris_document_save_file(
+          c_ptr, path, opts_struct.pointer)
+      end
     Leptris::XML::FFI.check_status(status)
     self
   end
