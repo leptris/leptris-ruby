@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.229.0] - 2026-09-23
+
+### Performance — engine sync (1.9.229)
+
+- Vendored libleptris 1.9.229: the text node struct shrinks
+  40 → 32 bytes on LP64 and ILP32 alike (#1285 slice 4b) — the
+  content pointer became an int32 self-relative offset with
+  doc-tagged overflow stamps (0 = NULL, shared sentinel for the
+  static empty string, byte offset otherwise; >2 GB deltas spill
+  to the overflow table tagged EXPLICIT). No binding-facing
+  surface changes; audit 351/351, suite 781/0.
+
 ## [1.9.228.0] - 2026-09-23
 
 ### Fixed — Text#content= on created-but-unattached text nodes (#318; engine 1.9.227–228)
