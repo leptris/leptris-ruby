@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.228.0] - 2026-09-23
+
+### Fixed — Text#content= on created-but-unattached text nodes (#318; engine 1.9.227–228)
+
+- **The #318 regression is fixed at the engine root**: engine
+  1.9.228 (upstream leptris#1320) gives detached text nodes the
+  same #519 owner treatment PI/comment/CDATA already had — an
+  owner backref stamped by `leptris_text_node_create` (compact
+  int32 offset, LP64 layout preserved) — so
+  `leptris_text_node_set_content` works before attach again.
+  The create → fill → attach builder sequence moxml's
+  `Text#content=` depends on is unblocked; verified against the
+  vendored 1.9.228 (the #318 repro passes; suite 778 → 781/0).
+- 1.9.227 rides along (header-hygiene spec zeroing).
+
 ## [1.9.226.0] - 2026-09-23
 
 ### Performance — engine sync (1.9.226)
