@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.226.0] - 2026-09-23
+
+### Performance — engine sync (1.9.226)
+
+- Vendored libleptris 1.9.226: zero-re-copy HTML element opens
+  (#1285 slice 5, #1315) — element names drop from two pool
+  allocations + copies per open to one (the lowercased pooled
+  name or the static literal of a synthesized open, stored
+  directly; no QName split, no colon re-copy). Table-row parse
+  33.1 → 35.3 MB/s on the contended host. No binding-facing
+  surface changes; audit 351/351, suite 781/0.
+
 ## [1.9.225.0] - 2026-09-22
 
 ### Added — native HTML serialization, construction, and the bulk SAX drain (engine 1.9.223–225)
