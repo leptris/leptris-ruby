@@ -5,6 +5,27 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.231.0] - 2026-09-23
+
+### Fixed
+
+- Vendored libleptris 1.9.231: the root-doc map is process-global
+  now — a document freed on a thread other than the one that
+  registered its roots (binding GC finalizers run on arbitrary
+  threads) no longer leaves a stale `{root -> doc}` entry in the
+  owner thread's map. Pre-fix, address-matched walks dereferenced
+  (and rewired) the freed document: the
+  `leptris_root_doc_unregister+0x6c` segfault under heavy parse
+  churn on macOS Ruby 3.3 (#321), plus silent freed-document
+  resolution through lookups and the per-thread memo. The memo
+  stays lock-free, validated by a global atomic generation.
+- Also riding 1.9.230's string-length fix (continuation-count
+  table, ac6f9738): the old lead-byte table over-advanced past
+  the NUL, and the NFD spec expectation enshrined the phantom
+  byte (4.0). Re-pinned to the correct contracts — verbatim
+  one-argument passthrough (2 codepoints) and two-argument NFD
+  (splits the precomposed é, 3 codepoints).
+
 ## [1.9.229.0] - 2026-09-23
 
 ### Performance — engine sync (1.9.229)
