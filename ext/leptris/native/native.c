@@ -135,6 +135,9 @@ static VALUE c_iteration_scope;
 static VALUE c_leptris_error;
 static VALUE c_b_document, c_b_freed, c_ffi_pointer;
 static ID id_ptr_new, id_freed_new, id_alive;
+static ID id_iv_c_address, id_iv_document, id_iv_parent;
+static ID id_iv_structure_memoizable, id_iv_native_fast;
+static ID id_iv_pub_document, id_iv_addr_reads_fast, id_iv_node_type;
 static void check_status_c(int st);
 
 #define NT_ELEMENT 0
@@ -839,7 +842,37 @@ struct trav_state {
     VALUE err;
     void *self_ptr;
     int for_visit;
+    /* Hoisted per-walk state (was re-resolved per node): the
+     * document's wrapper cache and the iteration-scope class
+     * check. #312 item 1. */
+    VALUE cache;
+    VALUE klass_memo_flag;
 };
+
+/* Construct-or-fetch the binding wrapper for node_ptr against the
+ * per-walk hoisted cache (#312 item 1): static-ID ivar writes (no
+ * per-call string interning), the scope class check precomputed. */
+static VALUE trav_wrapper_for(struct trav_state *st, void *node_ptr,
+                              int kind)
+{
+    VALUE key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
+    VALUE node = rb_hash_aref(st->cache, key);
+    if (!NIL_P(node)) return node;
+
+    node = rb_obj_alloc(binding_klass_for(kind));
+    rb_ivar_set(node, id_iv_c_address, key);
+    rb_ivar_set(node, id_iv_document, st->document);
+    rb_ivar_set(node, id_iv_parent, Qnil);
+    VALUE fast = st->klass_memo_flag;
+    rb_ivar_set(node, id_iv_structure_memoizable, fast);
+    rb_ivar_set(node, id_iv_native_fast, fast);
+    rb_ivar_set(node, id_iv_pub_document,
+                fast == Qtrue ? st->document : Qnil);
+    rb_ivar_set(node, id_iv_addr_reads_fast, Qtrue);
+    rb_ivar_set(node, id_iv_node_type, INT2FIX(kind));
+    rb_hash_aset(st->cache, key, node);
+    return node;
+}
 
 static VALUE trav_yield_one(VALUE arg)
 {
@@ -849,33 +882,13 @@ static VALUE trav_yield_one(VALUE arg)
 static int trav_cb(void *node_ptr, void *user)
 {
     struct trav_state *st = user;
-    VALUE cache, key, node;
+    VALUE node;
     int kind, state;
 
     if (st->err != Qnil)
         return 1;
     kind = f_node_type(node_ptr);
-    cache = binding_cache_of(st->document);
-    key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
-    node = rb_hash_aref(cache, key);
-    if (NIL_P(node)) {
-        node = rb_obj_alloc(binding_klass_for(kind));
-        rb_iv_set(node, "@c_address", key);
-        rb_iv_set(node, "@document", st->document);
-        rb_iv_set(node, "@parent", Qnil);
-        if (rb_obj_class(st->document) == c_iteration_scope) {
-            rb_iv_set(node, "@structure_memoizable", Qfalse);
-            rb_iv_set(node, "@native_fast", Qfalse);
-            rb_iv_set(node, "@pub_document", Qnil);
-        } else {
-            rb_iv_set(node, "@structure_memoizable", Qtrue);
-            rb_iv_set(node, "@native_fast", Qtrue);
-            rb_iv_set(node, "@pub_document", st->document);
-        }
-        rb_iv_set(node, "@addr_reads_fast", Qtrue);
-        rb_iv_set(node, "@node_type", INT2FIX(kind));
-        rb_hash_aset(cache, key, node);
-    }
+    node = trav_wrapper_for(st, node_ptr, kind);
     rb_protect(trav_yield_one, node, &state);
     if (state) {
         st->err = rb_errinfo();
@@ -894,6 +907,9 @@ static VALUE nf_traverse_binding(VALUE self, VALUE document,
     st.document = document;
     st.err = Qnil;
     st.self_ptr = (void *)(uintptr_t)NUM2ULL(addr);
+    st.cache = binding_cache_of(document);
+    st.klass_memo_flag =
+        rb_obj_class(document) == c_iteration_scope ? Qfalse : Qtrue;
     st.for_visit = 0;
     f_node_traverse(st.self_ptr, 1 /* TRAVERSE_POST_ORDER */,
                     trav_cb, &st);
@@ -922,33 +938,13 @@ static void visit_cb(void *user, void *node_ptr, int entering,
      * happens after the walk, same observable outcome. */
     struct trav_state *st = user;
     struct visit_yield_args va;
-    VALUE cache, key, node;
+    VALUE node;
     int kind, state;
 
     if (st->err != Qnil)
         return;
     kind = f_node_type(node_ptr);
-    cache = binding_cache_of(st->document);
-    key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
-    node = rb_hash_aref(cache, key);
-    if (NIL_P(node)) {
-        node = rb_obj_alloc(binding_klass_for(kind));
-        rb_iv_set(node, "@c_address", key);
-        rb_iv_set(node, "@document", st->document);
-        rb_iv_set(node, "@parent", Qnil);
-        if (rb_obj_class(st->document) == c_iteration_scope) {
-            rb_iv_set(node, "@structure_memoizable", Qfalse);
-            rb_iv_set(node, "@native_fast", Qfalse);
-            rb_iv_set(node, "@pub_document", Qnil);
-        } else {
-            rb_iv_set(node, "@structure_memoizable", Qtrue);
-            rb_iv_set(node, "@native_fast", Qtrue);
-            rb_iv_set(node, "@pub_document", st->document);
-        }
-        rb_iv_set(node, "@addr_reads_fast", Qtrue);
-        rb_iv_set(node, "@node_type", INT2FIX(kind));
-        rb_hash_aset(cache, key, node);
-    }
+    node = trav_wrapper_for(st, node_ptr, kind);
     va.node = node;
     va.entering = entering ? Qtrue : Qfalse;
     va.depth = INT2NUM(depth);
@@ -966,6 +962,9 @@ static VALUE nf_visit_binding(VALUE self, VALUE document, VALUE addr)
     st.document = document;
     st.err = Qnil;
     st.self_ptr = (void *)(uintptr_t)NUM2ULL(addr);
+    st.cache = binding_cache_of(document);
+    st.klass_memo_flag =
+        rb_obj_class(document) == c_iteration_scope ? Qfalse : Qtrue;
     st.for_visit = 1;
     f_node_visit(st.self_ptr, visit_cb, &st);
     if (st.err != Qnil)
@@ -2648,6 +2647,14 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     id_iv_c_address = rb_intern("@c_address");
     id_iv_native_cache = rb_intern("@native_cache");
     id_iv_binding_cache = rb_intern("@wrapper_cache");
+    id_iv_c_address = rb_intern("@c_address");
+    id_iv_document = rb_intern("@document");
+    id_iv_parent = rb_intern("@parent");
+    id_iv_structure_memoizable = rb_intern("@structure_memoizable");
+    id_iv_native_fast = rb_intern("@native_fast");
+    id_iv_pub_document = rb_intern("@pub_document");
+    id_iv_addr_reads_fast = rb_intern("@addr_reads_fast");
+    id_iv_node_type = rb_intern("@node_type");
     id_iv_version = rb_intern("@version");
     id_iv_readonly = rb_intern("@readonly");
     id_address = rb_intern("address");
