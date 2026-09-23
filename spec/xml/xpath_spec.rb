@@ -156,8 +156,20 @@ RSpec.describe "XQuery 3.0 tail and fn: catalog slices (libleptris 1.9.77-1.9.79
   # utf8proc is vendored since TODO.restructure/20: built per
   # platform with a relocatable @rpath install name and pre-loaded
   # by ffi.rb — the function is unconditionally available.
+  #
+  # fn:normalize-unicode passes its argument through VERBATIM in the
+  # one-argument form; normalization requires the two-argument form
+  # (engine #691). string-length counts codepoints, not bytes —
+  # the pre-1.9.231 lead-byte table over-advanced past the NUL and
+  # the old 4.0 expectation here enshrined a phantom byte.
+  it "counts codepoints on the verbatim one-argument passthrough" do
+    expect(doc.xpath("string-length(normalize-unicode('é́'))")).to eq(2.0)
+  end
+
   it "normalizes unicode (NFD splits precomposed characters)" do
-    expect(doc.xpath("string-length(normalize-unicode('é́'))")).to eq(4.0)
+    expect(doc.xpath("normalize-unicode('é́', 'NFD')").bytes).to eq(
+      [101, 204, 129, 204, 129])
+    expect(doc.xpath("string-length(normalize-unicode('é́', 'NFD'))")).to eq(3.0)
   end
 end
 
