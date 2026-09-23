@@ -106,6 +106,7 @@ static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
 static traverse_fn f_node_traverse;
 static visit_fn f_node_visit;
+static visit_fn f_node_visit_entering;
 static free_str_fn f_free_str;
 static node_xpath_fn f_node_xpath;
 static elem_copy_fn f_elem_copy;
@@ -237,6 +238,10 @@ static void resolve_symbols(const char *lib_path)
     f_node_unlink = (node_unlink_fn)lib_sym(h, "leptris_node_unlink");
     f_node_traverse = (traverse_fn)lib_sym(h, "leptris_node_traverse");
     f_node_visit = (visit_fn)lib_sym(h, "leptris_node_visit");
+    /* Entering-only visit (leptris#1332): one callback per node —
+     * optional; absent engines keep the two-event visit. */
+    f_node_visit_entering =
+        (visit_fn)lib_sym(h, "leptris_node_visit_entering");
     f_free_str = (free_str_fn)lib_sym(h, "leptris_free_string");
     f_node_xpath = (node_xpath_fn)lib_sym(h, "leptris_node_get_xpath");
     f_elem_copy = (elem_copy_fn)lib_sym(h, "leptris_element_copy");
@@ -966,7 +971,10 @@ static VALUE nf_visit_binding(VALUE self, VALUE document, VALUE addr)
     st.klass_memo_flag =
         rb_obj_class(document) == c_iteration_scope ? Qfalse : Qtrue;
     st.for_visit = 1;
-    f_node_visit(st.self_ptr, visit_cb, &st);
+    if (f_node_visit_entering)
+        f_node_visit_entering(st.self_ptr, visit_cb, &st);
+    else
+        f_node_visit(st.self_ptr, visit_cb, &st);
     if (st.err != Qnil)
         rb_exc_raise(st.err);
     return Qnil;
