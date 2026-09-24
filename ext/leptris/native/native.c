@@ -2294,14 +2294,15 @@ static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
                                           VALUE parent_addr, VALUE name,
                                           VALUE attrs)
 {
-    (void)self;
-    (void)document;
+    void *doc_ptr = NIL_P(document)
+                        ? NULL
+                        : (void *)(uintptr_t)NUM2ULL(document);
     void *parent = NIL_P(parent_addr)
                        ? NULL
                        : (void *)(uintptr_t)NUM2ULL(parent_addr);
     const char *cname = StringValueCStr(name);
 
-    if (f_elem_new_with_attrs && parent && RARRAY_LEN(attrs) > 0 &&
+    if (f_elem_new_with_attrs && doc_ptr && parent && RARRAY_LEN(attrs) > 0 &&
         RARRAY_LEN(attrs) % 2 == 0) {
         /* Engine single-crossing construction (1.9.236+): arena
          * create + all attributes with no per-attr calls at all. */
@@ -2316,9 +2317,13 @@ static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
             names[i] = StringValueCStr(an);
             values[i] = StringValueCStr(av);
         }
-        void *elem = f_elem_new_with_attrs(parent, cname, names, values,
-                                           n);
-        return elem ? ULL2NUM((uintptr_t)elem) : Qnil;
+        void *elem = f_elem_new_with_attrs(doc_ptr, cname, names,
+                                           values, n);
+        if (!elem) return Qnil;
+        /* The face creates a floating element owned by the
+         * document — append under the parent afterwards. */
+        if (parent) f_append_child(parent, elem);
+        return ULL2NUM((uintptr_t)elem);
     }
 
     void *elem = parent ? f_create_child(parent, cname) : NULL;
