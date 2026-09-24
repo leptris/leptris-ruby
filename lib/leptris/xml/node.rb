@@ -545,6 +545,34 @@ class Leptris::XML::Node
     self
   end
 
+  # Visits the subtree with ONE C call, yielding ONCE per node
+  # (leptris_node_visit_entering, libleptris #1332): every node —
+  # elements included — yields (node, true, depth) exactly once, on
+  # entering. Halves the C-callback invocations against #visit for
+  # walks that never acted on the leaving half (the family-walk
+  # shape); the halving happens in the engine, not in a per-node
+  # Ruby filter. Same order and depths as #visit; read-only.
+  #
+  #     root.visit_entering { |node, entering, depth| ... }
+  def visit_entering(&block)
+    return enum_for(:visit_entering) unless block
+    ensure_alive!
+    if @addr_reads_fast
+      Leptris::XML::Native.visit_entering_binding(@document,
+                                                  @c_address, &block)
+      return self
+    end
+    document = @document
+    visitor = ::FFI::Function.new(
+      :void, [:pointer, :pointer, :int, :int], blocking: true) do |_, node_ptr, entering, depth|
+      block.call(
+        Leptris::XML::Node.wrap(node_ptr, document),
+        entering == 1, depth)
+    end
+    Leptris::XML::FFI.leptris_node_visit_entering(c_ptr, visitor, nil)
+    self
+  end
+
   # Walks the subtree in post-order DFS (matches Nokogiri's
   # semantics): the receiver, its descendants, nothing else.
   #

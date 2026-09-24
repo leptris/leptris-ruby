@@ -447,6 +447,10 @@ attach_function :leptris_parse_string,
       # node walks the document child chain.
       attach_function :leptris_node_visit,
         [:leptris_node_ref, :pointer, :pointer], :void
+      # Entering-only walk (libleptris #1332): one callback per
+      # node. Rides the engine pin that ships it.
+      attach_function :leptris_node_visit_entering,
+        [:leptris_node_ref, :pointer, :pointer], :void
       # Document-level PIs (v1.6.0): not tree nodes — enumerate via
       # these accessors only.
       attach_function :leptris_document_pi_count,
