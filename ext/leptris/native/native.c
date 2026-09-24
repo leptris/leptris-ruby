@@ -1646,34 +1646,6 @@ static VALUE nf_bulk_attributes(VALUE self, VALUE addr)
 /* ---- Binding create via C (TODO.perf/09): one call creates the
  * node AND constructs the binding wrapper (class dispatch, ivars,
  * identity-cache store) — no FFI marshaling, no wrap_fresh path. */
-/* Anchored attribute flattening: every converted key/value string
- * is pushed into Ruby arrays before its pointer enters the C
- * arrays, so temporaries (non-String keys, nil -> "") survive
- * until the engine call returns. */
-struct attr_arrays {
-    const char **names;
-    const char **values;
-    long count;
-};
-
-static int fill_attr_pair(VALUE key, VALUE value, VALUE data)
-{
-    struct attr_arrays *a =
-        (struct attr_arrays *)(uintptr_t)NUM2LONG(rb_ary_entry(data, 2));
-    VALUE n = RB_TYPE_P(key, T_STRING) ? key : rb_obj_as_string(key);
-    VALUE v = NIL_P(value) ? rb_usascii_str_new(0, 0)
-                           : (RB_TYPE_P(value, T_STRING) ? value
-                                                         : rb_obj_as_string(value));
-    long i = a->count;
-
-    rb_ary_push(rb_ary_entry(data, 0), n);
-    rb_ary_push(rb_ary_entry(data, 1), v);
-    a->names[i] = RSTRING_PTR(n);
-    a->values[i] = RSTRING_PTR(v);
-    a->count = i + 1;
-    return ST_CONTINUE;
-}
-
 static int set_attr_pair(VALUE key, VALUE value, VALUE data)
 {
     void *elem =
@@ -1706,24 +1678,42 @@ static VALUE nf_create_binding_element(VALUE self, VALUE document,
         /* #1344: element + every attribute in ONE crossing.
          * Duplicate names replace, last wins; NULL values store
          * the empty string — engine semantics, identical to
-         * per-pair set_attribute. */
-        struct attr_arrays a;
-        long cap;
-        VALUE names, values, box;
+         * per-pair set_attribute.
+         *
+         * Iteration goes through keys + aref (no rb_hash_foreach
+         * state pointer): every converted key/value is pushed into
+         * Ruby arrays BEFORE its pointer enters the C arrays, so
+         * temporaries (non-String keys, nil -> "") survive until
+         * the engine call returns — no C pointer rides through a
+         * boxed VALUE (long is 32-bit on Windows/LLP64; the
+         * foreach+boxed-struct shape truncated it and segfaulted
+         * the windows CI leg). */
+        VALUE keys, names, values;
+        const char **np, **vp;
+        long cap, i;
         Check_Type(attrs, T_HASH);
         cap = (long)RHASH_SIZE(attrs);
+        keys = rb_funcall(attrs, rb_intern("keys"), 0);
         names = rb_ary_new_capa(cap);
         values = rb_ary_new_capa(cap);
-        a.count = 0;
-        a.names = ruby_xmalloc(sizeof(char *) * (cap + 1));
-        a.values = ruby_xmalloc(sizeof(char *) * (cap + 1));
-        box = rb_ary_new3(3, names, values,
-                          LONG2NUM((long)(uintptr_t)&a));
-        rb_hash_foreach(attrs, fill_attr_pair, box);
+        np = ruby_xmalloc(sizeof(char *) * (cap + 1));
+        vp = ruby_xmalloc(sizeof(char *) * (cap + 1));
+        for (i = 0; i < cap; i++) {
+            VALUE k = rb_ary_entry(keys, i);
+            VALUE v = rb_hash_aref(attrs, k);
+            k = RB_TYPE_P(k, T_STRING) ? k : rb_obj_as_string(k);
+            v = NIL_P(v) ? rb_usascii_str_new(0, 0)
+                         : (RB_TYPE_P(v, T_STRING) ? v
+                                                   : rb_obj_as_string(v));
+            rb_ary_push(names, k);
+            rb_ary_push(values, v);
+            np[i] = RSTRING_PTR(k);
+            vp[i] = RSTRING_PTR(v);
+        }
         ptr = f_elem_new_with_attrs(doc, RSTRING_PTR(name_str),
-                                    a.names, a.values, (size_t)a.count);
-        ruby_xfree(a.names);
-        ruby_xfree(a.values);
+                                    np, vp, (size_t)cap);
+        ruby_xfree(np);
+        ruby_xfree(vp);
     } else {
         /* Older pin: create + per-pair sets (N+1 crossings). */
         VALUE addr = Qnil;
