@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.232.0] - 2026-09-24
+
+### Added
+
+- `Node#visit_entering` (libleptris #1332): the entering-only walk
+  — one C call yields `(node, true, depth)` exactly once per node,
+  halving the C→Ruby transitions against `#visit` for walks that
+  never acted on the leaving half. Same order and depths as
+  `#visit`; the native face falls back to the filtering visit on
+  pins predating #1332.
+
+### Performance — engine sync (1.9.232)
+
+- Vendored libleptris 1.9.232: the per-eval registry leak fix, the
+  range NaN fix, string-literal character-reference expansion, and
+  the plan-walker prefixed-name fix — moxml/lutaml hydration of
+  `w:*` elements resolves correctly with no binding-side change —
+  plus 907 new QT3-gated engine behaviors.
+
 ## [1.9.231.0] - 2026-09-23
 
 ### Fixed
