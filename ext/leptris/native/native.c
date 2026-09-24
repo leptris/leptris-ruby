@@ -42,6 +42,8 @@ typedef size_t (*node_offset_fn)(void *);
 typedef const char *(*element_text_fn)(void *);
 typedef void *(*doc_create_fn)(void);
 typedef void *(*elem_create_fn)(void *, const char *);
+typedef void *(*elem_new_attrs_fn)(void *, const char *, const char **,
+                                   const char **, size_t);
 typedef void *(*text_create_fn)(void *, const char *);
 typedef void *(*create_child_fn)(void *, const char *);
 typedef int (*append_child_fn)(void *, void *);
@@ -75,6 +77,7 @@ static node_offset_fn f_node_offset;
 static element_text_fn f_element_text;
 static doc_create_fn f_doc_create;
 static elem_create_fn f_elem_create;
+static elem_new_attrs_fn f_elem_new_with_attrs;
 static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
@@ -218,6 +221,11 @@ static void resolve_symbols(const char *lib_path)
     f_element_text = (element_text_fn)lib_sym(h, "leptris_element_text");
     f_doc_create = (doc_create_fn)lib_sym(h, "leptris_document_create");
     f_elem_create = (elem_create_fn)lib_sym(h, "leptris_element_create");
+    /* Single-crossing element construction (libleptris 1.9.237,
+     * #1344): NULL in older engine pins; the create path falls
+     * back to create + per-pair sets. */
+    f_elem_new_with_attrs =
+        (elem_new_attrs_fn)lib_sym(h, "leptris_element_new_with_attributes");
     f_text_create = (text_create_fn)lib_sym(h, "leptris_text_node_create");
     f_create_child = (create_child_fn)lib_sym(h, "leptris_element_create_child");
     f_append_child = (append_child_fn)lib_sym(h, "leptris_element_append_child");
@@ -1638,15 +1646,98 @@ static VALUE nf_bulk_attributes(VALUE self, VALUE addr)
 /* ---- Binding create via C (TODO.perf/09): one call creates the
  * node AND constructs the binding wrapper (class dispatch, ivars,
  * identity-cache store) — no FFI marshaling, no wrap_fresh path. */
+/* Anchored attribute flattening: every converted key/value string
+ * is pushed into Ruby arrays before its pointer enters the C
+ * arrays, so temporaries (non-String keys, nil -> "") survive
+ * until the engine call returns. */
+struct attr_arrays {
+    const char **names;
+    const char **values;
+    long count;
+};
+
+static int fill_attr_pair(VALUE key, VALUE value, VALUE data)
+{
+    struct attr_arrays *a =
+        (struct attr_arrays *)(uintptr_t)NUM2LONG(rb_ary_entry(data, 2));
+    VALUE n = RB_TYPE_P(key, T_STRING) ? key : rb_obj_as_string(key);
+    VALUE v = NIL_P(value) ? rb_usascii_str_new(0, 0)
+                           : (RB_TYPE_P(value, T_STRING) ? value
+                                                         : rb_obj_as_string(value));
+    long i = a->count;
+
+    rb_ary_push(rb_ary_entry(data, 0), n);
+    rb_ary_push(rb_ary_entry(data, 1), v);
+    a->names[i] = RSTRING_PTR(n);
+    a->values[i] = RSTRING_PTR(v);
+    a->count = i + 1;
+    return ST_CONTINUE;
+}
+
+static int set_attr_pair(VALUE key, VALUE value, VALUE data)
+{
+    void *elem =
+        (void *)(uintptr_t)NUM2ULL(rb_ary_entry(data, 0));
+    VALUE k = RB_TYPE_P(key, T_STRING) ? key : rb_obj_as_string(key);
+    VALUE v = NIL_P(value) ? rb_usascii_str_new(0, 0)
+                           : (RB_TYPE_P(value, T_STRING) ? value
+                                                         : rb_obj_as_string(value));
+
+    rb_ary_push(rb_ary_entry(data, 1), k);
+    rb_ary_push(rb_ary_entry(data, 2), v);
+    f_set_attr(elem, RSTRING_PTR(k), RSTRING_PTR(v));
+    return ST_CONTINUE;
+}
+
 static VALUE nf_create_binding_element(VALUE self, VALUE document,
-                                       VALUE name)
+                                       VALUE name, VALUE attrs)
 {
     void *doc = doc_ptr_of(document);
-    void *ptr = f_elem_create(doc, RSTRING_PTR(StringValue(name)));
+    void *ptr;
+    VALUE name_str = StringValue(name);
     VALUE node, cache, key;
 
     (void)self;
     resolve_binding_classes();
+    if (attrs == Qnil ||
+        (RB_TYPE_P(attrs, T_HASH) && RHASH_SIZE(attrs) == 0)) {
+        ptr = f_elem_create(doc, RSTRING_PTR(name_str));
+    } else if (f_elem_new_with_attrs != NULL) {
+        /* #1344: element + every attribute in ONE crossing.
+         * Duplicate names replace, last wins; NULL values store
+         * the empty string — engine semantics, identical to
+         * per-pair set_attribute. */
+        struct attr_arrays a;
+        long cap;
+        VALUE names, values, box;
+        Check_Type(attrs, T_HASH);
+        cap = (long)RHASH_SIZE(attrs);
+        names = rb_ary_new_capa(cap);
+        values = rb_ary_new_capa(cap);
+        a.count = 0;
+        a.names = ruby_xmalloc(sizeof(char *) * (cap + 1));
+        a.values = ruby_xmalloc(sizeof(char *) * (cap + 1));
+        box = rb_ary_new3(3, names, values,
+                          LONG2NUM((long)(uintptr_t)&a));
+        rb_hash_foreach(attrs, fill_attr_pair, box);
+        ptr = f_elem_new_with_attrs(doc, RSTRING_PTR(name_str),
+                                    a.names, a.values, (size_t)a.count);
+        ruby_xfree(a.names);
+        ruby_xfree(a.values);
+    } else {
+        /* Older pin: create + per-pair sets (N+1 crossings). */
+        VALUE addr = Qnil;
+        VALUE anchor;
+        Check_Type(attrs, T_HASH);
+        anchor = rb_ary_new_capa((long)RHASH_SIZE(attrs));
+        ptr = f_elem_create(doc, RSTRING_PTR(name_str));
+        if (!ptr)
+            return Qnil;
+        addr = ULL2NUM((uint64_t)(uintptr_t)ptr);
+        rb_hash_foreach(attrs, set_attr_pair,
+                        rb_ary_new3(3, addr, anchor,
+                                    rb_ary_new_capa(0)));
+    }
     if (!ptr)
         return Qnil; /* caller raises with the error channel */
     node = rb_obj_alloc(c_b_element);
@@ -2822,7 +2913,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_module_function(m_native, "bulk_attr_faces",
                               nf_bulk_attr_faces, 2);
     rb_define_module_function(m_native, "create_binding_element",
-                              nf_create_binding_element, 2);
+                              nf_create_binding_element, 3);
     rb_define_module_function(m_native, "create_binding_text",
                               nf_create_binding_text, 2);
     rb_define_module_function(m_native, "bulk_children", nf_bulk_children, 2);

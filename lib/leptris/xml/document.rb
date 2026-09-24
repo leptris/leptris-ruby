@@ -389,15 +389,32 @@ class Leptris::XML::Document
     element
   end
 
-  def create_element(name)
+  # attributes: optional Hash of {name => value} applied in the
+  # SAME engine crossing as construction
+  # (leptris_element_new_with_attributes, #1344) — builder paths
+  # collapse from 1 + N crossings to one. nil values store the
+  # empty string; duplicate names replace, last wins (engine
+  # semantics, identical to per-pair set_attribute).
+  def create_element(name, attributes = nil)
     # TODO.perf/09: one C call creates + wraps when the ext is
     # loaded — no FFI marshaling, no wrap_fresh frames.
     if defined?(Leptris::XML::NATIVE_FAST)
-      node = Leptris::XML::Native.create_binding_element(self, name.to_s)
+      node = Leptris::XML::Native.create_binding_element(
+        self, name.to_s, attributes)
       raise Leptris::XML::Error, "leptris_element_create failed" if node.nil?
       return node
     end
-    ptr = Leptris::XML::FFI.leptris_element_create(c_ptr, name)
+    ptr =
+      if attributes && !attributes.empty?
+        names = attributes.map { |k, _| k.to_s }
+        values = attributes.map { |_, v| v.nil? ? "" : v.to_s }
+        nb, na = Leptris::XML::CStringArray.to_c(names)
+        vb, va = Leptris::XML::CStringArray.to_c(values)
+        Leptris::XML::FFI.leptris_element_new_with_attributes(
+          c_ptr, name.to_s, nb, vb, names.size)
+      else
+        Leptris::XML::FFI.leptris_element_create(c_ptr, name)
+      end
     raise Leptris::XML::Error, "leptris_element_create failed" if ptr.null?
     Leptris::XML::Node.wrap_fresh(ptr, self, Leptris::XML::FFI::NODE_ELEMENT)
   end
