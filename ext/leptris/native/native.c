@@ -82,6 +82,9 @@ static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
 static append_child_fn f_prepend_child, f_insert_after, f_insert_before;
+typedef void *(*elem_new_attrs_fn)(void *, const char *, const char **,
+                                   const char **, size_t);
+static elem_new_attrs_fn f_elem_new_with_attrs;
 static set_attr_fn f_set_attr;
 typedef int (*xp_type_fn)(void *);
 typedef void (*xp_free_fn)(void *);
@@ -233,6 +236,11 @@ static void resolve_symbols(const char *lib_path)
     f_insert_after = (append_child_fn)lib_sym(h, "leptris_element_insert_after");
     f_insert_before = (append_child_fn)lib_sym(h, "leptris_element_insert_before");
     f_set_attr = (set_attr_fn)lib_sym(h, "leptris_element_set_attribute");
+    /* Engine single-crossing construction (leptris#1344, 1.9.236+):
+     * optional; absent engines use the create_child + set_attr
+     * loop, which is still one Ruby->C crossing. */
+    f_elem_new_with_attrs =
+        (elem_new_attrs_fn)lib_sym(h, "leptris_element_new_with_attributes");
     f_xp_type = (xp_type_fn)lib_sym(h, "leptris_xpath_result_type");
     f_xp_free = (xp_free_fn)lib_sym(h, "leptris_xpath_result_free");
     f_first_child = (first_child_fn)lib_sym(h, "leptris_node_first_child");
@@ -2275,6 +2283,52 @@ static VALUE nf_plan_structs_typed_p(VALUE self)
  * to the per-attribute FFI chain (first/next/get_name/get_value,
  * 4 crossings each) — the win amplifies with attribute density
  * (40-attr elements: ~7x on the listing). */
+/* ---- Single-crossing element construction (leptris#1344) --------
+ * Creates an element attached under parent (parent_addr 0 = free
+ *floating, owner document only) with all attributes set — ONE
+ * Ruby->C crossing for the whole construction. Internal calls are
+ * C->C dlsym dispatches (create_child = create+attach in one
+ * engine call; set_attr per attribute). Returns the new node's
+ * address for wrapper minting. */
+static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
+                                          VALUE parent_addr, VALUE name,
+                                          VALUE attrs)
+{
+    (void)self;
+    (void)document;
+    void *parent = NIL_P(parent_addr)
+                       ? NULL
+                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
+    const char *cname = StringValueCStr(name);
+
+    if (f_elem_new_with_attrs && parent && RARRAY_LEN(attrs) > 0 &&
+        RARRAY_LEN(attrs) % 2 == 0) {
+        /* Engine single-crossing construction (1.9.236+): arena
+         * create + all attributes with no per-attr calls at all. */
+        long n = RARRAY_LEN(attrs) / 2;
+        const char **names = ALLOCA_N(const char *, n);
+        const char **values = ALLOCA_N(const char *, n);
+        for (long i = 0; i < n; i++) {
+            names[i] = StringValueCStr(RARRAY_AREF(attrs, 2 * i));
+            values[i] = StringValueCStr(RARRAY_AREF(attrs, 2 * i + 1));
+        }
+        void *elem = f_elem_new_with_attrs(parent, cname, names, values,
+                                           n);
+        return elem ? ULL2NUM((uintptr_t)elem) : Qnil;
+    }
+
+    void *elem = parent ? f_create_child(parent, cname) : NULL;
+    if (!elem) return Qnil;
+
+    long i, n = RARRAY_LEN(attrs);
+    for (i = 0; i + 1 < n; i += 2) {
+        VALUE an = RARRAY_AREF(attrs, i);
+        VALUE av = RARRAY_AREF(attrs, i + 1);
+        f_set_attr(elem, StringValueCStr(an), StringValueCStr(av));
+    }
+    return ULL2NUM((uintptr_t)elem);
+}
+
 static VALUE nf_attribute_rows(VALUE self, VALUE document, VALUE addr)
 {
     (void)self;
@@ -2889,6 +2943,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_plan_structs, 3);
     rb_define_module_function(m_native, "attribute_rows",
                               nf_attribute_rows, 2);
+    rb_define_module_function(m_native, "create_element_with_attrs",
+                              nf_create_element_with_attrs, 4);
     rb_define_module_function(m_native, "plan_structs_typed?",
                               nf_plan_structs_typed_p, 0);
     rb_define_module_function(m_native, "doc_handle_attach",
