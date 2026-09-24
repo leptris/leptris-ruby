@@ -971,10 +971,13 @@ static VALUE nf_visit_binding(VALUE self, VALUE document, VALUE addr)
     st.klass_memo_flag =
         rb_obj_class(document) == c_iteration_scope ? Qfalse : Qtrue;
     st.for_visit = 1;
-    if (f_node_visit_entering)
-        f_node_visit_entering(st.self_ptr, visit_cb, &st);
-    else
-        f_node_visit(st.self_ptr, visit_cb, &st);
+    /* ALWAYS the two-event engine call: this seam backs the PUBLIC
+     * Node#visit, whose contract (specs since libleptris 1.9.20)
+     * is (node, entering, depth) enter/leave PAIRS. Entering-only
+     * walks belong to visit_entering_binding below — swapping the
+     * call here silently dropped every leaving callback and broke
+     * the contract. */
+    f_node_visit(st.self_ptr, visit_cb, &st);
     if (st.err != Qnil)
         rb_exc_raise(st.err);
     return Qnil;
