@@ -7,6 +7,28 @@ module Leptris
     module FFI
       extend ::FFI::Library
 
+      # FFI's :string return type always tags returned bytes
+      # ASCII-8BIT, but libleptris produces character data (UTF-8,
+      # the XML default encoding). Every string-returning function
+      # therefore uses this converter: same NUL-terminated copy
+      # semantics as :string, tagged UTF-8. Input arguments keep
+      # plain :string (Ruby-to-C reads bytes regardless of tag).
+      UTF8_STRING = Class.new do
+        include ::FFI::DataConverter
+
+        def from_native(ptr, _ctx)
+          return nil if ptr.null? || ptr.address.zero?
+
+          ptr.read_string.force_encoding(Encoding::UTF_8)
+        end
+
+        def to_native(value, _ctx)
+          return nil if value.nil?
+
+          ::FFI::MemoryPointer.from_string(value.to_s)
+        end
+      end.new.tap { |c| c.native_type(::FFI::Type::POINTER) }
+
       # The per-OS vendor directory of the ruby-platform gem
       # (zero-setup TruffleRuby/JRuby, #160): binaries for the
       # common engines' OSes under lib/leptris/vendor/<platform>/.
@@ -321,11 +343,11 @@ module Leptris
       attach_function :leptris_plan_value_kind,
         [:leptris_plan_result], :int
       attach_function :leptris_plan_value_name,
-        [:leptris_plan_result], :string
+        [:leptris_plan_result], UTF8_STRING
       attach_function :leptris_plan_value_type_tag,
         [:leptris_plan_result], :uint8
       attach_function :leptris_plan_value_string,
-        [:leptris_plan_result], :string
+        [:leptris_plan_result], UTF8_STRING
       attach_function :leptris_plan_value_length,
         [:leptris_plan_result], :size_t
       attach_function :leptris_plan_value_position,
@@ -335,7 +357,7 @@ module Leptris
       attach_function :leptris_plan_value_at,
         [:leptris_plan_result, :size_t], :leptris_plan_result
       attach_function :leptris_plan_value_attribute,
-        [:leptris_plan_result, :string], :string
+        [:leptris_plan_result, :string], UTF8_STRING
       # #1254 (leptris 1.9.216): one-call flat attribute read —
       # parallel name/value/handle arrays, capacity-bounded; total
       # count returned (min(total, max_count) copied). Also the
@@ -367,7 +389,7 @@ module Leptris
         [:string, :size_t, :leptris_plan, :pointer],
         :leptris_plan_result
 
-      attach_function :leptris_version, [], :string
+      attach_function :leptris_version, [], UTF8_STRING
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void
 
             # Tolerant HTML4/5 parse into the STANDARD DOM (libleptris
@@ -424,9 +446,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_entity_ref_node_create,
         [:leptris_document, :string], :leptris_node_ref
       attach_function :leptris_entity_ref_node_name,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_document_version,
-        [:leptris_document], :string
+        [:leptris_document], UTF8_STRING
       attach_function :leptris_document_standalone,
         [:leptris_document], :int
       attach_function :leptris_document_set_version,
@@ -456,9 +478,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_document_pi_count,
         [:leptris_document], :size_t
       attach_function :leptris_document_pi_target,
-        [:leptris_document, :size_t], :string
+        [:leptris_document, :size_t], UTF8_STRING
       attach_function :leptris_document_pi_data,
-        [:leptris_document, :size_t], :string
+        [:leptris_document, :size_t], UTF8_STRING
       # Document-level PI removal by target or index (1.9.9, #612):
       # unlinks from the child chain; the node is pool-owned and
       # stays valid until document free.
@@ -476,13 +498,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_document_comment_count,
         [:leptris_document], :size_t
       attach_function :leptris_document_comment_content,
-        [:leptris_document, :size_t], :string
+        [:leptris_document, :size_t], UTF8_STRING
       # Options-struct parse (v1.6.0): supersedes the flags variants;
       # the flags path remains bound for compatibility.
       attach_function :leptris_parse_string_ex,
         [:string, :size_t, :pointer, :pointer], :leptris_document
       attach_function :leptris_document_encoding,
-        [:leptris_document], :string
+        [:leptris_document], UTF8_STRING
       attach_function :leptris_document_finalize_strings,
         [:leptris_document], :int
       attach_function :leptris_document_adopt_child,
@@ -505,10 +527,10 @@ attach_function :leptris_parse_string,
         [:leptris_element], :int
       attach_function :leptris_xinclude_is_fallback_element,
         [:leptris_element], :int
-      attach_function :leptris_xinclude_get_href, [:leptris_element], :string
-      attach_function :leptris_xinclude_get_parse, [:leptris_element], :string
-      attach_function :leptris_xinclude_get_xpointer, [:leptris_element], :string
-      attach_function :leptris_xinclude_get_encoding, [:leptris_element], :string
+      attach_function :leptris_xinclude_get_href, [:leptris_element], UTF8_STRING
+      attach_function :leptris_xinclude_get_parse, [:leptris_element], UTF8_STRING
+      attach_function :leptris_xinclude_get_xpointer, [:leptris_element], UTF8_STRING
+      attach_function :leptris_xinclude_get_encoding, [:leptris_element], UTF8_STRING
 
       attach_function :leptris_node_get_type,
         [:leptris_node_ref], :int
@@ -570,15 +592,15 @@ attach_function :leptris_parse_string,
         [:leptris_node_ref, :int, :pointer, :pointer], :int
 
       attach_function :leptris_text_node_get_content,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_comment_node_get_content,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_cdata_node_get_content,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_pi_node_get_target,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_pi_node_get_data,
-        [:leptris_node_ref], :string
+        [:leptris_node_ref], UTF8_STRING
       attach_function :leptris_text_node_create,
         [:leptris_document, :string], :leptris_node_ref
       attach_function :leptris_comment_node_create,
@@ -599,9 +621,9 @@ attach_function :leptris_parse_string,
         [:leptris_node_ref, :string], :leptris_status
 
       attach_function :leptris_element_name,
-        [:leptris_element], :string
+        [:leptris_element], UTF8_STRING
       attach_function :leptris_element_text,
-        [:leptris_element], :string
+        [:leptris_element], UTF8_STRING
       attach_function :leptris_element_text_int,
         [:leptris_element, :int], :int
       attach_function :leptris_element_text_uint,
@@ -613,9 +635,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_element_text_bool,
         [:leptris_element, :int], :int
       attach_function :leptris_element_attribute,
-        [:leptris_element, :string], :string
+        [:leptris_element, :string], UTF8_STRING
       attach_function :leptris_element_attribute_string,
-        [:leptris_element, :string, :string], :string
+        [:leptris_element, :string, :string], UTF8_STRING
       attach_function :leptris_element_attribute_int,
         [:leptris_element, :string, :int], :int
       attach_function :leptris_element_attribute_uint,
@@ -632,32 +654,32 @@ attach_function :leptris_parse_string,
       # XML Namespaces 1.0 semantics; NULL/"" uri matches only
       # no-namespace attributes, xmlns declarations never match.
       attach_function :leptris_element_attribute_ns,
-        [:leptris_element, :string, :string], :string
+        [:leptris_element, :string, :string], UTF8_STRING
       attach_function :leptris_element_has_attribute_ns,
         [:leptris_element, :string, :string], :int
       # libleptris 1.8.0: per-attribute prefix (name-derived) and
       # namespace URI (resolved through the owning element's
       # in-scope declarations at read time).
       attach_function :leptris_attribute_prefix,
-        [:leptris_attribute], :string
+        [:leptris_attribute], UTF8_STRING
       attach_function :leptris_attribute_namespace_uri,
-        [:leptris_attribute], :string
+        [:leptris_attribute], UTF8_STRING
       attach_function :leptris_element_first_attribute,
         [:leptris_element], :leptris_attribute
       attach_function :leptris_attribute_next,
         [:leptris_attribute], :leptris_attribute
       attach_function :leptris_attribute_get_name,
-        [:leptris_attribute], :string
+        [:leptris_attribute], UTF8_STRING
       attach_function :leptris_attribute_get_value,
-        [:leptris_element, :leptris_attribute], :string
+        [:leptris_element, :leptris_attribute], UTF8_STRING
       attach_function :leptris_element_prefix,
-        [:leptris_element], :string
+        [:leptris_element], UTF8_STRING
       attach_function :leptris_element_attribute_count,
         [:leptris_element], :size_t
       attach_function :leptris_element_attribute_name_at,
-        [:leptris_element, :size_t], :string
+        [:leptris_element, :size_t], UTF8_STRING
       attach_function :leptris_element_attribute_value_at,
-        [:leptris_element, :size_t], :string
+        [:leptris_element, :size_t], UTF8_STRING
       attach_function :leptris_element_remove_all_attributes,
         [:leptris_element], :leptris_status
 
@@ -670,7 +692,7 @@ attach_function :leptris_parse_string,
       attach_function :leptris_element_root,
         [:leptris_element], :leptris_element
       attach_function :leptris_element_child_value,
-        [:leptris_element], :string
+        [:leptris_element], UTF8_STRING
       attach_function :leptris_element_hash_value,
         [:leptris_element], :size_t
       attach_function :leptris_element_find_child,
@@ -756,23 +778,23 @@ attach_function :leptris_parse_string,
       attach_function :leptris_element_set_namespace,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_namespace,
-        [:leptris_element], :string
+        [:leptris_element], UTF8_STRING
       attach_function :leptris_element_namespace_for_prefix,
-        [:leptris_element, :string], :string
+        [:leptris_element, :string], UTF8_STRING
       attach_function :leptris_element_namespace_count,
         [:leptris_element], :size_t
       attach_function :leptris_element_namespace_decl_prefix,
-        [:leptris_element, :size_t], :string
+        [:leptris_element, :size_t], UTF8_STRING
       attach_function :leptris_element_namespace_decl_uri,
-        [:leptris_element, :size_t], :string
+        [:leptris_element, :size_t], UTF8_STRING
       attach_function :leptris_element_add_namespace_definition,
         [:leptris_element, :string, :string], :leptris_status
       attach_function :leptris_element_set_default_namespace,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_remove_namespace_definition,
         [:leptris_element, :string], :leptris_status
-      attach_function :leptris_namespace_uri, [:string], :string
-      attach_function :leptris_namespace_prefix, [:string], :string
+      attach_function :leptris_namespace_uri, [:string], UTF8_STRING
+      attach_function :leptris_namespace_prefix, [:string], UTF8_STRING
 
       attach_function :leptris_xpath_eval,
         [:leptris_document, :leptris_element, :string], :leptris_xpath_result
@@ -807,9 +829,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_xpath_result_get_node,
         [:leptris_xpath_result, :size_t], :leptris_node_ref
       attach_function :leptris_xpath_result_node_name,
-        [:leptris_xpath_result, :size_t], :string
+        [:leptris_xpath_result, :size_t], UTF8_STRING
       attach_function :leptris_xpath_result_node_value,
-        [:leptris_xpath_result, :size_t], :string
+        [:leptris_xpath_result, :size_t], UTF8_STRING
       # Document-scoped custom XPath functions. The callback receives
       # (const char* const* args, int argc, void* user_data) and returns
       # a heap string the library frees.
@@ -877,7 +899,7 @@ attach_function :leptris_parse_string,
         :leptris_xpath_result
       # Source text of a compiled expression (owned by the handle).
       attach_function :leptris_xpath_compiled_text,
-        [:leptris_xpath_compiled], :string
+        [:leptris_xpath_compiled], UTF8_STRING
       attach_function :leptris_xpath_compiled_free,
 
         [:leptris_xpath_compiled], :void
@@ -922,9 +944,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_pull_attr_count,
         [:leptris_pull_parser], :size_t
       attach_function :leptris_pull_attr_name,
-        [:leptris_pull_parser, :size_t], :string
+        [:leptris_pull_parser, :size_t], UTF8_STRING
       attach_function :leptris_pull_attr_value,
-        [:leptris_pull_parser, :size_t], :string
+        [:leptris_pull_parser, :size_t], UTF8_STRING
       attach_function :leptris_pull_attrs,
         [:leptris_pull_parser, :pointer, :size_t], :size_t
       attach_function :leptris_pull_free,
@@ -948,9 +970,9 @@ attach_function :leptris_parse_string,
       attach_function :leptris_iterparse_ns_count,
         [:leptris_iterparse], :size_t
       attach_function :leptris_iterparse_ns_uri,
-        [:leptris_iterparse, :string], :string
+        [:leptris_iterparse, :string], UTF8_STRING
       attach_function :leptris_iterparse_error,
-        [:leptris_iterparse], :string
+        [:leptris_iterparse], UTF8_STRING
       attach_function :leptris_iterparse_free,
         [:leptris_iterparse], :void
 
@@ -1020,7 +1042,7 @@ attach_function :leptris_parse_string,
       attach_function :leptris_sax_records_data, [:pointer], :pointer
       attach_function :leptris_sax_records_attrs,
         [:pointer, :pointer], :pointer
-      attach_function :leptris_sax_records_buffer, [:pointer], :string
+      attach_function :leptris_sax_records_buffer, [:pointer], UTF8_STRING
       attach_function :leptris_sax_records_free, [:pointer], :void
       # XSLT 1.0 engine (libleptris 1.9.1): compile once, apply many.
       # XQuery 1.0 core (libleptris 1.9.64-1.9.66): orchestration
@@ -1061,7 +1083,7 @@ attach_function :leptris_parse_string,
       attach_function :leptris_schematron_validate,
         [:leptris_schematron, :leptris_document], :leptris_document
       attach_function :leptris_schematron_error,
-        [:leptris_schematron], :string
+        [:leptris_schematron], UTF8_STRING
 
       # Tree diff (libleptris >= 1.9.126 family): equal subtrees
       # prune in O(1) by the #869 Merkle digest; diverging regions
@@ -1074,13 +1096,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_diff_op_type,
         [:leptris_diff, :size_t], :int
       attach_function :leptris_diff_op_name,
-        [:leptris_diff, :size_t], :string
+        [:leptris_diff, :size_t], UTF8_STRING
       attach_function :leptris_diff_op_path,
-        [:leptris_diff, :size_t], :string
+        [:leptris_diff, :size_t], UTF8_STRING
       attach_function :leptris_diff_op_before,
-        [:leptris_diff, :size_t], :string
+        [:leptris_diff, :size_t], UTF8_STRING
       attach_function :leptris_diff_op_after,
-        [:leptris_diff, :size_t], :string
+        [:leptris_diff, :size_t], UTF8_STRING
       attach_function :leptris_diff_serialize,
         [:leptris_diff], :pointer
 
@@ -1127,14 +1149,14 @@ attach_function :leptris_parse_string,
       attach_function :leptris_rng_validate,
         [:leptris_relaxng, :leptris_document], :int
       attach_function :leptris_rng_error,
-        [:leptris_relaxng], :string
+        [:leptris_relaxng], UTF8_STRING
       # Accumulated validation errors (libleptris 1.9.179, #878):
       # the validator no longer stops at the first failure;
       # leptris_rng_error keeps returning the first (back-compat).
       attach_function :leptris_rng_error_count,
         [:leptris_relaxng], :size_t
       attach_function :leptris_rng_error_message,
-        [:leptris_relaxng, :size_t], :string
+        [:leptris_relaxng, :size_t], UTF8_STRING
       attach_function :leptris_rng_error_line,
         [:leptris_relaxng, :size_t], :int
       attach_function :leptris_rng_error_column,
@@ -1182,15 +1204,15 @@ attach_function :leptris_parse_string,
       attach_function :leptris_document_internal_subset,
         [:leptris_document], :leptris_doctype
       attach_function :leptris_doctype_get_name,
-        [:leptris_doctype], :string
+        [:leptris_doctype], UTF8_STRING
       attach_function :leptris_doctype_get_root_name,
-        [:leptris_doctype], :string
+        [:leptris_doctype], UTF8_STRING
       attach_function :leptris_doctype_get_public_id,
-        [:leptris_doctype], :string
+        [:leptris_doctype], UTF8_STRING
       attach_function :leptris_doctype_get_system_id,
-        [:leptris_doctype], :string
+        [:leptris_doctype], UTF8_STRING
       attach_function :leptris_doctype_get_internal_subset,
-        [:leptris_doctype], :string
+        [:leptris_doctype], UTF8_STRING
 
       attach_function :leptris_free_string, [:pointer], :void
       attach_function :leptris_explicit_cleanup, [], :void
@@ -1200,8 +1222,8 @@ attach_function :leptris_parse_string,
       attach_function :leptris_get_memory_deallocation_function, [], :pointer
       attach_function :leptris_document_set_allocators,
         [:leptris_document, :pointer, :pointer], :leptris_status
-      attach_function :leptris_status_string, [:leptris_status], :string
-      attach_function :leptris_error_message, [:leptris_status], :string
+      attach_function :leptris_status_string, [:leptris_status], UTF8_STRING
+      attach_function :leptris_error_message, [:leptris_status], UTF8_STRING
       # Engine surface adopted with libleptris 1.9.206 (the FFI
       # mirror audit keeps attachments and exports in lockstep):
       # recover diagnostics (#1200), the standalone DTD family
@@ -1235,9 +1257,9 @@ attach_function :leptris_parse_string,
         [:pointer, :pointer], :void
       # Thread-local since v1.3.0; reliable under the
       # one-document-per-thread contract.
-      attach_function :leptris_last_error, [], :string
+      attach_function :leptris_last_error, [], UTF8_STRING
       attach_function :leptris_document_last_error,
-        [:leptris_document], :string
+        [:leptris_document], UTF8_STRING
       # Optional: release per-thread registry entries when a worker
       # thread exits (long-lived threads never need it).
       attach_function :leptris_thread_cleanup, [], :void
