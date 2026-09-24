@@ -5,6 +5,31 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.237.0] - 2026-09-24
+
+### Added
+
+- `Document#create_element` accepts an attributes hash:
+  `doc.create_element("book", "id" => "1", "lang" => "en")` creates
+  the element with every attribute in ONE engine crossing
+  (leptris_element_new_with_attributes, #1344) — builder paths
+  collapse from 1 + N crossings to one. Duplicate names replace,
+  last wins; `nil` values store the empty string (engine
+  semantics). The native face falls back to create + per-pair sets
+  on pins predating #1344.
+
+### Performance — engine sync (1.9.237)
+
+- Vendored libleptris 1.9.237: typed atoms for QT3 equality
+  (typed constructors, float32, the xs: constructor surface),
+  per-function equality semantics (index-of/distinct-values/
+  deep-equal), the F&O fn:subsequence window with NaN safety and
+  member-type preservation, the xpath per-eval registry init fix,
+  QT3 slice 3 (405 gated cases), the matched-shape traversal
+  benchmark correction (#1341: the structural gap vs libxml2 is
+  1.5-1.7x, not 1.8-4.2x), and the single-crossing element
+  constructor (#1344).
+
 ## [1.9.232.0] - 2026-09-24
 
 ### Added

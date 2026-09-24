@@ -716,6 +716,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_element_previous_sibling_any,
         [:leptris_element], :leptris_element
 
+      # Single-crossing element construction (libleptris 1.9.237,
+      # #1344): element + every attribute in one C call. The name
+      # and value arrays are count-bounded char** (the NULL
+      # terminators CStringArray appends are simply never read).
+      attach_function :leptris_element_new_with_attributes,
+        [:leptris_document, :string, :pointer, :pointer, :size_t],
+        :leptris_element
       attach_function :leptris_element_create,
         [:leptris_document, :string], :leptris_element
       attach_function :leptris_element_set_name,
