@@ -734,6 +734,36 @@ RSpec.describe "Node#visit (libleptris 1.9.20, upstream #645a)" do
   end
 end
 
+RSpec.describe "Node#visit_entering (libleptris #1332)" do
+  it "yields once per node, entering only" do
+    seen = []
+    Leptris::XML::Document.parse("<r><a><b/></a><c/></r>").root
+      .visit_entering { |n, entering, depth|
+        seen << [n.name, entering, depth]
+      }
+    expect(seen).to eq(
+      [["r", true, 0], ["a", true, 1], ["b", true, 2],
+       ["c", true, 1]])
+  end
+
+  it "walks the document chain from the document node" do
+    seen = []
+    Leptris::XML::Document.parse("<?pi p?><r/><?e q?>").node
+      .visit_entering { |n, entering| seen << [n.name, entering] }
+    expect(seen).to eq([["pi", true], ["r", true], ["e", true]])
+  end
+
+  it "fires exactly half the callbacks of visit on an element tree" do
+    doc = Leptris::XML::Document.parse("<r><a><b/><c/></a></r>")
+    full = 0
+    doc.root.visit { full += 1 }
+    half = 0
+    doc.root.visit_entering { half += 1 }
+    expect(full).to eq(8)
+    expect(half).to eq(4)
+  end
+end
+
 RSpec.describe "leptris-ruby#109 residual: element-face indent unit" do
   it "serializes elements with the unit, matching Nokogiri" do
     doc = Leptris::XML::Document.parse("<r><a><b/></a><c>x</c></r>")

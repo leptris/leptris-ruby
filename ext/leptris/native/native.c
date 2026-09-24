@@ -980,6 +980,32 @@ static VALUE nf_visit_binding(VALUE self, VALUE document, VALUE addr)
     return Qnil;
 }
 
+/* Entering-only walk (libleptris #1332): one callback per node.
+ * Yields the same (node, true, depth) shape as visit_binding — the
+ * entering argument is constant true here, but keeping the 3-arity
+ * yield lets a block be shared between the two walk modes. */
+static VALUE nf_visit_entering_binding(VALUE self, VALUE document,
+                                       VALUE addr)
+{
+    struct trav_state st;
+
+    (void)self;
+    if (!f_node_visit_entering)
+        return nf_visit_binding(self, document, addr);
+    resolve_binding_classes();
+    st.document = document;
+    st.err = Qnil;
+    st.self_ptr = (void *)(uintptr_t)NUM2ULL(addr);
+    st.cache = binding_cache_of(document);
+    st.klass_memo_flag =
+        rb_obj_class(document) == c_iteration_scope ? Qfalse : Qtrue;
+    st.for_visit = 1;
+    f_node_visit_entering(st.self_ptr, visit_cb, &st);
+    if (st.err != Qnil)
+        rb_exc_raise(st.err);
+    return Qnil;
+}
+
 /* ---- Address-based fills (TODO.perf/28) -------------------------
  * Pure reads of node-local data — no cache, no version — the
  * same shapes the inner_html pass uses. */
@@ -2739,6 +2765,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_traverse_binding, 2);
     rb_define_module_function(m_native, "visit_binding",
                               nf_visit_binding, 2);
+    rb_define_module_function(m_native, "visit_entering_binding",
+                              nf_visit_entering_binding, 2);
     rb_define_module_function(m_native, "fast_text_content",
                               nf_fast_text_content, 1);
     rb_define_module_function(m_native, "fast_comment_content",
