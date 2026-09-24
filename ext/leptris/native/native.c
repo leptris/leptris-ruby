@@ -2309,8 +2309,12 @@ static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
         const char **names = ALLOCA_N(const char *, n);
         const char **values = ALLOCA_N(const char *, n);
         for (long i = 0; i < n; i++) {
-            names[i] = StringValueCStr(RARRAY_AREF(attrs, 2 * i));
-            values[i] = StringValueCStr(RARRAY_AREF(attrs, 2 * i + 1));
+            /* Hoist to lvalues: truffleruby's StringValueCStr takes
+             * the address of its argument (RARRAY_AREF is not one). */
+            VALUE an = RARRAY_AREF(attrs, 2 * i);
+            VALUE av = RARRAY_AREF(attrs, 2 * i + 1);
+            names[i] = StringValueCStr(an);
+            values[i] = StringValueCStr(av);
         }
         void *elem = f_elem_new_with_attrs(parent, cname, names, values,
                                            n);
