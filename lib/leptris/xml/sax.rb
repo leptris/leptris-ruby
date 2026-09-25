@@ -9,6 +9,7 @@ module Leptris
       autoload :Parser, "leptris/xml/sax/parser"
       autoload :Recorder, "leptris/xml/sax/recorder"
       autoload :DomDispatch, "leptris/xml/sax/dom_dispatch"
+      autoload :Records, "leptris/xml/sax/records"
     end
   end
 end

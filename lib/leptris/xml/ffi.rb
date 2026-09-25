@@ -232,6 +232,32 @@ module Leptris
       SAX_EVENT_END_PREFIX     = 9
       SAX_EVENT_ERROR          = 10
 
+      # LeptrisSaxRecord (sax.h, #1298): one element or text record;
+      # tree as parent/next_sib record indices, strings (off,len)
+      # views into the records buffer. 10 x uint32 + uint8.
+      class SaxRecord < ::FFI::Struct
+        layout :kind, :uint32,
+               :parent, :uint32, :next_sib, :uint32,
+               :off, :uint32, :len, :uint32,
+               :line, :uint32, :start_tag_end, :uint32,
+               :elem_end, :uint32, :attr_first, :uint32,
+               :attr_count, :uint32,
+               :self_closing, :uint8
+      end
+
+      SAX_REC_ELEMENT = 0
+      SAX_REC_TEXT    = 1
+      SAX_REC_NO_INDEX = 0xFFFFFFFF
+
+      # LeptrisSaxAttr: flat attribute table entry — qname + raw
+      # value views, value_has_ws = literal \t/\n/\r present (the
+      # CONSUMER applies 3.3.3 normalization). 4 x uint32 + uint8.
+      class SaxAttr < ::FFI::Struct
+        layout :name_off, :uint32, :name_len, :uint32,
+               :value_off, :uint32, :value_len, :uint32,
+               :value_has_ws, :uint8
+      end
+
       ITERPARSE_TOP_LEVEL      = 0
       ITERPARSE_FULL_DOCUMENT  = 1
 
@@ -1049,7 +1075,10 @@ attach_function :leptris_parse_string,
       attach_function :leptris_sax_records_data, [:pointer], :pointer
       attach_function :leptris_sax_records_attrs,
         [:pointer, :pointer], :pointer
-      attach_function :leptris_sax_records_buffer, [:pointer], UTF8_STRING
+      # :pointer, NOT UTF8_STRING — the buffer carries embedded NULs
+      # between views; a C string read would truncate at the first.
+      # Views materialize via Pointer#get_string(off, len).
+      attach_function :leptris_sax_records_buffer, [:pointer], :pointer
       attach_function :leptris_sax_records_free, [:pointer], :void
       # XSLT 1.0 engine (libleptris 1.9.1): compile once, apply many.
       # XQuery 1.0 core (libleptris 1.9.64-1.9.66): orchestration
@@ -1284,6 +1313,7 @@ attach_function :leptris_parse_string,
       LEPTRIS_ERROR_NOT_FOUND = -6
       LEPTRIS_ERROR_IO = -7
       LEPTRIS_ERROR_NOT_IMPLEMENTED = -8
+      LEPTRIS_ERROR_NOT_SUPPORTED = -9
 
       XPATH_NODESET = 0
       XPATH_BOOLEAN = 1
