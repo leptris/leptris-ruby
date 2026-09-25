@@ -5,6 +5,18 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.239.0] - 2026-09-25
+
+### Fixed
+
+- Vendored libleptris 1.9.239: XML 1.0 §2.11 end-of-line
+  normalization (#326) — parsed character data normalizes literal
+  CRLF and lone CR to LF before reference expansion (a CR character
+  reference stays CR), and attribute values collapse CRLF to ONE
+  space per §3.3.3. Nokogiri/libxml2 parity restored for any text
+  that ever carried \r\n. CDATA is not normalized. The
+  interleaved-lane hardening lands in the next engine sync.
+
 ## [1.9.237.0] - 2026-09-24
 
 ### Added
