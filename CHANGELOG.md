@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.241.0] - 2026-09-25
+
+### Fixed
+
+- Vendored libleptris 1.9.241 (riding 1.9.240 + 1.9.241):
+  - The interleaved parse lane now applies the same §2.11 EOL
+    normalization as the classic lane (#1357) — both lanes
+    spec-identical; the lane stays env-gated off by default.
+  - xquery: order by — only a genuinely empty-sequence key takes
+    the empty mode (an empty STRING key sorts by value);
+    fn:distinct-values compares xs:duration-family members in the
+    value space and spells survivors canonically.
+  - xquery: shortest round-trip plain spelling for numbers — the
+    15-digit plain budget collided distinct decimals
+    (1.2000000000000001 vs 1.2); the branch now discovers minimal
+    significant digits and renders fixed-point uncapped.
+- Repairs the Rakefile engine pin, left at 1.9.239 by the last
+  release's version-only bump, back in lockstep with version.rb.
+
 ## [1.9.239.0] - 2026-09-25
 
 ### Fixed
