@@ -5,6 +5,25 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.255.0] - 2026-09-26
+
+### Fixed
+
+- Vendored libleptris 1.9.255 (riding 1.9.249-1.9.255, seven
+  engine syncs). Highlights:
+  - xquery: numeric-variable predicates are positional, not EBV —
+    (1)[1] keeps the atom, (1)[1] + 1 = 2 (#1392).
+  - xquery: document{...} materializes a real node (path steps
+    resolve over constructor results), the ! simple map is
+    item-preserving, multi-binding for/quantifier clauses parse,
+    and keyword constructors run the path continuation.
+  - xquery: F&O 3.0 numeric type promotion in value comparisons
+    and dedup (QT3 typed-atom lane) + timezone-normalized
+    xs:time comparison.
+  - html: implied-end pair checks run on tag ids with the tag
+    table gaps fixed (rb/rp/rt/rtc, option/optgroup) — round 2 of
+    the #1218 parse profile.
+
 ## [1.9.248.0] - 2026-09-26
 
 ### Fixed
