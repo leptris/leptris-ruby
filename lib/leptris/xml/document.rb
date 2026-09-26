@@ -29,6 +29,17 @@ class Leptris::XML::Document
     @version += 1
   end
 
+  # True when the underlying tree is frozen — parse-created trees
+  # are carved frozen, and leptris_document_freeze freezes in place.
+  # Frozen nodes are never WRITTEN: mutations copy-on-write, so a
+  # leaf-content memo taken under a frozen tree is eternally valid
+  # (leptris-ruby#336). Memoized — freeze has no inverse; caching
+  # false just keeps the version-checked path (still correct).
+  def frozen_tree?
+    @frozen_tree = Leptris::XML::FFI.leptris_document_is_frozen(c_ptr) == 1 if @frozen_tree.nil?
+    @frozen_tree
+  end
+
   def initialize(c_ptr = nil, freed = Freed.new(:alive))
     @c_ptr = c_ptr
     # Plain-Integer address twin of c_ptr: the native layer reads
