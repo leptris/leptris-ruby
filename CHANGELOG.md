@@ -5,6 +5,22 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.248.0] - 2026-09-26
+
+### Fixed
+
+- Vendored libleptris 1.9.248 (riding 1.9.247 + 1.9.248):
+  - xpath: filtering a non-nodeset base treats the atom as a
+    one-item sequence — `(1)[1]` keeps the atom and `(1)[1] + 1`
+    is 2 (was an unconditional empty nodeset).
+  - html: the document arena span is sized from the input once
+    (#1218) — borrowed pointers stay in the int32 compact range,
+    removing ~776k overflow-table inserts on a 2.6 MB parse;
+    measured 31.4 -> 50.9 MB/s (+62%) on the table-rows corpus.
+- Restores the naming lockstep: the previous release vendored
+  engine 1.9.246 under the version 1.9.242.0; version.rb now
+  matches the vendored engine semver again.
+
 ## [1.9.241.0] - 2026-09-25
 
 ### Fixed
