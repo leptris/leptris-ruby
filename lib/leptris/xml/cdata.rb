@@ -4,6 +4,13 @@ class Leptris::XML::CDATA < Leptris::XML::Text
   def name; "#cdata-section"; end
 
   def content
+    # Frozen-tree fast path (leptris-ruby#336): frozen leaves are
+    # COW — never written in place — so a populated memo is eternal;
+    # skips the memo_hit?/ensure_alive!/version dispatch chain.
+    # Elements must NOT take this path: a frozen parent's child slot
+    # is re-pointed on child COW, so subtree content can change.
+    return @content if @content && @document && @document.frozen_tree?
+
     return @content if memo_hit?(@content_version)
     ensure_alive!
     result = if @addr_reads_fast
