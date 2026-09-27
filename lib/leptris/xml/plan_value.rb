@@ -31,33 +31,33 @@ class Leptris::XML::PlanValue
   end
 
   def kind
-    inc_crossing
+    @counter[0] += 1
     VALUE_KINDS.fetch(Leptris::XML::FFI.leptris_plan_value_kind(@ptr))
   end
 
   # wire_name of the plan row that produced this value.
   def name
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_name(@ptr)
   end
 
   # Host type_tag echoed verbatim (0 when the row had none).
   def type_tag
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_type_tag(@ptr)
   end
 
   # #1273: LEPTRIS_NODE_TYPE_* of this value's source node (0 for
   # ELEMENT/COLLECTION wrappers and synthesized text).
   def node_kind
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_node_kind(@ptr)
   end
 
   # #1273: dense sibling rank inside the producing element (0 if
   # unranked) — document-order identity without byte offsets.
   def order_index
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_order_index(@ptr)
   end
 
@@ -85,26 +85,26 @@ class Leptris::XML::PlanValue
 
   # SCALAR / RAW / CALLBACK string value.
   def string_value
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_string(@ptr)
   end
 
   # CALLBACK: document byte offset of the source node (0 unknown).
   def position
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_position(@ptr)
   end
 
   # ELEMENT: child-value count. COLLECTION: item count.
   def count
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_count(@ptr)
   end
 
   # ELEMENT child value / COLLECTION item at +i+ (nil out of
   # range). Borrowed: the owning root must stay alive.
   def at(i)
-    inc_crossing
+    @counter[0] += 1
     ptr = Leptris::XML::FFI.leptris_plan_value_at(@ptr, i)
     return nil if ptr.null?
     child_plan = child_plan_for_position(ptr)
@@ -114,7 +114,7 @@ class Leptris::XML::PlanValue
 
   # ELEMENT: attribute value by wire_name (nil when absent).
   def attribute(wire_name)
-    inc_crossing
+    @counter[0] += 1
     Leptris::XML::FFI.leptris_plan_value_attribute(@ptr, wire_name.to_s)
   end
 
@@ -149,7 +149,7 @@ class Leptris::XML::PlanValue
   # (0 when absent). Collection rows appear as Arrays; callbacks
   # are emitted as +{value:, position:, type_tag:}+ like #to_ruby.
   def as_kwarg_hash
-    inc_crossing # the kind probe + name + type_tag are one logical fetch
+    @counter[0] += 1 # the kind probe + name + type_tag are one logical fetch
     case kind
     when :element
       {
@@ -194,9 +194,6 @@ class Leptris::XML::PlanValue
 
   private
 
-  def inc_crossing
-    @counter[0] += 1
-  end
 
   def kwarg_attributes
     ((@plan && @plan[:attributes]) || []).each_with_object({}) do |row, result|
@@ -290,7 +287,7 @@ class Leptris::XML::PlanValue
     rows = @plan[:children] || []
     row = rows.size == 1 ? rows.first : nil
     unless row
-      inc_crossing
+      @counter[0] += 1
       child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
       row = rows.find { |r| r[:name] == child_name }
     end
