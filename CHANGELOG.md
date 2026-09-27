@@ -5,6 +5,23 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.260.0] - 2026-09-27
+
+### Fixed
+
+- Vendored libleptris 1.9.260 (riding 1.9.256-1.9.260):
+  - xquery: numeric variable predicates are positional, not EBV
+    (v1.9.256); typed-scalar carriers convert in the single-item
+    predicate path (v1.9.259); the bare FLWOR initializer scan
+    terminates at outer clause words (v1.9.260).
+
+### Performance — engine sync
+
+- Lane 18 rounds 1-2 (v1.9.257/258): duplicate-attribute scan via
+  a per-element FNV-1a hash prefilter (was an O(N^2) memcmp walk)
+  and namebp document resolution before the locked root-map
+  lookup — builder append 39.7 -> ~30 ns/child.
+
 ## [1.9.255.0] - 2026-09-26
 
 ### Fixed
