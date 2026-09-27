@@ -627,6 +627,60 @@ static void *doc_ptr_of(VALUE document)
 /* Per-document identity caches. Both are lazily allocated on the
  * Ruby side (@x ||= {}), so replicate that here: ivar read, create
  * and store when unset. */
+/* #340: per-document wrapper-klass registration. The ivar holds an
+ * Array of classes/nil indexed by node kind (the same shape
+ * install_child_klasses uses at the klass level). When an entry is
+ * set, the walk cache AND the create faces mint that klass
+ * (NativeNode subclass, TypedData path) instead of the binding
+ * wrapper classes — consumers receive their own contract-carrying
+ * nodes straight from C, and their re-wrap drops out. */
+static ID id_iv_doc_klass_map;
+
+static VALUE doc_klass_for_kind(VALUE document, int kind)
+{
+    VALUE map = rb_ivar_get(document, id_iv_doc_klass_map);
+    VALUE k;
+    if (NIL_P(map)) return Qnil;
+    k = rb_ary_entry(map, (long)kind);
+    return RB_TYPE_P(k, T_CLASS) ? k : Qnil;
+}
+
+static VALUE mint_consumer_node(VALUE klass, VALUE document, void *ptr)
+{
+    struct native_node *n;
+    VALUE node =
+        TypedData_Make_Struct(klass, struct native_node, &nn_type, n);
+    n->ptr = ptr;
+    n->document = document;
+    rb_hash_aset(native_cache_of(document),
+                 ULL2NUM((uint64_t)(uintptr_t)ptr), node);
+    return node;
+}
+
+static VALUE nf_register_doc_klasses(VALUE self, VALUE document, VALUE map)
+{
+    long i, len;
+    (void)self;
+    resolve_binding_classes();
+    Check_Type(map, T_ARRAY);
+    len = RARRAY_LEN(map);
+    if (len > 5)
+        rb_raise(rb_eArgError,
+                 "wrapper klasses: Array of classes/nil indexed by "
+                 "node kind (element, text, comment, cdata, pi)");
+    for (i = 0; i < len; i++) {
+        VALUE k = rb_ary_entry(map, i);
+        if (!NIL_P(k) &&
+            !(RB_TYPE_P(k, T_CLASS) &&
+              RTEST(rb_class_inherited_p(k, c_native_node))))
+            rb_raise(rb_eTypeError,
+                     "wrapper klasses entries must be nil or a "
+                     "Leptris::XML::NativeNode subclass");
+    }
+    rb_ivar_set(document, id_iv_doc_klass_map, map);
+    return document;
+}
+
 static VALUE native_cache_of(VALUE document)
 {
     VALUE cache = rb_ivar_get(document, id_iv_native_cache);
@@ -877,7 +931,20 @@ static VALUE trav_wrapper_for(struct trav_state *st, void *node_ptr,
                               int kind)
 {
     VALUE key = ULL2NUM((uint64_t)(uintptr_t)node_ptr);
-    VALUE node = rb_hash_aref(st->cache, key);
+    VALUE node;
+    VALUE ck = doc_klass_for_kind(st->document, kind);
+
+    /* #340 klass-parameterized walk cache: registered consumer
+     * klasses mint (and identity-cache) through the TypedData
+     * path — nodes arrive already being the consumer's wrapper. */
+    if (!NIL_P(ck)) {
+        VALUE ncache = native_cache_of(st->document);
+        node = rb_hash_aref(ncache, key);
+        if (!NIL_P(node)) return node;
+        return mint_consumer_node(ck, st->document, node_ptr);
+    }
+
+    node = rb_hash_aref(st->cache, key);
     if (!NIL_P(node)) return node;
 
     node = rb_obj_alloc(binding_klass_for(kind));
@@ -2290,20 +2357,15 @@ static VALUE nf_plan_structs_typed_p(VALUE self)
  * C->C dlsym dispatches (create_child = create+attach in one
  * engine call; set_attr per attribute). Returns the new node's
  * address for wrapper minting. */
-static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
-                                          VALUE parent_addr, VALUE name,
-                                          VALUE attrs)
+/* Creation core shared by the raw-address face and the #340
+ * wrapper-returning variant: single-crossing arena create +
+ * attributes when the engine has #1344, else create + per-pair
+ * sets. Returns the raw element pointer (NULL on failure). */
+static void *create_elem_core(void *doc_ptr, void *parent,
+                              const char *cname, VALUE attrs)
 {
-    void *doc_ptr = NIL_P(document)
-                        ? NULL
-                        : (void *)(uintptr_t)NUM2ULL(document);
-    void *parent = NIL_P(parent_addr)
-                       ? NULL
-                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
-    const char *cname = StringValueCStr(name);
-
-    if (f_elem_new_with_attrs && doc_ptr && parent && RARRAY_LEN(attrs) > 0 &&
-        RARRAY_LEN(attrs) % 2 == 0) {
+    if (f_elem_new_with_attrs && doc_ptr && parent &&
+        RARRAY_LEN(attrs) > 0 && RARRAY_LEN(attrs) % 2 == 0) {
         /* Engine single-crossing construction (1.9.236+): arena
          * create + all attributes with no per-attr calls at all. */
         long n = RARRAY_LEN(attrs) / 2;
@@ -2319,15 +2381,15 @@ static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
         }
         void *elem = f_elem_new_with_attrs(doc_ptr, cname, names,
                                            values, n);
-        if (!elem) return Qnil;
+        if (!elem) return NULL;
         /* The face creates a floating element owned by the
          * document — append under the parent afterwards. */
-        if (parent) f_append_child(parent, elem);
-        return ULL2NUM((uintptr_t)elem);
+        f_append_child(parent, elem);
+        return elem;
     }
 
     void *elem = parent ? f_create_child(parent, cname) : NULL;
-    if (!elem) return Qnil;
+    if (!elem) return NULL;
 
     long i, n = RARRAY_LEN(attrs);
     for (i = 0; i + 1 < n; i += 2) {
@@ -2335,7 +2397,65 @@ static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
         VALUE av = RARRAY_AREF(attrs, i + 1);
         f_set_attr(elem, StringValueCStr(an), StringValueCStr(av));
     }
-    return ULL2NUM((uintptr_t)elem);
+    return elem;
+}
+
+static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
+                                          VALUE parent_addr, VALUE name,
+                                          VALUE attrs)
+{
+    void *doc_ptr = NIL_P(document)
+                        ? NULL
+                        : (void *)(uintptr_t)NUM2ULL(document);
+    void *parent = NIL_P(parent_addr)
+                       ? NULL
+                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
+    void *elem = create_elem_core(doc_ptr, parent,
+                                  StringValueCStr(name), attrs);
+    return elem ? ULL2NUM((uintptr_t)elem) : Qnil;
+}
+
+/* #340 construction registration: create + attach + attributes in
+ * one crossing AND mint the wrapper C-side — the registered
+ * consumer klass when one is installed for elements (TypedData
+ * path + native-cache identity), else the binding Element minted
+ * exactly like nf_create_binding_element. The caller receives a
+ * contract-carrying node straight from the crossing; no separate
+ * Node.wrap, no consumer re-wrap. */
+static VALUE nf_create_element_with_attrs_wrapped(
+    VALUE self, VALUE document, VALUE parent_addr, VALUE name,
+    VALUE attrs)
+{
+    void *doc_ptr = doc_ptr_of(document);
+    void *parent = NIL_P(parent_addr)
+                       ? NULL
+                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
+    void *elem = create_elem_core(doc_ptr, parent,
+                                  StringValueCStr(name), attrs);
+    VALUE ck, key, node, cache;
+
+    (void)self;
+    if (!elem) return Qnil;
+    resolve_binding_classes();
+    ck = doc_klass_for_kind(document, 0 /* element */);
+    if (!NIL_P(ck))
+        return mint_consumer_node(ck, document, elem);
+
+    key = ULL2NUM((uint64_t)(uintptr_t)elem);
+    cache = binding_cache_of(document);
+    node = rb_hash_aref(cache, key);
+    if (!NIL_P(node)) return node;
+    node = rb_obj_alloc(c_b_element);
+    rb_iv_set(node, "@c_address", key);
+    rb_iv_set(node, "@document", document);
+    rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@structure_memoizable", Qtrue);
+    rb_iv_set(node, "@native_fast", Qtrue);
+    rb_iv_set(node, "@pub_document", document);
+    rb_iv_set(node, "@addr_reads_fast", Qtrue);
+    rb_iv_set(node, "@node_type", INT2FIX(0));
+    rb_hash_aset(cache, key, node);
+    return node;
 }
 
 static VALUE nf_attribute_rows(VALUE self, VALUE document, VALUE addr)
@@ -2844,6 +2964,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     id_iv_nn_attrs = rb_intern("@nn_attrs");
     id_iv_nn_attrs_ver = rb_intern("@nn_attrs_ver");
     id_child_klasses = rb_intern("@nn_child_klasses");
+    id_iv_doc_klass_map = rb_intern("@doc_klass_map");
     id_iv_doc_handle = rb_intern("@doc_handle");
     id_freed_new = rb_intern("new");
     id_alive = rb_intern("alive");
@@ -2954,6 +3075,11 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_attribute_rows, 2);
     rb_define_module_function(m_native, "create_element_with_attrs",
                               nf_create_element_with_attrs, 4);
+    rb_define_module_function(m_native, "register_doc_klasses",
+                              nf_register_doc_klasses, 2);
+    rb_define_module_function(m_native,
+                              "create_element_with_attrs_wrapped",
+                              nf_create_element_with_attrs_wrapped, 4);
     rb_define_module_function(m_native, "plan_structs_typed?",
                               nf_plan_structs_typed_p, 0);
     rb_define_module_function(m_native, "doc_handle_attach",
