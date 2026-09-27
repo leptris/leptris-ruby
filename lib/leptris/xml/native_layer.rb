@@ -75,6 +75,18 @@ class Leptris::XML::Document
     Leptris::XML::NativeNode.from(self, r.c_ptr)
   end
 
+  # #340: per-kind wrapper-klass registration for THIS document.
+  # map is an Array of classes/nil indexed by node kind (element,
+  # text, comment, cdata, pi) — the same shape
+  # NativeNode.install_child_klasses uses. Once registered, the C
+  # walk cache (trav/visit) and the create faces mint those
+  # klasses directly (TypedData path, native-cache identity), so
+  # consumers receive their own contract-carrying nodes straight
+  # from the crossing with no re-wrap.
+  def register_wrapper_klasses(map)
+    Leptris::XML::Native.register_doc_klasses(self, map)
+  end
+
   # Builder factories that return NativeNodes (#149): one C call
   # and a TypedData wrap — no FFI::Pointer, no wrap_fresh path.
   def native_create_element(name)
