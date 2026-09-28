@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.268.0] - 2026-09-29
+
+### Performance — engine sync (1.9.266-1.9.268)
+
+- Vendored libleptris 1.9.268: three DOM access rounds.
+  - The child-iteration cache: indexed child access resumes from a
+    per-element generation-validated slot instead of re-walking —
+    CI Child Access 0.34x -> 2.42x vs pugixml, Tree Walking 5.81x;
+    the cache now materializes lazily for attribute-free parents
+    too (the plain wide-catalog case was an O(N^2) re-walk per
+    call: 148s -> 0.77s on the 96 KB fixture).
+  - Bare-name attribute lookup skips prefixed attributes via the
+    TODO 173 ns-cache invariant — 14.5 -> 8.8 ns/query, 1.15x
+    pugixml.
+
 ## [1.9.265.0] - 2026-09-28
 
 ### Fixed
