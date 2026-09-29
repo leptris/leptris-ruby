@@ -384,6 +384,14 @@ module Leptris
         [:leptris_plan_result, :size_t], :leptris_plan_result
       attach_function :leptris_plan_value_attribute,
         [:leptris_plan_result, :string], UTF8_STRING
+      # One-call flat child list: names blob with per-child offsets
+      # (SIZE_MAX = NULL name, i.e. content runs), type tags, and
+      # borrowed child handles. Returns 0 on success or the blob
+      # capacity required (buffers untouched) — the host retries at
+      # that capacity.
+      attach_function :leptris_plan_value_children_snapshot,
+        [:leptris_plan_result, :pointer, :size_t, :pointer, :pointer,
+         :pointer], :size_t
       # #1254 (leptris 1.9.216): one-call flat attribute read —
       # parallel name/value/handle arrays, capacity-bounded; total
       # count returned (min(total, max_count) copied). Also the
