@@ -5,6 +5,21 @@ All notable changes to Leptris will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.270.0] - 2026-09-29
+
+### Performance — engine sync (1.9.269-1.9.270)
+
+- Vendored libleptris 1.9.270:
+  - A parse+free cycle is exactly ONE system allocation (the arena
+    header carved into the span; frozen by an exact-count allocator
+    pin) — and the 256-byte error buffer leaves the construction
+    memset.
+  - The lazy #635 raw-attribute journal was reverted (#1431,
+    release-blocking): chain synthesis on stale elements walked
+    freed chains — the eager journal is restored, byte-identical to
+    1.9.268 on that surface. The lazy form returns only behind a
+    real lifetime contract.
+
 ## [1.9.268.0] - 2026-09-29
 
 ### Performance — engine sync (1.9.266-1.9.268)
