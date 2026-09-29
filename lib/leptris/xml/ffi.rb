@@ -380,6 +380,13 @@ module Leptris
         [:leptris_plan_result], :size_t
       attach_function :leptris_plan_value_count,
         [:leptris_plan_result], :size_t
+      # Children snapshot (libleptris 1.9.271, #1436 Door B): one
+      # two-call crossing returns every child's name, type tag, and
+      # borrowed handle. First call with NULL buffers returns the
+      # names-blob capacity required; the retry fills everything.
+      attach_function :leptris_plan_value_children_snapshot,
+        [:leptris_plan_result, :pointer, :size_t, :pointer, :pointer,
+         :pointer], :size_t
       attach_function :leptris_plan_value_at,
         [:leptris_plan_result, :size_t], :leptris_plan_result
       attach_function :leptris_plan_value_attribute,
@@ -1351,6 +1358,8 @@ attach_function :leptris_parse_string,
       # #1094: &name; references stay unexpanded first-class nodes
       # when this flag parses (character references still expand).
       LEPTRIS_PARSE_KEEP_ENTITY_REFS = 4
+      LEPTRIS_PARSE_SKIP_DUP_DETECTION = 8
+      LEPTRIS_PARSE_SKIP_SOURCE_POSITIONS = 16
       NODE_DOCTYPE = 5
       NODE_ATTRIBUTE = 6
 

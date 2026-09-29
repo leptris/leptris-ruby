@@ -24,6 +24,19 @@ class Leptris::XML::ParseOptions
   # verbatim.
   KEEP_ENTITY_REFS = Leptris::XML::FFI::LEPTRIS_PARSE_KEEP_ENTITY_REFS
 
+  # Skip duplicate-attribute detection at parse time (libleptris
+  # 1.9.272, Lane-18 round 18 Door A): duplicate attributes are
+  # admitted silently — first wins for queries, no recover diag.
+  # For sources that cannot carry duplicates. Off by default.
+  SKIP_DUP_DETECTION = Leptris::XML::FFI::LEPTRIS_PARSE_SKIP_DUP_DETECTION
+
+  # Skip source-position bookkeeping (libleptris 1.9.272, Door A):
+  # element source columns degrade to zeros (line still resolves
+  # from the buffer). For consumers that never read positions.
+  # Off by default.
+  SKIP_SOURCE_POSITIONS =
+    Leptris::XML::FFI::LEPTRIS_PARSE_SKIP_SOURCE_POSITIONS
+
   attr_reader :flags
 
   # Recover (libleptris 1.9.0, #547): a parse failure returns an
@@ -59,12 +72,28 @@ class Leptris::XML::ParseOptions
     new(DTDATTR)
   end
 
+  def self.skip_dup_detection
+    new(SKIP_DUP_DETECTION)
+  end
+
+  def self.skip_source_positions
+    new(SKIP_SOURCE_POSITIONS)
+  end
+
   def dtdattr?
     @flags & DTDATTR != 0
   end
 
   def keep_entity_refs?
     @flags & KEEP_ENTITY_REFS != 0
+  end
+
+  def skip_dup_detection?
+    @flags & SKIP_DUP_DETECTION != 0
+  end
+
+  def skip_source_positions?
+    @flags & SKIP_SOURCE_POSITIONS != 0
   end
 
   def dtdattr=(value)

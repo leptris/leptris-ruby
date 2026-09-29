@@ -1,3 +1,16 @@
+## [1.9.273.1] - 2026-09-30
+
+### Added
+
+- `ParseOptions.skip_dup_detection` /
+  `ParseOptions.skip_source_positions` (libleptris 1.9.272, Lane-18
+  round 18 Door A): the two opt-out gates for fixed bookkeeping
+  costs. Skipping dup detection admits duplicate attributes
+  silently (first wins for queries, no recover diag); skipping
+  source positions degrades element source columns (lines still
+  resolve from the buffer). Defaults are byte-identical — a zero
+  flag word parses exactly as before (spec pins the round-trip).
+
 # Changelog
 
 All notable changes to Leptris will be documented in this file.
