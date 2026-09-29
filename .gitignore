@@ -48,3 +48,8 @@ Thumbs.db
 /.rspec_status
 lib/leptris/vendor/
 /vendor-src/
+
+# Native ext build artifacts (mkmf/clang)
+ext/leptris/native/Makefile
+*.dSYM/
+*.bak
