@@ -112,6 +112,30 @@ class Leptris::XML::PlanValue
                                     counter: @counter)
   end
 
+  # ELEMENT: the whole child list in one FFI crossing — parallel
+  # arrays of name (nil for content runs), type_tag, and the wrapped
+  # children. Enumerating through #at/#name/#type_tag costs three
+  # crossings per child; this costs one per subtree, with the
+  # PlanValue wrapping Ruby-side. Returns [names, tags, children].
+  def children_snapshot
+    n = Leptris::XML::FFI.leptris_plan_value_count(@ptr)
+    return [[], [], []] if n.zero?
+
+    @counter[0] += 2 # count + the snapshot crossing
+    cap = 64 * n
+    loop do
+      blob = ::FFI::MemoryPointer.new(:char, cap)
+      offsets = ::FFI::MemoryPointer.new(:size_t, n + 1)
+      tags = ::FFI::MemoryPointer.new(:uint8, n)
+      handles = ::FFI::MemoryPointer.new(:pointer, n)
+      needed = Leptris::XML::FFI.leptris_plan_value_children_snapshot(
+        @ptr, blob, cap, offsets, tags, handles)
+      break snapshot_build(blob, offsets, tags, handles, n) if needed.zero?
+
+      cap = needed
+    end
+  end
+
   # ELEMENT: attribute value by wire_name (nil when absent).
   def attribute(wire_name)
     @counter[0] += 1
@@ -282,13 +306,40 @@ class Leptris::XML::PlanValue
   # row — the FFI name probe is skipped (#298 crossings floor).
   # Multi-row plans probe by wire_name (result positions only
   # cover matched children, so positional mapping is unsafe).
-  def child_plan_for_position(ptr)
+  SNAPSHOT_NULL_OFFSET = 0xFFFFFFFFFFFFFFFF
+
+  # FFI get_uint64/get_pointer take BYTE offsets, not indices.
+  SIZE_T_SIZE = ::FFI::MemoryPointer.new(:size_t, 2).total / 2
+  POINTER_SIZE = ::FFI::Type::POINTER.size
+
+  def snapshot_build(blob, offsets, tags, handles, n)
+    names = ::Array.new(n)
+    n.times do |i|
+      off = offsets.get_uint64(i * SIZE_T_SIZE)
+      names[i] = off == SNAPSHOT_NULL_OFFSET ? nil : blob.get_string(off)
+    end
+    tag_values = ::Array.new(n) { |i| tags.get_uint8(i) }
+    children = ::Array.new(n)
+    n.times do |i|
+      ptr = handles.get_pointer(i * POINTER_SIZE)
+      child_plan = child_plan_for_position(ptr, name: names[i])
+      children[i] = Leptris::XML::PlanValue.new(ptr, plans: @plans,
+                                                plan: child_plan,
+                                                counter: @counter)
+    end
+    [names, tag_values, children]
+  end
+
+  def child_plan_for_position(ptr, name: nil)
     return nil unless @plan
     rows = @plan[:children] || []
     row = rows.size == 1 ? rows.first : nil
     unless row
-      @counter[0] += 1
-      child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
+      child_name = name
+      if child_name.nil?
+        @counter[0] += 1
+        child_name = Leptris::XML::FFI.leptris_plan_value_name(ptr)
+      end
       row = rows.find { |r| r[:name] == child_name }
     end
     return nil unless row && @plans
