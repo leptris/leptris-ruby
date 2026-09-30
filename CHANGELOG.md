@@ -1,3 +1,15 @@
+## [1.9.279.0] - 2026-09-30
+
+### Fixed
+
+- Vendored libleptris 1.9.279: the DOCTYPE internal-subset
+  extraction scan is quote- and comment-aware — `]` inside a
+  quoted entity value or a subset comment no longer closes the
+  subset. Documents rejected as malformed that libxml2 accepts
+  (LanguageTool grammar.xml: 5,556 rules) now parse, and
+  internal-subset entity references expand correctly.
+
+
 ## [1.9.276.0] - 2026-09-30
 
 ### Fixed
@@ -4531,16 +4543,7 @@ See [docs/SESSION_114_SUMMARY.md](docs/SESSION_114_SUMMARY.md) for technical det
 [0.1.0]: https://github.com/leptris/leptris/releases/tag/v0.1.0
 
 [0.8.0]: https://github.com/leptris/leptris/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/leptris/leptris/compare/v0.6.1...v0.7.## [1.9.279.0] - 2026-09-30
-
-### Fixed
-
-- Vendored libleptris 1.9.279: the DOCTYPE internal-subset
-  extraction scan is quote- and comment-aware — `]` inside a
-  quoted entity value or a subset comment no longer closes the
-  subset. Documents rejected as malformed that libxml2 accepts
-  (LanguageTool grammar.xml: 5,556 rules) now parse, and
-  internal-subset entity references expand correctly.
+[0.7.0]: https://github.com/leptris/leptris/compare/v0.6.1...v0.7.0
 
 ## [1.9.273.1] - 2026-09-30
 
