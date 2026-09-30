@@ -319,12 +319,11 @@ RSpec.describe "compiled-expression cache (TODO.perf/15)" do
   end
 
   it "does not cache failed compiles" do
-    cache = Leptris::XML::Searchable.instance_variable_get(:@compiled_expressions)
-    before = cache ? cache.size : 0
+    before = Leptris::XML::Searchable.cache_store(:compiled_expressions).size
     doc = Leptris::XML::Document.parse(%q{<r/>})
     expect { doc.xpath("///[bad(") }
       .to raise_error(Leptris::XML::XPathError)
-    after = Leptris::XML::Searchable.instance_variable_get(:@compiled_expressions)
+    after = Leptris::XML::Searchable.cache_store(:compiled_expressions)
     expect(after.size).to eq(before)
   end
 

@@ -1,3 +1,60 @@
+## [1.9.280.1] - 2026-09-30
+
+### Added
+
+- Ractor support (#ractor): documents can be parsed, queried,
+  mutated, and GC-freed inside child ractors, end to end. Five
+  blockers cleared:
+  - The native ext declares `rb_ext_ractor_safe(true)` — it keeps
+    no unsynchronized shared mutable state (class caches are
+    GC-marked immortals; wrapper hashes mutate only along the
+    engine's per-document path).
+  - The UTF8_STRING converter is a MODULE, not a
+    Class.new instance: the instance form deadlocks the first
+    mapped conversion inside a child Ractor; singleton methods
+    on a module dispatch cleanly.
+  - The legacy `UTF8_RETURNS` re-wrapper is gone. It redefined
+    every string-returning attach through a `method(name)`
+    capture (`define_singleton_method` with a Proc defined in
+    the loading ractor) — exactly the shape that raises
+    "defined with an un-shareable Proc in a different Ractor" in
+    a child. The UTF8_STRING converter already tags those 26
+    functions' results UTF-8 (a double no-op), so the wrapper
+    was deleted, not ported.
+  - windows-11-arm only: ffi attaches aarch64-mingw-ucrt
+    functions through un-shareable Proc wrappers (its libffi
+    #905 workaround), breaking every attached call from a child
+    Ractor there. `Leptris::XML::FFI` now freezes itself on that
+    platform — ffi's `Library#freeze` redefines the wrappers via
+    `FFI.shareable_proc` (verified by a full suite run with the
+    freeze forced on; it is a no-op elsewhere). ffi's freeze
+    redemption itself needs `Ractor.shareable_proc` (Ruby 3.5+),
+    so on that platform with older Rubies the ractor specs skip
+    — attached calls from child ractors are impossible there
+    until the runtime catches up.
+  - `Searchable`'s compiled-expression and CSS translation
+    caches moved from module ivars to `Ractor.current[]`-keyed
+    storage: the old shape raises `Ractor::IsolationError` from
+    non-main ractors, the compiled FFI handles could never
+    cross a boundary anyway, and in the main ractor the sharing
+    is unchanged (one cache across its threads). Engines without
+    Ractor keep the ivar.
+- Note for ractor users: a child ractor's autoload requests
+  are serviced by the main ractor, and a main blocked in
+  `Ractor#take` is not schedulable — under load that pairing can
+  wedge (CRuby ractor-barrier race). Exercise the API once in
+  the main ractor (or `Leptris::XML.parse` something trivial)
+  before spawning ractors against a cold load.
+
+### Performance
+
+- No measurable cost on the serial path: same attaches, same
+  converter, cache lookups trade one ivar read for a storage
+  read. Parallel parsing scales near-linearly instead — 4
+  ractors parse 4x20 documents in ~1/3 the serial time (0.06s
+  vs 0.18s on 4 cores).
+
+
 ## [1.9.279.0] - 2026-09-30
 
 ### Fixed
