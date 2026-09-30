@@ -13,21 +13,30 @@ module Leptris
       # therefore uses this converter: same NUL-terminated copy
       # semantics as :string, tagged UTF-8. Input arguments keep
       # plain :string (Ruby-to-C reads bytes regardless of tag).
-      UTF8_STRING = Class.new do
-        include ::FFI::DataConverter
+      # A MODULE, not a Class.new instance: the instance form
+      # (include DataConverter + tap) deadlocks the first mapped
+      # conversion inside a child Ractor, while singleton methods
+      # on a module dispatch cleanly (#ractor).
+      UTF8_STRING = Module.new do
+        extend ::FFI::DataConverter
 
-        def from_native(ptr, _ctx)
+        def self.from_native(ptr, _ctx)
           return nil if ptr.null? || ptr.address.zero?
 
           ptr.read_string.force_encoding(Encoding::UTF_8)
         end
 
-        def to_native(value, _ctx)
+        def self.to_native(value, _ctx)
           return nil if value.nil?
 
           ::FFI::MemoryPointer.from_string(value.to_s)
         end
-      end.new.tap { |c| c.native_type(::FFI::Type::POINTER) }
+
+        def self.native_type(t = nil)
+          t ? (@native_type = t) : (@native_type ||= ::FFI::Type::POINTER)
+        end
+      end
+
 
       # The per-OS vendor directory of the ruby-platform gem
       # (zero-setup TruffleRuby/JRuby, #160): binaries for the
@@ -1392,40 +1401,6 @@ attach_function :leptris_parse_string,
       # XML_PARSE_DTDATTR opt-in parity.
       LEPTRIS_PARSE_DTDATTR = 2
 
-      # The headers' contract is UTF-8 for every C string, but FFI's
-      # read_string hands back ASCII-8BIT — the platform default
-      # leaks through the seam. Every string-returning attached
-      # function this binding CALLS is wrapped here so its result
-      # arrives as UTF-8; mirror-only attachments stay raw (add the
-      # name here when a call site starts using its string).
-      UTF8_RETURNS = %i[
-        leptris_version
-        leptris_status_string leptris_last_error
-        leptris_document_last_error leptris_document_encoding
-        leptris_document_pi_target leptris_document_pi_data
-        leptris_document_comment_content
-        leptris_element_name leptris_element_text leptris_element_prefix
-        leptris_element_namespace
-        leptris_element_attribute leptris_element_attribute_ns
-        leptris_attribute_get_name leptris_attribute_get_value
-        leptris_attribute_namespace_uri
-        leptris_element_namespace_decl_prefix
-        leptris_element_namespace_decl_uri
-        leptris_text_node_get_content leptris_comment_node_get_content
-        leptris_cdata_node_get_content
-        leptris_pi_node_get_target leptris_pi_node_get_data
-        leptris_pull_attr_name leptris_pull_attr_value
-      ].freeze
-      private_constant :UTF8_RETURNS
-
-      UTF8_RETURNS.each do |name|
-        raw = method(name)
-        define_singleton_method(name) do |*args|
-          str = raw.call(*args)
-          str.nil? ? nil : str.force_encoding(Encoding::UTF_8)
-        end
-      end
-
       # Reads an libleptris-owned char* result and frees it as one unit,
       # so a call site can neither leak nor double-free.
       def self.read_owned_string(ptr)
@@ -1731,6 +1706,15 @@ attach_function :leptris_parse_string,
         end
         ptr
       end
+
+      # ffi attaches aarch64-mingw-ucrt functions through un-shareable
+      # Proc wrappers (the libffi #905 workaround in ffi/function.rb),
+      # which breaks every attached call from a child Ractor on
+      # windows-11-arm. Library#freeze redefines those wrappers via
+      # FFI.shareable_proc — the ffi gem's own Ractor redemption path
+      # for this platform (#ractor). Everything is attached above, at
+      # load time, so freezing closes no live door.
+      freeze if RUBY_PLATFORM == "aarch64-mingw-ucrt"
     end
   end
 end

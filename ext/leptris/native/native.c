@@ -2937,6 +2937,12 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
 {
     VALUE m_leptris, m_xml, m_native;
 
+    /* Ractor support: this ext keeps no unsynchronized shared mutable
+     * state — class caches are GC-marked immortals (never freed), the
+     * per-document wrapper hashes are keyed by document and every
+     * entry mutates only under the engine's document path. */
+    rb_ext_ractor_safe(true);
+
     m_leptris = rb_define_module("Leptris");
     m_xml = rb_define_module_under(m_leptris, "XML");
     c_native_node = rb_define_class_under(m_xml, "NativeNode", rb_cObject);

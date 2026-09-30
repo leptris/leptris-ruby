@@ -14,8 +14,20 @@ module Leptris::XML::Searchable
   # evaluations keep their dedicated string entries.
   COMPILED_CACHE_LIMIT = 64
 
+  # Cache storage (Ractor): module/class ivars are off-limits to
+  # non-main ractors (Ractor::IsolationError), and the compiled
+  # handles are FFI pointers that can never cross a ractor boundary
+  # anyway. Ractor#[] storage preserves the old sharing shape in
+  # the main ractor (one cache across its threads) and gives every
+  # child ractor its own. Engines without Ractor keep the ivar.
+  def self.cache_store(name)
+    return (@cache_stores ||= {})[name] ||= {} unless defined?(Ractor)
+
+    Ractor.current[name] ||= {}
+  end
+
   def self.compiled_expression(expr)
-    cache = (@compiled_expressions ||= {})
+    cache = cache_store(:compiled_expressions)
     if (hit = cache[expr])
       cache.delete(expr)
       cache[expr] = hit # LRU refresh
@@ -34,7 +46,7 @@ module Leptris::XML::Searchable
   # it every css call re-ran the regex machinery before the
   # compiled-expression cache could hit. Same bounded-LRU shape.
   def self.css_expression(selector, prefix)
-    cache = (@css_expressions ||= {})
+    cache = cache_store(:css_expressions)
     key = "#{prefix}#{selector}"
     if (hit = cache[key])
       cache.delete(key)
