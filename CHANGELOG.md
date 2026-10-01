@@ -1,3 +1,32 @@
+## [1.9.285.0] - 2026-10-01
+
+### Added — streaming Door A opt-outs (libleptris 1.9.283, #1459)
+
+- The 1.9.273 `ParseOptions` opt-outs now reach the streaming
+  faces: `options:` on `Iterparse.parse` / `parse_file`,
+  `Pull::Parser.parse` / `parse_file`, `SAX::Recorder.open`, and
+  `SAX::Parser` (`options:` + a `skip_flags=` setter applied
+  before the first feed on the IO path). Duplicate attributes are
+  admitted with the FIRST value winning (DOM parity — the pull
+  Hash view keeps the first of a redefined pair; the raw event
+  pair list is unchanged), error positions degrade to the last
+  tracked state. `ParseOptions.stream_flags` resolves only the two
+  Door A bits; nil keeps the flagless C twins byte-identical.
+  Six new attaches (audit 361/360).
+
+### Fixed — engine sync (1.9.284-1.9.285)
+
+- Vendored libleptris 1.9.284+1.9.285: iterparse full-document
+  mode materializes ONE intact tree (1.9.284) — and 1.9.285
+  completes it: TEXT at depth >= 2 pooled against a document
+  full mode never creates and silently vanished
+  (`<deep>x</deep>` yielded `<deep/>`); text now pools into
+  root_doc at every depth (leptris#1471, red/green pinned), plus
+  `fn:current-date/-time/-dateTime` clock fixes, XQuery
+  contains-token/collation accessors, and the XQuery lexer's
+  doubled-quote escapes. Tree-integrity and text-survival specs
+  pin both fixes on the binding side.
+
 ## [1.9.282.0] - 2026-10-01
 
 ### Fixed — engine sync (1.9.281)
