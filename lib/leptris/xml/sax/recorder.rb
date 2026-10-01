@@ -33,8 +33,17 @@ class Leptris::XML::SAX::Recorder
   # not a Hash lookup per event.
   KIND_BY_CODE = Array.new(KINDS.size) { |code| KINDS[code] }.freeze
 
-  def self.open
-    raw = Leptris::XML::FFI.leptris_sax_recorder_new
+  # options: Door A opt-outs (1.9.283, #1459) — error record
+  # positions degrade to the last tracked state when
+  # SKIP_SOURCE_POSITIONS is set.
+  def self.open(options: nil)
+    flags = Leptris::XML::ParseOptions.stream_flags(options)
+    raw =
+      if flags
+        Leptris::XML::FFI.leptris_sax_recorder_new_flags(flags)
+      else
+        Leptris::XML::FFI.leptris_sax_recorder_new
+      end
     if raw.null?
       raise Leptris::XML::Error, "leptris_sax_recorder_new failed"
     end

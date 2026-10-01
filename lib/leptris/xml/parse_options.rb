@@ -72,6 +72,21 @@ class Leptris::XML::ParseOptions
     new(DTDATTR)
   end
 
+  # Streaming-path resolver (1.9.283, #1459): the iterparse / pull /
+  # recorder / SAX-IO faces consume exactly the two Door A opt-out
+  # bits — everything else on a ParseOptions is DOM-parse surface.
+  # Returns nil when no opt-out is set, so the flagless C twins
+  # keep their zero-flag default byte-parity.
+  def self.stream_flags(options)
+    return nil unless options
+    unless options.is_a?(Leptris::XML::ParseOptions)
+      raise ArgumentError, "options must be a Leptris::XML::ParseOptions"
+    end
+
+    mask = SKIP_DUP_DETECTION | SKIP_SOURCE_POSITIONS
+    flags = options.flags & mask
+    flags.zero? ? nil : flags
+  end
   def self.skip_dup_detection
     new(SKIP_DUP_DETECTION)
   end

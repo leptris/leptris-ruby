@@ -42,10 +42,22 @@ class Leptris::XML::Iterparse
   # NOTE: an IO argument is read fully into memory before the C
   # iterator starts — the bounded-memory path is parse_file (C-side
   # file streaming). The C API takes one (xml, len) buffer.
-  def self.parse(xml_or_io, mode: :top_level, &block)
+  # options: a ParseOptions carrying the Door A opt-outs
+  # (1.9.283, #1459) — duplicate attributes admitted keep the
+  # first value, error positions degrade to the last tracked
+  # state. Iterparse over huge files never consumes diagnostics.
+  def self.parse(xml_or_io, mode: :top_level, options: nil, &block)
     xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
-    iterator = new(Leptris::XML::FFI.leptris_iterparse_new_ex(
-      xml, xml.bytesize, mode_code(mode)))
+    flags = Leptris::XML::ParseOptions.stream_flags(options)
+    handle =
+      if flags
+        Leptris::XML::FFI.leptris_iterparse_new_ex_flags(
+          xml, xml.bytesize, mode_code(mode), flags)
+      else
+        Leptris::XML::FFI.leptris_iterparse_new_ex(
+          xml, xml.bytesize, mode_code(mode))
+      end
+    iterator = new(handle)
     # leptris_iterparse_new_ex retains the buffer and reads it
     # lazily in bounded slices (#1207-class): without this
     # reference the input String is collectable the moment parse
@@ -61,9 +73,17 @@ class Leptris::XML::Iterparse
     iterator
   end
 
-  def self.parse_file(path, mode: :top_level, &block)
-    iterator = new(Leptris::XML::FFI.leptris_iterparse_new_file_ex(
-      path, mode_code(mode)))
+  def self.parse_file(path, mode: :top_level, options: nil, &block)
+    flags = Leptris::XML::ParseOptions.stream_flags(options)
+    handle =
+      if flags
+        Leptris::XML::FFI.leptris_iterparse_new_file_ex_flags(
+          path, mode_code(mode), flags)
+      else
+        Leptris::XML::FFI.leptris_iterparse_new_file_ex(
+          path, mode_code(mode))
+      end
+    iterator = new(handle)
     return iterator unless block
     begin
       iterator.run(&block)
