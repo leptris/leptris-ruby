@@ -1,3 +1,27 @@
+## [1.9.282.0] - 2026-10-01
+
+### Fixed — engine sync (1.9.281)
+
+- Vendored libleptris 1.9.281: `fn:upper-case` and `fn:lower-case`
+  perform real Unicode case mapping (utf8proc per-codepoint
+  `toupper`/`tolower`) instead of ASCII-only `c ± 32` loops —
+  `upper-case(U+01CB)` correctly yields U+01CA.
+  `leptris_unicode_to_upper`/`to_lower` were case folding in
+  disguise and are rewritten as true case mapping;
+  `leptris_unicode_casecmp` keeps its genuine fold semantics
+  explicitly. Builds without utf8proc keep the ASCII fallback
+  (leptris#1182, leptris#1460).
+
+### Added — engine sync (1.9.281-1.9.282)
+
+- QT3 string-case corpus family adopted (leptris#1182): fn/upper-case
+  (23/30), fn/lower-case (23/28), fn/codepoint-equal (24/37); the
+  runner's corpus counts branch on the utf8proc capability.
+- QT3 string-tails batch 2: fn/encode-for-uri adopted — 25 of 30
+  cases run-and-agree, pinning the RFC 3986 %XX escaping behavior
+  as a permanent regression guard (leptris#1182, leptris#1462).
+
+
 ## [1.9.280.1] - 2026-09-30
 
 ### Added
