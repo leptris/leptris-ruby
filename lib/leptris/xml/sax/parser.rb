@@ -18,10 +18,19 @@ class Leptris::XML::SAX::Parser
   # correctness-first fallback kept for engines older than 1.9.18
   # and for consumers wanting the DOM view's shapes.
   def initialize(handler = Leptris::XML::SAX::Document.new,
-                 encoding = nil, streaming: true)
+                 encoding = nil, streaming: true, options: nil)
     @document = handler
     @encoding = encoding
     @streaming = streaming
+    @skip_flags = Leptris::XML::ParseOptions.stream_flags(options)
+  end
+
+  # Door A opt-outs (1.9.283, #1459) applied before the first
+  # feed on the IO path — set once, not thread-safe per the C
+  # contract.
+  def skip_flags=(flags)
+    @skip_flags = flags.to_i & (Leptris::XML::ParseOptions::SKIP_DUP_DETECTION |
+                                Leptris::XML::ParseOptions::SKIP_SOURCE_POSITIONS)
   end
 
   # Swapping the handler invalidates the memoized callback struct so
@@ -163,6 +172,8 @@ class Leptris::XML::SAX::Parser
       handler_struct.pointer, nil)
     if parser_ptr.null?
       raise Leptris::XML::Error, "leptris_sax_parser_create failed"
+      Leptris::XML::FFI.leptris_sax_parser_set_skip_flags(
+        parser_ptr, @skip_flags || 0)
     end
     begin
       while (chunk = io.read(CHUNK_SIZE))

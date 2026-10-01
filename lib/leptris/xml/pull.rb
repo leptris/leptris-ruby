@@ -38,13 +38,29 @@ module Leptris::XML::Pull
   }.freeze
 
   class Parser
-    def self.parse(xml_or_io)
+    # options: Door A opt-outs (1.9.283, #1459) — same semantics
+    # as Document.parse's.
+    def self.parse(xml_or_io, options: nil)
       xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
-      new(Leptris::XML::FFI.leptris_pull_new(xml, xml.bytesize))
+      flags = Leptris::XML::ParseOptions.stream_flags(options)
+      handle =
+        if flags
+          Leptris::XML::FFI.leptris_pull_new_flags(xml, xml.bytesize, flags)
+        else
+          Leptris::XML::FFI.leptris_pull_new(xml, xml.bytesize)
+        end
+      new(handle)
     end
 
-    def self.parse_file(path)
-      new(Leptris::XML::FFI.leptris_pull_new_file(path))
+    def self.parse_file(path, options: nil)
+      flags = Leptris::XML::ParseOptions.stream_flags(options)
+      handle =
+        if flags
+          Leptris::XML::FFI.leptris_pull_new_file_flags(path, flags)
+        else
+          Leptris::XML::FFI.leptris_pull_new_file(path)
+        end
+      new(handle)
     end
 
     def initialize(handle)
@@ -187,7 +203,11 @@ module Leptris::XML::Pull
           .force_encoding(Encoding::UTF_8)
         value = buffer.get_pointer((2 * i + 1) * ptr_size).read_string
           .force_encoding(Encoding::UTF_8)
-        hash[name] = value
+        # DOM parity (1.9.283, #1459): with SKIP_DUP_DETECTION the
+        # raw event still carries both pairs (libxml2-recover keeps
+        # every attribute); the Hash view keeps the FIRST value,
+        # like iterparse and the DOM path.
+        hash[name] = value unless hash.key?(name)
         i += 1
       end
       hash

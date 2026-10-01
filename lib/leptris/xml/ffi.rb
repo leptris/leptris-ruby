@@ -971,6 +971,11 @@ attach_function :leptris_parse_string,
       # drains in bulk — callbacks become O(chunks), not O(events).
       attach_function :leptris_sax_recorder_new,
         [], :leptris_sax_recorder
+      # Door A opt-outs (1.9.283, #1459): recorder twin — error
+      # record positions degrade to the last tracked state when
+      # SKIP_SOURCE_POSITIONS is set.
+      attach_function :leptris_sax_recorder_new_flags,
+        [:uint], :leptris_sax_recorder
       attach_function :leptris_sax_recorder_feed,
         [:leptris_sax_recorder, :string, :size_t, :int], :int
       attach_function :leptris_sax_recorder_records,
@@ -987,13 +992,24 @@ attach_function :leptris_parse_string,
       attach_function :leptris_sax_parser_free,
         [:leptris_sax_parser], :void
       attach_function :leptris_sax_parser_set_streaming,
-        [:leptris_sax_parser, :int], :int
+        [:leptris_sax_parser, :int], :int      # Door A opt-outs (1.9.283, #1459): set once before the first
+      # feed(); duplicate attributes admitted keep the first value
+      # (DOM parity), error positions degrade.
+      attach_function :leptris_sax_parser_set_skip_flags,
+        [:leptris_sax_parser, :uint], :void
 
       # Pull parsing (v1.6.0): StAX-style cursor over a document.
       attach_function :leptris_pull_new,
         [:string, :size_t], :leptris_pull_parser
       attach_function :leptris_pull_new_file,
-        [:string], :leptris_pull_parser
+        [:string], :leptris_pull_parser      # Door A opt-outs on the streaming path (1.9.283, #1459):
+      # LEPTRIS_PARSE_SKIP_DUP_DETECTION / SKIP_SOURCE_POSITIONS —
+      # same bits the DOM parse flags consume. 0 matches the
+      # flagless twins above.
+      attach_function :leptris_pull_new_flags,
+        [:string, :size_t, :uint], :leptris_pull_parser
+      attach_function :leptris_pull_new_file_flags,
+        [:string, :uint], :leptris_pull_parser
       attach_function :leptris_pull_next,
         [:leptris_pull_parser], :pointer
       attach_function :leptris_pull_next_batch,
@@ -1023,7 +1039,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_iterparse_new_ex,
         [:string, :size_t, :int], :leptris_iterparse
       attach_function :leptris_iterparse_new_file_ex,
-        [:string, :int], :leptris_iterparse
+        [:string, :int], :leptris_iterparse      # Door A opt-outs (1.9.283, #1459): flags as in the pull
+      # twins; iterparse over huge files is exactly the workload
+      # that never consumes diagnostics.
+      attach_function :leptris_iterparse_new_ex_flags,
+        [:string, :size_t, :int, :uint], :leptris_iterparse
+      attach_function :leptris_iterparse_new_file_ex_flags,
+        [:string, :int, :uint], :leptris_iterparse
       attach_function :leptris_iterparse_ns_count,
         [:leptris_iterparse], :size_t
       attach_function :leptris_iterparse_ns_uri,
