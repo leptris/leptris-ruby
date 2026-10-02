@@ -17,6 +17,16 @@
 
 typedef const char *(*elem_name_fn)(void *);
 typedef const char *(*text_content_fn)(void *);
+
+/* Engine node-kind ids (leptris_node_get_type) — hoisted above the
+ * read accessors so every dispatch shares one spelling. */
+#define WS_NODE_ELEMENT 0
+#define WS_NODE_TEXT 1
+#define WS_NODE_COMMENT 2
+#define WS_NODE_CDATA 3
+#define WS_NODE_PI 4
+#define WS_NODE_DOCTYPE 5
+
 typedef const char *(*attr_fn)(void *, const char *);
 typedef size_t (*children_ex_fn)(void *, void **, int *, size_t);
 typedef int (*node_type_fn)(void *);
@@ -320,15 +330,16 @@ static VALUE nn_content(VALUE self)
     if (doc != Qnil && n->content_ver != Qnil &&
         n->content_ver == rb_ivar_get(doc, id_iv_version))
         return n->content_val;
-    /* elements aggregate their text (leptris_element_text); text,
-     * comment, and cdata nodes carry their payload through their
-     * own kind getters — the text-node getter answers NULL on a
-     * comment struct, which read as a silent nil (#344). */
+    /* #344: every kind reads through its own accessor — the old
+     * element-vs-text ternary handed comments and PIs to the text
+     * accessor, which answers NULL for them. */
     switch (f_node_type(n->ptr)) {
-    case 0:  s = f_element_text(n->ptr);    break;
-    case 2:  s = f_comment_content(n->ptr); break;
-    case 3:  s = f_cdata_content(n->ptr);   break;
-    default: s = f_text_content(n->ptr);    break;
+    case WS_NODE_ELEMENT: s = f_element_text(n->ptr);   break;
+    case WS_NODE_TEXT:    s = f_text_content(n->ptr);   break;
+    case WS_NODE_COMMENT: s = f_comment_content(n->ptr); break;
+    case WS_NODE_CDATA:   s = f_cdata_content(n->ptr);  break;
+    case WS_NODE_PI:      s = f_pi_data(n->ptr);        break;
+    default:              s = NULL;                     break;
     }
     cached = s ? rb_utf8_str_new_cstr(s) : Qnil;
     if (doc != Qnil && cached != Qnil) {
@@ -1973,12 +1984,6 @@ static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
  * construction — the consumer iterates rows and builds their
  * typed objects directly. */
 /* Node kinds (mirror types.h). Documented in descriptor comment. */
-#define WS_NODE_ELEMENT 0
-#define WS_NODE_TEXT 1
-#define WS_NODE_COMMENT 2
-#define WS_NODE_CDATA 3
-#define WS_NODE_PI 4
-#define WS_NODE_DOCTYPE 5
 
 static VALUE build_element_row(VALUE doc, void *elem, int depth)
 {

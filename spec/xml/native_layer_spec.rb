@@ -479,3 +479,13 @@ RSpec.describe "C-bound root= (TODO.perf/33)" do
     expect(doc.root.name).to eq("r")
   end
 end
+
+RSpec.describe "NativeNode#content per kind (leptris-ruby#344)" do
+  it "reads every node kind through its own accessor" do
+    doc = Leptris::XML::Document.parse(
+      %(<r>t<!-- my comment --><c><![CDATA[cd]]></c><?pi data here?></r>),
+    )
+    contents = doc.native_node.children.map(&:content)
+    expect(contents).to eq(["t", " my comment ", "cd", "data here"])
+  end
+end
