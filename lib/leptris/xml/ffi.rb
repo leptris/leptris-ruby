@@ -299,7 +299,13 @@ module Leptris
                :type_tag, :uint8,
                :predicate_count, :uint16,
                :pad_pred, :uint16,
-               :predicates, :pointer
+               :predicates, :pointer,
+               # libleptris 1.9.289 (#1486): attribute-level namespace
+               # form — ns rows match by (URI, local), wire_name is the
+               # LOCAL name; NONE keeps wire-name-exact matching.
+               :ns_form, :uint8,
+               :pad_ns, :uint8,
+               :ns_uri, :pointer
       end
       class ChildPlan < ::FFI::Struct
         layout :wire_name, :pointer,

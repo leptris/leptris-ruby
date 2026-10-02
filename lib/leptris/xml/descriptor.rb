@@ -167,6 +167,18 @@ class Leptris::XML::Descriptor
         ap[:wire_name] = anchor_string(anchors, row.fetch(:name))
         ap[:kind] = kind_code(row[:kind] || :scalar)
         ap[:type_tag] = type_tag_code(row)
+        # Attribute-level namespace form (libleptris 1.9.289, #1486):
+        # ns rows match by (URI, local) — the wire prefix is irrelevant.
+        # Mirrors the child-row packing.
+        ap[:ns_form] =
+          case row[:ns]
+          when :any then Leptris::XML::FFI::PLAN_NS_ANY
+          when Hash  then Leptris::XML::FFI::PLAN_NS_EXACT
+          else         Leptris::XML::FFI::PLAN_NS_NONE
+          end
+        ap[:ns_uri] =
+          row[:ns].is_a?(Hash) ?
+            anchor_string(anchors, row[:ns].fetch(:exact)) : nil
         pack_predicates(ap, row, anchors)
       end
       ep[:attribute_count] = attrs.size
