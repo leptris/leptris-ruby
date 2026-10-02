@@ -372,6 +372,15 @@ module Leptris
       attach_function :leptris_node_byte_offset,
         [:leptris_node_ref], :size_t
 
+      # Struct-size accessors (1.9.291, engine #1490 follow-up):
+      # the engine's compiled row layouts — the descriptor face
+      # verifies them against the FFI structs it packs and fails
+      # loudly on version skew instead of misparsing rows.
+      attach_function :leptris_plan_spec_struct_size, [], :size_t
+      attach_function :leptris_plan_element_row_size, [], :size_t
+      attach_function :leptris_plan_child_row_size, [], :size_t
+      attach_function :leptris_plan_attr_row_size, [], :size_t
+      attach_function :leptris_plan_predicate_row_size, [], :size_t
       attach_function :leptris_plan_abi_version, [], :uint32
       attach_function :leptris_plan_build,
         [:pointer, :pointer], :leptris_plan
