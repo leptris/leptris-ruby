@@ -1,3 +1,29 @@
+## [1.9.287.0] - 2026-10-02
+
+### Added
+
+- **Stylesheet top-level params (#360)**: `Stylesheet#apply_to(doc,
+  params: {name => value})` and `#serialize(doc, params: {...})`
+  thread XSLT `<xsl:param>` overrides through the new engine faces
+  (libleptris 1.9.287, leptris#1478): a supplied name binds its
+  string directly and never evaluates select/@default; absent names
+  keep them. Values bind as XPath strings — the caller owns
+  numeric/boolean quoting (nokogiri quote_params conventions for
+  moxml parity). nil/empty params keeps the flagless v1 faces.
+
+### Fixed
+
+- **NativeNode#content on comment nodes (#344)**: the C-side walk
+  accessor now dispatches by node kind — comment and CDATA payloads
+  read through their dedicated engine accessors (comment-kind nodes
+  answered nil while text/CDATA worked); element aggregation and
+  text reads unchanged.
+
+### Engine sync (1.9.287)
+
+- leptris_xslt_apply_params / leptris_xslt_apply_string_params
+  (leptris#1478) — the param overrides ride above.
+
 ## [1.9.285.0] - 2026-10-01
 
 ### Added — streaming Door A opt-outs (libleptris 1.9.283, #1459)
