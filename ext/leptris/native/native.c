@@ -320,10 +320,16 @@ static VALUE nn_content(VALUE self)
     if (doc != Qnil && n->content_ver != Qnil &&
         n->content_ver == rb_ivar_get(doc, id_iv_version))
         return n->content_val;
-    /* elements aggregate their text (leptris_element_text); text
-     * nodes carry it directly. */
-    s = f_node_type(n->ptr) == 0 ? f_element_text(n->ptr)
-                                 : f_text_content(n->ptr);
+    /* elements aggregate their text (leptris_element_text); text,
+     * comment, and cdata nodes carry their payload through their
+     * own kind getters — the text-node getter answers NULL on a
+     * comment struct, which read as a silent nil (#344). */
+    switch (f_node_type(n->ptr)) {
+    case 0:  s = f_element_text(n->ptr);    break;
+    case 2:  s = f_comment_content(n->ptr); break;
+    case 3:  s = f_cdata_content(n->ptr);   break;
+    default: s = f_text_content(n->ptr);    break;
+    }
     cached = s ? rb_utf8_str_new_cstr(s) : Qnil;
     if (doc != Qnil && cached != Qnil) {
         n->content_val = cached;

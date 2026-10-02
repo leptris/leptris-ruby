@@ -33,6 +33,21 @@ RSpec.describe "Leptris::XML::NativeNode (opt-in native read layer, #185)" do
     expect(first.attribute("missing")).to be_nil
   end
 
+  it "reads comment and cdata content through the native layer (#344)" do
+    doc = Leptris::XML::Document.parse(
+      %q{<r><!-- note --><a><![CDATA[raw<>]]></a><t>txt</t></r>})
+    comment, = doc.native_node.children.to_a
+    expect(comment.node_type).to eq(:comment)
+    expect(comment.content).to eq(" note ")
+
+    cdata = doc.native_node.element_children.first.children.first
+    expect(cdata.node_type).to eq(:cdata)
+    expect(cdata.content).to eq("raw<>")
+
+    text = doc.native_node.element_children.last.children.first
+    expect(text.content).to eq("txt")
+  end
+
   it "walks siblings and parents with identity" do
     first, second, = root.element_children.to_a
     expect(first.next_sibling).to eq(second)
