@@ -17,6 +17,15 @@
 
 typedef const char *(*elem_name_fn)(void *);
 typedef const char *(*text_content_fn)(void *);
+/* Engine node-kind ids (leptris_node_get_type) — hoisted above the
+ * read accessors so every dispatch shares one spelling. */
+#define WS_NODE_ELEMENT 0
+#define WS_NODE_TEXT 1
+#define WS_NODE_COMMENT 2
+#define WS_NODE_CDATA 3
+#define WS_NODE_PI 4
+#define WS_NODE_DOCTYPE 5
+
 typedef const char *(*attr_fn)(void *, const char *);
 typedef size_t (*children_ex_fn)(void *, void **, int *, size_t);
 typedef int (*node_type_fn)(void *);
@@ -320,15 +329,17 @@ static VALUE nn_content(VALUE self)
     if (doc != Qnil && n->content_ver != Qnil &&
         n->content_ver == rb_ivar_get(doc, id_iv_version))
         return n->content_val;
-    /* elements aggregate their text (leptris_element_text); text,
-     * comment, and CDATA nodes carry it directly — the comment
-     * payload lives in leptris_comment_node_get_content (#344:
-     * comment-kind NNs answered nil). */
-    int kind = f_node_type(n->ptr);
-    s = kind == 0 ? f_element_text(n->ptr)
-        : kind == 2 ? f_comment_content(n->ptr)
-        : kind == 3 ? f_cdata_content(n->ptr)
-                    : f_text_content(n->ptr);
+    /* every kind through its own accessor (#344): elements
+     * aggregate, text/comment/CDATA/PI carry their payload
+     * directly; unknown kinds answer nil. */
+    switch (f_node_type(n->ptr)) {
+    case WS_NODE_ELEMENT: s = f_element_text(n->ptr);   break;
+    case WS_NODE_TEXT:    s = f_text_content(n->ptr);   break;
+    case WS_NODE_COMMENT: s = f_comment_content(n->ptr); break;
+    case WS_NODE_CDATA:   s = f_cdata_content(n->ptr);  break;
+    case WS_NODE_PI:      s = f_pi_data(n->ptr);        break;
+    default:              s = NULL;                     break;
+    }
     cached = s ? rb_utf8_str_new_cstr(s) : Qnil;
     if (doc != Qnil && cached != Qnil) {
         n->content_val = cached;
@@ -783,6 +794,54 @@ static VALUE nf_append_binding_child(VALUE self, VALUE document,
     return Qtrue;
 }
 
+/* Batch append (leptris-ruby#366): one crossing for N children.
+ * Same gates and provable no-op lift predicate as
+ * nf_append_binding_child; ONE version bump covers the batch (a
+ * failed mutation discards memos either way). Children are passed
+ * as pre-flattened element ADDRESSES (Integer) — the Ruby side
+ * keeps the node objects for the cross-document invalidation
+ * sweep, which is pure Ruby and needs no crossing.
+ *
+ * Returns the index of the first child that needs the Ruby-side
+ * namespace-lift path (source order preserved: the caller runs
+ * the full per-child path from there); n when every child was
+ * appended. Status failures raise at the failing child — earlier
+ * appends stay appended, exactly like the per-child face. */
+static VALUE nf_append_binding_children(VALUE self, VALUE document,
+                                        VALUE parent_addr, VALUE addrs)
+{
+    void *parent;
+    const char *uri;
+    long i, n;
+    int st;
+
+    (void)self;
+    resolve_binding_classes();
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    Check_Type(addrs, T_ARRAY);
+    parent = (void *)(uintptr_t)NUM2ULL(parent_addr);
+    n = RARRAY_LEN(addrs);
+    rb_ivar_set(document, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    for (i = 0; i < n; i++) {
+        void *child = (void *)(uintptr_t)NUM2ULL(RARRAY_AREF(addrs, i));
+        if (f_node_type(child) == NT_ELEMENT) {
+            if (f_elem_ns_count(child) > 0)
+                return LONG2NUM(i);
+            uri = f_elem_ns(child);
+            if (uri && *uri)
+                return LONG2NUM(i);
+        }
+        st = f_append_child(parent, child);
+        check_status_c(st);
+    }
+    return LONG2NUM(n);
+}
 /* C-bound set_attribute (TODO.perf/11, #204 gap row 0.25x): the
  * gates, the version bump (which drops the version-stamped
  * attribute memos on both surfaces), and the engine write in one
@@ -3024,6 +3083,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_module_function(m_native, "fast_prefix", nf_prefix, 1);
     rb_define_module_function(m_native, "fast_attribute2", nf_fast_attribute2, 2);
     rb_define_module_function(m_native, "ns_lift_needed?", nf_ns_lift_needed, 1);
+    rb_define_module_function(m_native, "append_binding_children",
+                              nf_append_binding_children, 3);
     rb_define_module_function(m_native, "append_binding_child",
                               nf_append_binding_child, 3);
     rb_define_module_function(m_native, "set_binding_attribute",
