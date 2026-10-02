@@ -1,3 +1,63 @@
+## [1.9.291.0] - 2026-10-03
+
+### Fixed
+
+- **Removed nodes leave clean orphans (leptris-ruby#370)**:
+  vendored 1.9.291 — `remove_child` / `remove_all_children` clear
+  the removed nodes' own sibling links, so a later re-append never
+  splices the stale sibling run into the new parent (nodes were
+  reachable from two parents, up to self-containing cycles).
+- **`prefix:*` is namespace-scoped (leptris-ruby#368)**: three
+  fused compiler sites lowered `//m:*` to the any-element opcode;
+  prefixed wildcards now resolve through the caller's bindings.
+
+### Added
+
+- **Descriptor row-layout skew gate (engine #1490 follow-up)**:
+  the five new struct-size accessors are attached and the
+  descriptor face verifies the engine's compiled row sizes against
+  the binding's FFI structs before every plan build — version
+  skew fails loudly instead of misparsing rows.
+
+## [1.9.290.0] - 2026-10-02
+
+### Fixed
+
+- **Params values evaluate as XPath expressions (engine 1.9.288,
+  #1481 semantics correction)**: the #360 face shipped briefly on
+  raw-string binding — under libleptris 1.9.288+ the value strings
+  evaluate as XPath EXPRESSIONS, the libxslt `params` convention
+  callers know from nokogiri (whose quote_params exists to add the
+  quotes): `"4 * 3"` binds 12, `"'S'"` binds the string `"S"`,
+  `string(/r/@v)` reads the source, a malformed expression fails
+  the transform. The face docs and specs updated to the corrected
+  contract; callers passing pre-quoted values (nokogiri-style)
+  are already correct.
+
+### Added — engine sync (1.9.290)
+
+- Namespace forms for attribute plan rows: `ns_form` / `ns_uri`
+  on the descriptor AttrPlan (#1486/#1487) — the binding packs the
+  fields (zero = the historical wire-name lookup); exposing
+  ns-exact rows from plan trees lands with the first consumer.
+
+### Performance — engine sync (1.9.288-1.9.289)
+
+- Vendored libleptris 1.9.288-1.9.289: the #1481 params semantics
+  correction, plus the 289 HTML-path performance work (slice 6 of
+  #1218): open-id integer compares for the scope/table-context
+  stack walks and id-LUT membership for the foster/formatting
+  checks — cumulative ~+15% on the table-rows fixture; the
+  3.4-7x deficit at 1.9.203 is now a 1.3-1.55x lead over
+  htmlReadMemory.
+- **Descriptor AttrPlan ABI adoption (#1486)**: the attribute-row
+  plan struct gains trailing ns-form fields (additive to the
+  frozen v1 ABI — the #1115 pattern). The binding packs the full
+  layout (FFI zero-fill keeps unset = the historical wire-name
+  lookup); riding 1.9.288+ without the extension reads past the
+  allocation and segfaults the descriptor face. Namespace-form
+  attribute rows are engine-ready; the binding face follows.
+
 ## [1.9.287.0] - 2026-10-02
 
 ### Added

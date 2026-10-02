@@ -81,3 +81,38 @@ RSpec.describe "streaming Door A opt-outs (1.9.283)" do
     end.to raise_error(ArgumentError, /ParseOptions/)
   end
 end
+
+# 1.9.291: removed nodes leave clean orphans — re-appending a
+# removed node must not splice the stale sibling run into the new
+# parent (leptris-ruby#370), and prefixed wildcards are
+# namespace-scoped (leptris-ruby#368).
+RSpec.describe "1.9.291 engine fixes" do
+  it "remove/re-append never cycles the tree (#370)" do
+    doc = Leptris::XML::Document.parse(%(<r><a/><b/><c/></r>))
+    a, b, = doc.root.element_children.to_a
+    doc.root.remove_child(b)
+    doc.root.add_child(b)
+    expect(doc.root.to_xml).to eq(%(<r><a/><c/><b/></r>))
+    doc2 = Leptris::XML::Document.parse(%(<p><x/><y/></p>))
+    q = doc2.create_element("q")
+    doc2.root.add_child(q)
+    x = doc2.root.element_children.first
+    doc2.root.remove_child(x)
+    q = doc2.root.element_children[1]
+    q.add_child(x)
+    expect(doc2.to_xml).to include(%(<q><x/></q>))
+  end
+
+  it "prefix:* stays namespace-scoped (#368)" do
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns:m="urn:m" xmlns:n="urn:n"><m:e1/><n:e2/><plain/></r>))
+    expect(doc.xpath("//m:*").map(&:name)).to eq(%w[e1])
+    expect(doc.xpath(".//n:*").map(&:name)).to eq(%w[e2])
+    expect(doc.xpath("//m:*").size).to eq(1)
+  end
+
+  it "descriptor row layouts match the engine (skew gate)" do
+    tree = { name: "r", children: [{ name: "c" }] }
+    expect { Leptris::XML::Descriptor.build(tree) }.not_to raise_error
+  end
+end

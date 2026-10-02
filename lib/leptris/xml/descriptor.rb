@@ -96,6 +96,25 @@ class Leptris::XML::Descriptor
   # Ruby-side spec memory is transient (the engine deep-copies).
   def self.build(tree)
     abi = Leptris::XML::FFI.leptris_plan_abi_version
+    # Row-layout skew gate (1.9.291, engine #1490 follow-up): the
+    # engine reports its compiled row sizes; a mismatch means the
+    # binding's FFI structs and the vendored engine disagree —
+    # fail loudly instead of misparsing rows.
+    {
+      Leptris::XML::FFI.leptris_plan_spec_struct_size => Leptris::XML::FFI::PlanSpec,
+      Leptris::XML::FFI.leptris_plan_element_row_size => Leptris::XML::FFI::ElementPlan,
+      Leptris::XML::FFI.leptris_plan_child_row_size => Leptris::XML::FFI::ChildPlan,
+      Leptris::XML::FFI.leptris_plan_attr_row_size => Leptris::XML::FFI::AttrPlan,
+      Leptris::XML::FFI.leptris_plan_predicate_row_size =>
+        Leptris::XML::FFI::AttrPredicate
+    }.each do |engine_size, struct|
+      next if engine_size == struct.size
+
+      raise Leptris::XML::Error,
+        "descriptor row-layout skew: engine #{engine_size}B vs " \
+        "binding #{struct.size}B for #{struct.name} — the vendored " \
+        "engine and the binding structs disagree"
+    end
     if abi != Leptris::XML::FFI::PLAN_ABI_VERSION
       raise Leptris::XML::Error,
         "descriptor ABI v#{abi} != binding v#{Leptris::XML::FFI::PLAN_ABI_VERSION}"
