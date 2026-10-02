@@ -490,7 +490,42 @@ class Leptris::XML::Element < Leptris::XML::Node
     # Remove existing children, then attach the new ones in source order.
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_remove_children(c_ptr))
-    Array(node_or_nodes).each { |n| add_child(n) }
+    append_children(Array(node_or_nodes))
+  end
+
+  # Batch append (leptris-ruby#366): one C crossing for N children.
+  # The C loop runs the same gates and provable no-op lift
+  # predicate as the per-child fast path with ONE version bump for
+  # the batch; it stops at the first child needing the Ruby-side
+  # namespace lift (source order preserved — the remainder goes
+  # through the full per-child path). Strings and non-Nodes fall
+  # back to add_child. The cross-document memo invalidation sweep
+  # is pure Ruby and stays on this side.
+  def append_children(nodes)
+    ensure_writable!
+    return if nodes.empty?
+    unless nodes.all? { |n| n.is_a?(Leptris::XML::Node) }
+      nodes.each { |n| add_child(n) }
+      return
+    end
+    if native_fast_children?
+      addrs = nodes.map { |n| n.c_ptr.address }
+      done = Leptris::XML::Native.append_binding_children(
+        @document, @c_address, addrs)
+      done = 0 unless done.is_a?(Integer)
+      if done >= nodes.size
+        nodes.each do |n|
+          Leptris::XML::Node.invalidate_cross_document!(n, @document)
+        end
+        return nodes
+      end
+      nodes[0, done].each do |n|
+        Leptris::XML::Node.invalidate_cross_document!(n, @document)
+      end
+      nodes = nodes[done..]
+    end
+    nodes.each { |n| add_child(n) }
+    nodes
   end
 
   # Replace this element with +new_node+ in the parent's child list.
