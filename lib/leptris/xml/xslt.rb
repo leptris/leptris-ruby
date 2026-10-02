@@ -28,6 +28,9 @@ module Leptris::XML::XSLT
   #                              #    text nodes preserved)
   #
   class Stylesheet
+    FFI_PTR_SIZE = ::FFI.type_size(:pointer)
+    private_constant :FFI_PTR_SIZE
+
     # GC-managed compiled handle.
     class Handle < ::FFI::AutoPointer
       def self.release(ptr)
@@ -65,8 +68,22 @@ module Leptris::XML::XSLT
 
     # Apply to +document+ (not modified) and return the result tree
     # as an owning Document — query it with xpath/css like any other.
-    def apply_to(document)
-      raw = Leptris::XML::FFI.leptris_xslt_apply(@handle, document.c_ptr)
+    #
+    # params (#360): top-level xsl:param overrides as a Hash of
+    # name => value. Values bind as XPath STRINGS verbatim — the
+    # caller owns numeric/boolean quoting (libxslt conventions:
+    # pass '7' for a number, matching nokogiri's quote_params).
+    # Absent names keep the param's select/@default.
+    def apply_to(document, params: nil)
+      raw, buffer, = with_param_pairs(params) do |pairs, count|
+        if pairs
+          Leptris::XML::FFI.leptris_xslt_apply_params(
+            @handle, document.c_ptr, pairs, count)
+        else
+          Leptris::XML::FFI.leptris_xslt_apply(@handle, document.c_ptr)
+        end
+      end
+      buffer&.free
       if raw.null?
         raise Leptris::XML::XPathError,
           "transform failed: #{document.last_error || Leptris::XML::FFI.leptris_last_error}"
@@ -75,11 +92,40 @@ module Leptris::XML::XSLT
     end
 
     # Apply and serialize in one call — keeps top-level text nodes and
-    # result fragments that the tree API would flatten.
-    def serialize(document)
-      str_ptr = Leptris::XML::FFI.leptris_xslt_apply_string(
-        @handle, document.c_ptr)
+    # result fragments that the tree API would flatten. params: as
+    # #apply_to.
+    def serialize(document, params: nil)
+      str_ptr, buffer, = with_param_pairs(params) do |pairs, count|
+        if pairs
+          Leptris::XML::FFI.leptris_xslt_apply_string_params(
+            @handle, document.c_ptr, pairs, count)
+        else
+          Leptris::XML::FFI.leptris_xslt_apply_string(
+            @handle, document.c_ptr)
+        end
+      end
+      buffer&.free
       Leptris::XML::FFI.read_owned_string(str_ptr)
+    end
+
+    # Flattens a params Hash into the engine's flat char** pairs
+    # array (borrowed for the C call's lifetime — allocated here,
+    # freed by the caller; the per-string MemoryPointers stay
+    # anchored until the call returns).
+    def with_param_pairs(params)
+      return yield(nil, 0) if params.nil? || params.empty?
+      unless params.is_a?(Hash)
+        raise ArgumentError, "params must be a Hash of name => value"
+      end
+
+      entries = params.keys.map(&:to_s)
+                      .zip(params.values.map { |v| v.nil? ? "" : v.to_s })
+      strings = entries.flatten.map { |s| ::FFI::MemoryPointer.from_string(s) }
+      buffer = ::FFI::MemoryPointer.new(:pointer, strings.size)
+      strings.each_with_index do |ptr, i|
+        buffer.put_pointer(i * FFI_PTR_SIZE, ptr)
+      end
+      [yield(buffer, entries.size), buffer, strings]
     end
   end
 end
