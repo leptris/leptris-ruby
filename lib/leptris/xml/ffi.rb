@@ -1272,7 +1272,14 @@ attach_function :leptris_parse_string,
       # apply + serialize in one call, keeping top-level text nodes
       # and result fragments the tree API would flatten.
       attach_function :leptris_xslt_apply_string,
-        [:leptris_xslt, :leptris_document], :pointer
+        [:leptris_xslt, :leptris_document], :pointer      # Top-level xsl:param overrides (#360): flat name/value pairs,
+      # 2*pair_count entries; supplied names skip select/@default.
+      attach_function :leptris_xslt_apply_params,
+        [:leptris_xslt, :leptris_document, :pointer, :size_t],
+        :leptris_document
+      attach_function :leptris_xslt_apply_string_params,
+        [:leptris_xslt, :leptris_document, :pointer, :size_t],
+        :pointer
       attach_function :leptris_c14n_canonicalize,
 
         [:leptris_document, :int, :int], :pointer
