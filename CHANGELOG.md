@@ -1,5 +1,20 @@
-## [1.9.291.0] - 2026-10-03
+## [1.9.292.0] - 2026-10-03
 
+### Fixed
+
+- **Document#root= adopts foreign roots (leptris-ruby#371)**:
+  vendored 1.9.292 (engine #1495) — a foreign element is no longer
+  rejected with EINVAL; the subtree is deep-copied into this
+  document's pool (all node kinds, attributes, namespace
+  declarations), the source document loses the element, and the
+  detached original stays resolvable until the source frees. The
+  binding routes cross-document installs through the new
+  leptris_document_set_root_ex and wraps the INSTALLED handle — a
+  fresh pointer, not the source. Same-document installs keep the
+  native fast path. The old "rejects foreign" construction spec now
+  pins adoption.
+
+## [1.9.291.0] - 2026-10-03
 ### Fixed
 
 - **Removed nodes leave clean orphans (leptris-ruby#370)**:

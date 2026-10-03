@@ -31,13 +31,14 @@ RSpec.describe "programmatic document construction" do
       expect(doc.serialize).to include(%(<child id="1">hello &amp; bye</child>))
     end
 
-    it "rejects an element from another document" do
+    it "adopts an element from another document (1.9.292, #371)" do
       doc_a = Leptris::XML::Document.create
       doc_b = Leptris::XML::Document.create
       foreign = doc_b.create_element("b")
 
-      expect { doc_a.root = foreign }
-        .to raise_error(Leptris::XML::Error, /argument/i)
+      doc_a.root = foreign
+      expect(doc_a.root.name).to eq("b")
+      expect(doc_b.root).to be_nil
     end
 
     it "rejects an element that already has a parent" do

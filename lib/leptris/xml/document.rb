@@ -384,7 +384,20 @@ class Leptris::XML::Document
     # TODO.perf/33: gates + bump + engine set_root in one C
     # dispatch (the FFI call plus the c_ptr materialization fed
     # ~5% of a fresh-doc build).
-    if defined?(Leptris::XML::NATIVE_FAST)
+    # Cross-document adoption (1.9.292, #371): the engine DEEP-COPIES
+    # the foreign subtree into this document's pool and reports the
+    # installed element — a fresh handle distinct from the source
+    # pointer. Same-document installs keep the native fast path.
+    cross = element.document && !element.document.equal?(self)
+    installed_ptr = nil
+    if cross
+      out = ::FFI::MemoryPointer.new(:pointer)
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_document_set_root_ex(
+          c_ptr, element.c_ptr, out))
+      installed_ptr = out.read_pointer
+      @version += 1
+    elsif defined?(Leptris::XML::NATIVE_FAST)
       Leptris::XML::Native.set_binding_root(self, element.c_address)
     else
       Leptris::XML::FFI.check_status(
@@ -394,7 +407,7 @@ class Leptris::XML::Document
     # Seed the root memo through wrap: a cross-document element
     # must enter THIS document's identity cache with @document
     # pointing here, not ride its source-document wrapper.
-    @root = Leptris::XML::Node.wrap(element.c_ptr, self)
+    @root = Leptris::XML::Node.wrap(installed_ptr || element.c_ptr, self)
     @root_version = @version
     Leptris::XML::Node.invalidate_cross_document!(element, self)
     element

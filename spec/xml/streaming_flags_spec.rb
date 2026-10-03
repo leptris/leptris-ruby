@@ -116,3 +116,30 @@ RSpec.describe "1.9.291 engine fixes" do
     expect { Leptris::XML::Descriptor.build(tree) }.not_to raise_error
   end
 end
+
+# 1.9.292: set_root ADOPTS foreign roots (leptris-ruby#371) — the
+# subtree is deep-copied into the target pool; the source document
+# loses the element; the installed handle is what the binding wraps.
+RSpec.describe "Document#root= cross-document adoption (#371)" do
+  it "adopts a foreign root by deep copy" do
+    doc = Leptris::XML::Document.parse(%(<old><a/></old>))
+    newdoc = Leptris::XML::Document.parse(
+      %(<new xmlns:x="urn:x"><b x:attr="v">t<c/></b></new>))
+    doc.root = newdoc.root
+    expect(doc.root.name).to eq("new")
+    expect(doc.root.element_children.map(&:name)).to eq(%w[b])
+    expect(doc.root.element_children.first["x:attr"]).to eq("v")
+    expect(doc.root.element_children.first.content).to eq("t")
+    expect(doc.root.element_children.first.element_children.map(&:name))
+      .to eq(%w[c])
+    expect(newdoc.root).to be_nil  # source lost the element
+  end
+
+  it "same-document root= keeps the fast path" do
+    doc = Leptris::XML::Document.parse(%(<r><a/></r>))
+    el = doc.create_element("fresh")
+    doc.root = el
+    expect(doc.root.name).to eq("fresh")
+    expect(doc.root.equal?(el)).to be(true)
+  end
+end

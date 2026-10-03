@@ -493,6 +493,12 @@ attach_function :leptris_parse_string,
         [], :leptris_document
       attach_function :leptris_document_set_root,
         [:leptris_document, :leptris_element], :leptris_status
+      # 1.9.292 (#371): foreign roots are ADOPTED — deep-copied into
+      # this document's pool; out_installed reports the fresh
+      # handle (wrap THAT, not the source pointer). Legacy
+      # set_root adopts too but cannot report the installed node.
+      attach_function :leptris_document_set_root_ex,
+        [:leptris_document, :leptris_element, :pointer], :leptris_status
       attach_function :leptris_document_root,
         [:leptris_document], :leptris_element
       # The document node — navigation head over the whole tree
