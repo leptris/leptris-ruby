@@ -32,9 +32,9 @@ RSpec.describe "Stylesheet params (#360)" do
       .to eq("D")
   end
 
-  it "threads params through serialize" do
+  it "threads params through serialize (quoted string literals)" do
     sheet = Leptris::XML::XSLT.parse(sheet_src)
-    expect(sheet.serialize(doc, params: { "n" => "S" }))
+    expect(sheet.serialize(doc, params: { "n" => "'S'" }))
       .to include("<v>S</v>")
   end
 
@@ -51,7 +51,7 @@ RSpec.describe "Stylesheet params (#360)" do
     expect(out).to include(%(a="1")).and include(%(b="DB"))
   end
 
-  it "binds values as strings (caller owns quoting)" do
+  it "evaluates values as XPath expressions (engine 1.9.288+)" do
     src = <<~XSL
       <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
         <xsl:param name="n"/>
@@ -61,8 +61,10 @@ RSpec.describe "Stylesheet params (#360)" do
       </xsl:stylesheet>
     XSL
     sheet = Leptris::XML::XSLT.parse(src)
-    out = sheet.apply_to(doc, params: { "n" => "6" })
+    out = sheet.apply_to(doc, params: { "n" => "6" })   # expression: number
     expect(out.root.content).to eq("7")
+    out2 = sheet.apply_to(doc, params: { "n" => "4 * 3" })
+    expect(out2.root.content).to eq("13")
   end
 
   it "rejects non-Hash params" do

@@ -69,11 +69,13 @@ module Leptris::XML::XSLT
     # Apply to +document+ (not modified) and return the result tree
     # as an owning Document — query it with xpath/css like any other.
     #
-    # params (#360): top-level xsl:param overrides as a Hash of
-    # name => value. Values bind as XPath STRINGS verbatim — the
-    # caller owns numeric/boolean quoting (libxslt conventions:
-    # pass '7' for a number, matching nokogiri's quote_params).
-    # Absent names keep the param's select/@default.
+    # params (#360, engine 1.9.288 semantics): top-level xsl:param
+    # overrides as a Hash of name => value. Values evaluate as
+    # XPath EXPRESSIONS — the libxslt `params` convention callers
+    # know from nokogiri (whose quote_params exists to add the
+    # quotes): "7 * 6" binds 42, "'7'" binds the string "7",
+    # "string(/r/@v)" reads the source. A malformed expression
+    # fails the transform. Absent names keep select/@default.
     def apply_to(document, params: nil)
       raw, buffer, = with_param_pairs(params) do |pairs, count|
         if pairs
