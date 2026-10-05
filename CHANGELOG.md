@@ -1,3 +1,20 @@
+## [1.9.308.0] - 2026-10-05
+
+### Engine sync (libleptris 1.9.308)
+
+- **QT3 #1182 tail (leptris#1540)** — the 13 lever cases:
+  fn:avg's numeric promotion ladder with int64-exact decimal
+  division, the O(xs:double) carrier mark, typeswitch case `$v as
+  TYPE` binding arms, fn:apply function conversion (zero-arity,
+  atomization, sequence members), and fn:sum's per-type canonical
+  duration zero. Full QT3 61/61.
+- **Per-engine crates, step 1 (leptris#1541)** — the shared
+  leptris-descriptor ABI crate in a new Cargo workspace, with the
+  runtime layout gate (Rust size_of vs engine introspection +
+  build/walk round trip) and the build.rs stale-link cache fix.
+  Ruby-side impact: none (Rust-side surface; zero header deltas,
+  audit unchanged 369/368, suite 866/0).
+
 ## [1.9.307.0] - 2026-10-05
 
 ### Fixed
