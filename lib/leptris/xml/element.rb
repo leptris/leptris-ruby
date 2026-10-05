@@ -415,8 +415,17 @@ class Leptris::XML::Element < Leptris::XML::Node
     nil
   end
 
-  def prepend_child(node)
-    # C-bound insert (TODO.perf/14): gates + predicate + version
+  # Element-rooted build (leptris-ruby#374 lever 2): the block's
+  # markup is appended to this element's children in one crossing.
+  # See Builder for the DSL; Document#build for the document form.
+  def build
+    b = Leptris::XML::Builder.new
+    yield b
+    append_children(
+      Leptris::XML::DocumentFragment.parse(b.markup, @document).children.to_a)
+  end
+
+  def prepend_child(node)    # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
     # Cross-document nodes skip the fast path entirely (1.9.304,

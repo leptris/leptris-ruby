@@ -363,6 +363,51 @@ class Leptris::XML::Document
     end
   end
 
+  # Programmatic fresh-document construction in ONE crossing
+  # (leptris-ruby#374 lever 2): the block writes markup through the
+  # Builder (proper escaping, zero Ruby→C crossings), and the flush
+  # parses the whole buffer in a single native pass.
+  #
+  #   doc.build do |b|
+  #     b.catalog(id: "c") do
+  #       b.item(id: 1) { b.name "Item 1" }
+  #     end
+  #   end
+  #
+  # Contract: the buffer must produce exactly ONE root element (a
+  # fresh document takes it as the root; a document that already
+  # has a root receives the buffer's children INSIDE it). Returns
+  # the root wrapper.
+  def build
+    b = Leptris::XML::Builder.new
+    yield b
+    markup = b.markup
+    raise Leptris::XML::Error, "build block produced no markup" if markup.empty?
+
+    kids = Leptris::XML::DocumentFragment.parse(markup, self).children.to_a
+    elements, others = kids.partition { |n| n.is_a?(Leptris::XML::Element) }
+    raise Leptris::XML::Error,
+          "build must produce exactly one root element " \
+          "(got #{elements.size})" if elements.size != 1
+
+    root_element = elements.first
+    if root
+      root.append_children(kids)
+    else
+      # The fragment's nodes are attached to the fragment — detach
+      # before set_root (parent-attached elements are rejected).
+      others.each(&:unlink)
+      root_element.unlink
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_document_set_root_ex(
+          c_ptr, root_element.c_ptr, nil))
+      @version += 1
+      @root = Leptris::XML::Node.wrap(root_element.c_ptr, self)
+      @root_version = @version
+    end
+    root
+  end
+
   # Attach +element+ as the document's root element. The element must
   # have been created against this document and must not already have
   # a parent. Any previous root is left detached (still owned by the

@@ -1,3 +1,17 @@
+## [1.9.304.1] - 2026-10-05
+
+### Added
+
+- **Builder face (#374 lever 2)**: `Document#build` /
+  `Element#build { |b| ... }` — markup-accumulating subtree
+  construction with proper escaping (single-pass `& < > "` +
+  quote handling) and ONE fragment-parse crossing at flush.
+  method_missing element dispatch (`b.item(id: 1) { ... }`),
+  #text/#cdata/#comment/#raw node kinds, checked names on the
+  explicit path. Contract: the buffer produces exactly one root
+  element (fresh docs take it as root; rooted docs receive the
+  children inside the root). 500-item fresh build: 1.45x over
+  the object face, at parity/ahead of nokogiri.
 ## [1.9.304.0] - 2026-10-05
 
 ### Fixed
