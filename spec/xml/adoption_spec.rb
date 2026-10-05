@@ -60,3 +60,37 @@ RSpec.describe "cross-document adoption (#1528)" do
     expect(doc.root.append_children(batch)).to equal(batch)
   end
 end
+
+# 1.9.307 (#1534): the #1528 adoption gate covered ELEMENT splices
+# only — TEXT/CDATA/COMMENT/PI from a scratch document were still
+# spliced raw. Leaves now adopt by copy too.
+RSpec.describe "cross-document LEAF adoption (1.9.307, #1534)" do
+  it "subtree adoption carries leaves; scratch free survives" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(
+      %(<s><p>t1<c/></p><!-- note --><q><![CDATA[cd]]></q></s>))
+    doc.root.add_child(scratch.root)
+    scratch.free
+    expect(doc.xpath("//p").first.content).to eq("t1")
+    expect(doc.xpath("//q").first.children.first.content).to eq("cd")
+    expect(doc.root.to_xml).to include("<!-- note -->")
+  end
+
+  it "adopted in-subtree leaves survive scratch free + eval (#1534)" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(
+      %(<s><c>text &amp; more</c></s>))
+    doc.root.add_child(scratch.root.element_children.first)
+    scratch.free
+    expect(doc.xpath("//c").first.content).to eq("text & more")
+    expect(doc.root.to_xml).to include("text &amp; more")
+  end
+
+  it "add_child(String) fragment text survives the fragment lifetime" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    doc.root.add_child(%(<a>text & more</a>))
+    expect(doc.xpath("//a").first.content).to eq("text & more")
+    GC.start
+    expect(doc.root.to_xml).to include("text &amp; more")
+  end
+end
