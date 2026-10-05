@@ -39,7 +39,7 @@ module Leptris::XML
 
     def cdata(content)
       body = content.to_s
-      raise ArgumentError, "CDATA cannot contain ']]>'" if body.include?("]]>")
+      raise ArgumentError, %(CDATA cannot contain ']]>') if body.include?("]]>")
 
       @markup << "<![CDATA[" << body << "]]>"
       nil
