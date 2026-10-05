@@ -1,3 +1,17 @@
+## [1.9.307.0] - 2026-10-05
+
+### Fixed
+
+- **Cross-document LEAF adoption (libleptris 1.9.307, engine
+  #1534 — completing the #1528 fix)**: the #1528 adoption gate
+  covered ELEMENT splice arguments only — a TEXT/CDATA/COMMENT/PI
+  node from another document was still spliced raw, so appending
+  scratch-document leaves (the `add_child(String)` fragment path's
+  text children) and freeing the scratch left the tree pointing
+  into freed memory. The four splice seams now adopt non-element
+  arguments by copy too; same-document moves stay zero-copy.
+  Leaf-adoption specs pin the free-then-walk shape.
+
 ## 1.9.306.0 — 2026-10-05
 
 Rides libleptris v1.9.306 (pin 1.9.304 -> 1.9.306): the Lane 18
