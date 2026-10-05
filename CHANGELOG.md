@@ -1,3 +1,13 @@
+## [1.9.306.0] - 2026-10-05
+
+### Engine sync (libleptris 1.9.305-1.9.306)
+
+- Vendored libleptris 1.9.305-1.9.306: the Lane-18 mutation-bench
+  honesty work (#1533 + the Door-A row) — warm-both-sides timing,
+  the create/append split, and the opt-in parse fast path gate.
+  Bench-only upstream: zero binding-surface changes (zero header
+  deltas; audit unchanged), pin + version ride.
+
 ## [1.9.304.0] - 2026-10-05
 
 ### Fixed
