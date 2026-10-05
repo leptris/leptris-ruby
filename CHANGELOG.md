@@ -1,3 +1,26 @@
+## [1.9.302.0] - 2026-10-05
+
+### Engine sync (libleptris 1.9.293-1.9.302)
+
+Ten upstream releases ride in this pin — internal fixes and
+performance with NO binding-surface changes (zero header deltas
+292..302; the audit gate confirms 363/362 unchanged). Highlights:
+
+- **XQuery correctness**: a false() bound anywhere read as truthy;
+  fn:not uses the effective boolean value; fn:abs(()) is empty;
+  string lt/gt are codepoint comparisons; fn:avg edge shapes;
+  aggregates atomize array arguments; `instance of xs:integer`
+  demands integrality; xs:byte/unsignedByte/unsignedInt
+  constructors; fn:sum#2's zero argument.
+- **Collation**: UCA over the vendored DUCET table (slices 1-4) —
+  fn:normalize-unicode F&O conformance, collation-aware string
+  functions, 71+1078 QT3 cases adopted, implicit weights and
+  alternate=blanked.
+- **Performance**: per-thread recycle of mutation blocks (DOM
+  create/build/free).
+- **Rust bindings**: first tokenless crates.io release (leptris
+  v1.4.1) from CI.
+
 ## [1.9.292.0] - 2026-10-03
 
 ### Fixed
