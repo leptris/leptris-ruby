@@ -1,3 +1,24 @@
+## [1.9.304.0] - 2026-10-05
+
+### Fixed
+
+- **Cross-document appends adopt by copy — the xpath.rb:39 crash
+  class (engine #1528, libleptris 1.9.304)**: the engine's four
+  splice seams (append/prepend/insert_before/insert_after) no
+  longer splice foreign-document pointers raw — a scratch-doc
+  node appended into a live tree then freed with its document
+  dangled every adopted node and detonated the next compiled-XPath
+  eval (the metanorma sectioned-cleanup crash). The binding now
+  completes the contract: cross-document appends return the
+  INSTALLED in-tree wrapper (add_child, append_children, children=,
+  prepend_child, add_previous_sibling, add_next_sibling, wrap),
+  the #178 namespace lift runs before the splice, and the source
+  original is removed after (the historical move semantics —
+  source loses the node). Same-document appends stay
+  pointer-identical on the native fast path. The wrap face moves
+  self into the INSTALLED wrapper. Adoption specs include the
+  scratch-free + compiled-XPath crash shape.
+
 ## [1.9.302.0] - 2026-10-05
 
 ### Engine sync (libleptris 1.9.293-1.9.302)

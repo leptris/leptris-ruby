@@ -419,6 +419,21 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
+    # Cross-document nodes skip the fast path entirely (1.9.304,
+    # #1528): the engine deep-copies them at the splice, so the
+    # full path's lift must run FIRST and the source original is
+    # removed after (move semantics).
+    if node.document && !node.document.equal?(@document)
+      ensure_writable!
+      unless Leptris::XML::Element.skip_adoption_lift?(node)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+      end
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_element_prepend_child(c_ptr, node.c_ptr))
+      Leptris::XML::Node.invalidate_cross_document!(node, @document)
+      node.parent&.remove_child(node)
+      return children.to_a.first
+    end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 1).nil?
@@ -440,6 +455,20 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
+    # Cross-document: full path first (lift + engine copy), then
+    # the source original is removed; returns the installed copy
+    # (self's new next sibling).
+    if node.document && !node.document.equal?(@document)
+      ensure_writable!
+      unless Leptris::XML::Element.skip_adoption_lift?(node)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+      end
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
+      Leptris::XML::Node.invalidate_cross_document!(node, @document)
+      node.parent&.remove_child(node)
+      return self.next_sibling
+    end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 2).nil?
@@ -461,6 +490,20 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
+    # Cross-document: full path first (lift + engine copy), then
+    # the source original is removed; returns the installed copy
+    # (self's new previous sibling).
+    if node.document && !node.document.equal?(@document)
+      ensure_writable!
+      unless Leptris::XML::Element.skip_adoption_lift?(node)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+      end
+      Leptris::XML::FFI.check_status(
+        Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
+      Leptris::XML::Node.invalidate_cross_document!(node, @document)
+      node.parent&.remove_child(node)
+      return self.previous_sibling
+    end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 3).nil?
@@ -508,6 +551,9 @@ class Leptris::XML::Element < Leptris::XML::Node
       nodes.each { |n| add_child(n) }
       return
     end
+    cross = nodes.any? do |n|
+      n.document && !n.document.equal?(@document)
+    end
     if native_fast_children?
       addrs = nodes.map { |n| n.c_ptr.address }
       done = Leptris::XML::Native.append_binding_children(
@@ -516,13 +562,24 @@ class Leptris::XML::Element < Leptris::XML::Node
       if done >= nodes.size
         nodes.each do |n|
           Leptris::XML::Node.invalidate_cross_document!(n, @document)
+          remove_from_source_original(n) if cross
         end
-        return nodes
+        # 1.9.304 (#1528): foreign children were adopted by COPY —
+        # hand back the installed in-tree wrappers.
+        return cross ? children.to_a.last(nodes.size) : nodes
       end
       nodes[0, done].each do |n|
         Leptris::XML::Node.invalidate_cross_document!(n, @document)
+        remove_from_source_original(n) if cross
       end
       nodes = nodes[done..]
+    end
+    if cross
+      nodes.each do |n|
+        append_installed(n)
+        remove_from_source_original(n)
+      end
+      return children.to_a.last(nodes.size)
     end
     nodes.each { |n| add_child(n) }
     nodes
@@ -565,9 +622,12 @@ class Leptris::XML::Element < Leptris::XML::Node
     # add_child moves self (unlinks from old parent first), so no explicit
     # remove_child needed — and trying to remove after the move corrupts
     # the C tree (libleptris silently handles non-child args badly).
-    add_next_sibling(wrapper)
-    wrapper.add_child(self)
-    self
+    # The wrapper may be cross-document (parsed into a scratch doc,
+    # 1.9.304 #1528) — add_next_sibling returns the INSTALLED copy;
+    # move self into THAT.
+    installed = add_next_sibling(wrapper)
+    installed.add_child(self)
+    installed
   end
 
   # Deep copy in a NEW document via Document.copy_of (the single
@@ -608,6 +668,13 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
+      # Cross-document adoption (1.9.304, #1528): the engine
+      # deep-copies foreign nodes at the splice — the returned
+      # wrapper must be the INSTALLED copy, not the detached
+      # source. Route those through the re-resolving path.
+      cross = node_or_markup.document &&
+              !node_or_markup.document.equal?(@document)
+      return append_installed(node_or_markup) if cross
       # C-bound append (TODO.perf/08-09): one dispatch runs the
       # readonly/liveness gates, the provable no-op lift
       # predicate, the version bump, and the engine append. Qnil
@@ -659,6 +726,47 @@ class Leptris::XML::Element < Leptris::XML::Node
       raise ArgumentError, "add_child expects a Node or String, got #{node_or_markup.class}"
     end
   end
+  # Cross-document append (1.9.304, #1528): the engine deep-copies
+  # the foreign node at the splice, so the installed node is this
+  # element's LAST child — re-wrap it and return that. The binding
+  # keeps its historical MOVE semantics on top: namespaces are
+  # lifted BEFORE the copy (declarations survive), and the source
+  # original is removed after (the source loses the node, as
+  # every pre-304 caller observed).
+  def append_installed(node)
+    unless Leptris::XML::Element.skip_adoption_lift?(node)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+    end
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_element_append_child(c_ptr, node.c_ptr))
+    Leptris::XML::Node.invalidate_cross_document!(node, @document)
+    remove_from_source_original(node)
+    last_installed
+  end
+  private :append_installed
+
+  # 1.9.304 (#1528): a foreign child appended to this document was
+  # adopted by COPY — remove the ORIGINAL from its source document
+  # (the binding's move semantics). The wrapper's @parent may be
+  # unset for lazily minted wrappers, so ask the ENGINE for the
+  # source parent and remove through a wrapped handle.
+  def remove_from_source_original(node)
+    return unless node.document && !node.document.equal?(@document)
+
+    srcp = Leptris::XML::FFI.leptris_node_parent(node.c_ptr)
+    return if srcp.nil? || srcp.null?
+
+    Leptris::XML::Node.wrap(srcp, node.document).remove_child(node)
+  end
+  private :remove_from_source_original
+
+  # The last child, wrapped fresh through the document's identity
+  # cache (bypasses any stale self-side wrapper of the same node).
+  def last_installed    kids = children.to_a
+    kids.last
+  end
+  private :last_installed
+
   # The markup-append face appends in fragment order; the added
   # nodes are this element's last +count+ children.
   def last_added(count)

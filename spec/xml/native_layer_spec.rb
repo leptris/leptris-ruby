@@ -265,8 +265,9 @@ RSpec.describe "structural memos (TODO.perf/13)" do
     doc = Leptris::XML::Document.parse(%q{<r><slot/></r>})
     src = Leptris::XML::Document.parse(%q{<s><x><m/></x></s>})
     moved = src.root.element_children.first
-    doc.root.add_child(moved)
-    expect(moved.parent.name).to eq("r")
+    installed = doc.root.add_child(moved)
+    expect(installed.parent.name).to eq("r")
+    expect(installed.parent).to equal(doc.root)
     expect(src.root.element_children.size).to eq(0)
   end
 
