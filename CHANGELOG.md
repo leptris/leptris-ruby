@@ -1,3 +1,12 @@
+## 1.9.306.0 — 2026-10-05
+
+Rides libleptris v1.9.306 (pin 1.9.304 -> 1.9.306): the Lane 18
+mutation-path cycle — the adoption gate's mut-block fast bail
+(#1531), cross-document splice adoption (#1528), and the Lane 18
+gate bench made honest (warm both sides of the append row;
+create/append split, leptris/leptris#1533). No binding-surface
+change; the spec suite runs against the 1.9.306 engine.
+
 ## [1.9.304.0] - 2026-10-05
 
 ### Fixed
