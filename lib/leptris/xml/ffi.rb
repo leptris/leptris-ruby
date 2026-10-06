@@ -490,6 +490,14 @@ attach_function :leptris_parse_string,
         [:string, :pointer], :pointer
       attach_function :leptris_document_free,
         [:leptris_document], :void
+      # 1.9.311 (#1548): move semantics for doomed splice sources —
+      # one call transfers a source document's pool ownership into
+      # the destination, so subsequent cross-document splices move
+      # nodes by reference (O(1), no deep copy, no live-set
+      # doubling). The caller's src handle becomes handle-only;
+      # dst's free performs the real release. Chaining rejects.
+      attach_function :leptris_document_absorb,
+        [:leptris_document, :leptris_document], :leptris_status
       attach_function :leptris_document_create,
         [], :leptris_document
       attach_function :leptris_document_set_root,

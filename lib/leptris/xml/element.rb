@@ -752,6 +752,11 @@ class Leptris::XML::Element < Leptris::XML::Node
   # source parent and remove through a wrapped handle.
   def remove_from_source_original(node)
     return unless node.document && !node.document.equal?(@document)
+    # An ABSORBED source's splices move by reference (engine
+    # #1548): the node is already owned by this document — there is
+    # no source-side original to remove, and the engine parent is
+    # this tree's own parent.
+    return if node.document.absorbed_into?(@document)
 
     srcp = Leptris::XML::FFI.leptris_node_parent(node.c_ptr)
     return if srcp.nil? || srcp.null?

@@ -561,10 +561,51 @@ class Leptris::XML::Document
   end
   alias_method :c14n, :canonicalize
 
+  # Move semantics for doomed splice sources (1.9.311, engine
+  # #1548): transfer +other+'s pool ownership into this document
+  # in one call. Every subsequent cross-document splice of other's
+  # nodes into THIS document moves by reference — O(1), no deep
+  # copy, no live-set doubling (the sectioned-cleanup flow's 7GB
+  # cg3 overrun). other's handle becomes handle-only: its #free
+  # releases just the wrapper; this document's free performs the
+  # real release. Chaining rejects (an absorbed document cannot
+  # absorb or be absorbed again). Returns self.
+  def absorb(other)
+    raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
+    unless other.is_a?(Leptris::XML::Document)
+      raise ArgumentError, "absorb expects a Leptris::XML::Document"
+    end
+
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_document_absorb(c_ptr, other.c_ptr))
+    other.mark_absorbed_into(self)
+    self
+  end
+
+  # Absorption bookkeeping (private seam — never set ivars across
+  # objects by hand): the absorbed document's #free skips the
+  # engine release, and splice seams skip source-side removals
+  # because absorbed splices MOVE the node (nothing to remove).
+  def mark_absorbed_into(destination)
+    @absorbed_into = destination
+  end
+
+  def absorbed_into?(destination)
+    @absorbed_into&.equal?(destination)
+  end
+
+  def absorbed?
+    !@absorbed_into.nil?
+  end
+  private :absorbed?
   def free
     return if @freed.state == :freed
     @freed.state = :freed
-    Leptris::XML::FFI.leptris_document_free(c_ptr) unless c_ptr.nil?
+    # An absorbed source's pool is owned by its destination — this
+    # free is handle-only; the destination's free releases memory.
+    unless absorbed? || c_ptr.nil?
+      Leptris::XML::FFI.leptris_document_free(c_ptr)
+    end
     @c_ptr = nil
     @c_address = nil
     @wrapper_cache&.clear

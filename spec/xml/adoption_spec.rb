@@ -94,3 +94,53 @@ RSpec.describe "cross-document LEAF adoption (1.9.307, #1534)" do
     expect(doc.root.to_xml).to include("text &amp; more")
   end
 end
+
+# 1.9.311 (#1548): Document#absorb — move semantics for doomed
+# splice sources. Absorbed splices move by reference (O(1), no
+# copy); the source free is handle-only.
+RSpec.describe "Document#absorb (1.9.311, #1548)" do
+  it "absorbed splices move by reference and survive source free" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(
+      %(<s><sec id="a"><p>text</p><c/></sec><sec id="b"/></s>))
+    doc.absorb(scratch)
+    a = scratch.root.element_children.first
+    doc.root.add_child(a)
+    scratch.free # handle-only
+    expect(doc.xpath("//sec[@id='a']/p").first.content).to eq("text")
+    expect(doc.root.to_xml).to include(%(<sec id="a">))
+  end
+
+  it "repeated absorbed splices all survive one source free" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(
+      %(<s><i>1</i><i>2</i><i>3</i></s>))
+    doc.absorb(scratch)
+    scratch.root.element_children.to_a.each { |n| doc.root.add_child(n) }
+    scratch.free
+    expect(doc.xpath("//i").map(&:content)).to eq(%w[1 2 3])
+  end
+
+  it "rejects chaining and self-absorb" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    doc.absorb(scratch)
+    expect { scratch.absorb(doc) }
+      .to raise_error(Leptris::XML::Error, /argument|absorb/i)
+    expect { doc.absorb(doc) }
+      .to raise_error(Leptris::XML::Error, /argument/i)
+  end
+
+  it "splices into a THIRD document still deep-copy" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s><x>v</x><y>w</y></s>))
+    other = Leptris::XML::Document.parse(%(<o/>))
+    doc.absorb(scratch)
+    x, y = scratch.root.element_children.to_a
+    other.root.add_child(x)   # third doc: deep copy, source removed
+    doc.root.add_child(y)     # absorbed doc: move by reference
+    scratch.free
+    expect(other.xpath("//x").first.content).to eq("v")
+    expect(doc.xpath("//y").first.content).to eq("w")
+  end
+end
