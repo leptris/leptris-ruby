@@ -232,6 +232,20 @@ class Leptris::XML::Document
     wrap(raw)
   end
 
+  # Markup-accumulating construction (#374 lever 2): the block
+  # accumulates well-formed markup in Ruby; the flush performs
+  # ONE native crossing for the whole subtree. Exactly one root
+  # element — the parsed root is adopted with set_root_ex.
+  # Returns the flush's value (the installed root element).
+  #
+  #     doc = Leptris::XML::Document.create
+  #     doc.build { |b| b.catalog(id: "c") { b.item { b.name "x" } } }
+  def build
+    builder = Leptris::XML::Builder.new(self)
+    yield builder
+    builder.flush
+  end
+
   # Deep copy of +node+ in a NEW document — the one authority
   # behind Node#dup / Element#dup and the indent-unit path.
   # Elements deep-copy through the C copier (every child kind and

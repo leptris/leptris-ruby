@@ -1,3 +1,21 @@
+## [1.9.312.1] - 2026-10-07
+
+### Added
+
+- **Document#build / Element#build — the builder face (#374 lever
+  2)**: markup-accumulating construction. The block turns into
+  well-formed markup in Ruby (method_missing element dispatch
+  with attrs/text, `#text`/`#cdata`/`#comment`/`#raw`, one-pass
+  escaping of `& < > "`), and the flush performs ONE native
+  crossing for the whole subtree — parse + `root=` adoption for
+  document sinks (exactly one root, the parser enforces it;
+  returns the installed root wrapper), `append_markup` for
+  element sinks (returns the added NodeSet). Measured DSL-vs-DSL
+  under load (interleaved CPU-time medians, build(500)):
+  leptris builder 2.68 ms vs nokogiri's builder 5.29 ms —
+  **~2.0x** — and ~1.2x over our own object face (3.19 ms,
+  itself ~1.7x nokogiri after the 1.9.311.3 trim).
+
 ## [1.9.312.0] - 2026-10-07
 
 ### Added — engine sync (libleptris 1.9.312)
