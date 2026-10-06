@@ -74,6 +74,12 @@ class Leptris::XML::Descriptor
     raw: Leptris::XML::FFI::PLAN_KIND_RAW,
     content: Leptris::XML::FFI::PLAN_KIND_CONTENT,
     callback: Leptris::XML::FFI::PLAN_KIND_CALLBACK,
+    # libleptris 1.9.312 (#1552): the remainder bucket — binds
+    # every element child no named sibling row bound. Emits one
+    # COLLECTION (even when empty); named rows win regardless of
+    # row order. child_plan_index >= 0 walks members through that
+    # plan; -1 (the default) emits RAW serialized subtrees.
+    wildcard: Leptris::XML::FFI::PLAN_KIND_WILDCARD,
   }.freeze
   private_constant :KINDS
 
@@ -177,6 +183,10 @@ class Leptris::XML::Descriptor
         end
       ep[:ns_form] = ns_form
       ep[:ns_uri] = ns_uri
+      # libleptris 1.9.312 (#1551): the root plan's serialization
+      # prefix (ns_form EXACT rows emit "prefix:local" and the
+      # xmlns declaration lands once on the output root).
+      ep[:ns_prefix] = anchor_string(anchors, plan[:ns_prefix]) if plan[:ns_prefix]
       attrs = plan[:attributes] || []
       attr_memory = attrs.empty? ? nil :
         ::FFI::MemoryPointer.new(Leptris::XML::FFI::AttrPlan, attrs.size)
@@ -198,6 +208,9 @@ class Leptris::XML::Descriptor
         ap[:ns_uri] =
           row[:ns].is_a?(Hash) ?
             anchor_string(anchors, row[:ns].fetch(:exact)) : nil
+        # libleptris 1.9.312 (#1551): serialization prefix — with
+        # ns_form EXACT the attribute emits as "prefix:local".
+        ap[:ns_prefix] = anchor_string(anchors, row[:ns_prefix]) if row[:ns_prefix]
         pack_predicates(ap, row, anchors)
       end
       ep[:attribute_count] = attrs.size
@@ -214,16 +227,24 @@ class Leptris::XML::Descriptor
         cp[:child_plan_index] = row[:child_plan_index] || -1
         # Rule-level ns form (libleptris 1.9.178, #1115): siblings
         # under one parent can require different URIs when set;
-        # defaults to NONE for backward compatibility.
+        # defaults to NONE for backward compatibility. WILDCARD
+        # rows (#1552) read an explicit :ns through pad0 (an
+        # explicit :none filters no-namespace remainder alone;
+        # unset stays the catch-all ANY default).
         cp[:ns_form] =
           case row[:ns]
           when :any then Leptris::XML::FFI::PLAN_NS_ANY
           when Hash  then Leptris::XML::FFI::PLAN_NS_EXACT
           else         Leptris::XML::FFI::PLAN_NS_NONE
           end
+        cp[:pad0] = 1 if row[:kind] == :wildcard && row.key?(:ns)
         cp[:ns_uri] =
           row[:ns].is_a?(Hash) ?
             anchor_string(anchors, row[:ns].fetch(:exact)) : nil
+        # libleptris 1.9.312 (#1551): serialization prefix — with
+        # ns_form EXACT the element emits as "prefix:local" and
+        # its declaration lands once on the output root.
+        cp[:ns_prefix] = anchor_string(anchors, row[:ns_prefix]) if row[:ns_prefix]
         pack_predicates(cp, row, anchors)
       end
       ep[:child_count] = children.size
@@ -316,6 +337,26 @@ class Leptris::XML::Descriptor
     end
     Leptris::XML::PlanValue.new(ResultHandle.new(raw),
                                 owner: true, plans: @plans, plan: @plans[0])
+  end
+
+  # libleptris 1.9.312 (#1551): serialize a walk result back to
+  # XML guided by this plan — the plan supplies element wrappers
+  # (row wire_name + ns_prefix), the result the content; children
+  # emit in document order. Rows with ns_form EXACT + ns_prefix
+  # emit prefixed names and every distinct (prefix, uri) pair is
+  # declared exactly once, on the output root, first-encounter
+  # order. Text and attribute values are escaped; RAW members are
+  # verbatim.
+  def serialize(plan_value)
+    result_ptr = plan_value.result_ptr
+    status = ::FFI::MemoryPointer.new(:int)
+    raw = Leptris::XML::FFI.leptris_plan_serialize(
+      @handle, result_ptr, status)
+    if raw.null?
+      raise Leptris::XML::Error,
+        "plan serialize failed (status=#{status.read_int})"
+    end
+    Leptris::XML::FFI.read_owned_string(raw)
   end
 
   # The fused loop (#1269b): source bytes → typed rows in ONE C

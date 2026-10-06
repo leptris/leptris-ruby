@@ -378,3 +378,90 @@ RSpec.describe "Leptris::XML::Descriptor plan-ABI wiring (#1272/#1273/#1269 — 
     end
   end
 end
+
+# libleptris 1.9.312 (#1551): plan-guided serialization. The plan
+# supplies element wrappers (row wire_name + ns_prefix), the walk
+# result the content; children emit in document order and every
+# distinct (prefix, uri) pair is declared exactly once, on the
+# output root, in first-encounter order.
+RSpec.describe "Descriptor#serialize (1.9.312, #1551)" do
+  it "round-trips a namespaced subtree with prefixed wire names" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "doc", ns: { exact: "urn:w" }, ns_prefix: "w",
+      children: [
+        { name: "body", kind: :nested, ns: { exact: "urn:w" },
+          ns_prefix: "w", plan: {
+            name: "body", ns: { exact: "urn:w" },
+            attributes: [{ name: "id", kind: :scalar,
+                           ns: { exact: "urn:w" }, ns_prefix: "w" }],
+            children: [
+              { name: "p", kind: :scalar,
+                ns: { exact: "urn:w" }, ns_prefix: "w" },
+            ] } },
+      ])
+    doc = Leptris::XML::Document.parse(
+      %(<w:doc xmlns:w="urn:w"><w:body w:id="7"><w:p>text</w:p></w:body></w:doc>))
+    expect(plan.serialize(plan.walk(doc.root)))
+      .to eq(%(<w:doc xmlns:w="urn:w"><w:body w:id="7"><w:p>text</w:p></w:body></w:doc>))
+  end
+
+  it "declares each distinct prefix once on the root, first-encounter order" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "d", ns: { exact: "urn:a" }, ns_prefix: "a",
+      children: [
+        { name: "b", kind: :scalar, ns: { exact: "urn:b" }, ns_prefix: "b" },
+        { name: "c", kind: :scalar, ns: { exact: "urn:a" }, ns_prefix: "a" },
+      ])
+    doc = Leptris::XML::Document.parse(
+      %(<a:d xmlns:a="urn:a" xmlns:b="urn:b"><b:b>B</b:b><a:c>C</a:c></a:d>))
+    expect(plan.serialize(plan.walk(doc.root)))
+      .to eq(%(<a:d xmlns:a="urn:a" xmlns:b="urn:b"><b:b>B</b:b><a:c>C</a:c></a:d>))
+  end
+
+  it "escapes text and keeps plans without ns_prefix bare" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r", children: [{ name: "t", kind: :scalar }])
+    doc = Leptris::XML::Document.parse(%(<r><t>a &amp; b &lt;tag&gt;</t></r>))
+    expect(plan.serialize(plan.walk(doc.root)))
+      .to eq(%(<r><t>a &amp; b &lt;tag&gt;</t></r>))
+  end
+end
+
+# libleptris 1.9.312 (#1552): WILDCARD rows — the remainder bucket.
+# Named sibling rows take precedence regardless of row order; the
+# row emits exactly one COLLECTION (even when empty); an explicit
+# ns: filters the remainder.
+RSpec.describe "wildcard child rows (1.9.312, #1552)" do
+  it "binds the remainder in document order, named rows win" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "rest", kind: :wildcard },
+        { name: "known", kind: :scalar },
+      ])
+    doc = Leptris::XML::Document.parse(
+      "<r><known>a</known><other>1</other><extra>2</extra></r>")
+    tree = plan.walk(doc.root).to_ruby
+    expect(tree[:children]).to eq(["a", ["<other>1</other>", "<extra>2</extra>"]])
+  end
+
+  it "echoes an empty collection when every child was named" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "known", kind: :scalar },
+        { name: "rest", kind: :wildcard },
+      ])
+    doc = Leptris::XML::Document.parse("<r><known>a</known></r>")
+    expect(plan.walk(doc.root).to_ruby[:children]).to eq(["a", []])
+  end
+
+  it "ns: :none filters the remainder to no-namespace children" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [{ name: "rest", kind: :wildcard, ns: :none }])
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns:x="urn:x"><x:a/><b/></r>))
+    expect(plan.walk(doc.root).to_ruby[:children]).to eq([["<b/>"]])
+  end
+end

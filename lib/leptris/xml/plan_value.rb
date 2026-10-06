@@ -30,6 +30,13 @@ class Leptris::XML::PlanValue
     @counter = counter || [0]
   end
 
+  # The engine value handle — the ROOT value's is the whole-result
+  # handle whole-result faces (leptris_plan_serialize) read. Pass
+  # the value Descriptor#walk/#materialize returned.
+  def result_ptr
+    @ptr
+  end
+
   def kind
     @counter[0] += 1
     VALUE_KINDS.fetch(Leptris::XML::FFI.leptris_plan_value_kind(@ptr))

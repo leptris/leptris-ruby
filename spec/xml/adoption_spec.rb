@@ -282,3 +282,23 @@ RSpec.describe "absorbed-source exit finalization (#386)" do
     expect(out).to include("done")
   end
 end
+
+# Engine 1.9.312 (#1539): a leaf sitting directly on a scratch
+# document's children chain (prolog comment / PI) adopts
+# single-node on cross-document append — the chain copier
+# previously misread the root element as OOM
+# (LEPTRIS_ERROR_MEMORY).
+RSpec.describe "root-level leaf splice (#1539)" do
+  it "adopts a prolog comment from a scratch document" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(
+      %(<?xml version="1.0"?><!--note--><s/>))
+    leaf = scratch.children.first
+    expect(leaf).to be_a(Leptris::XML::Comment)
+    installed = doc.root.add_child(leaf)
+    expect(installed.comment?).to eq(true)
+    expect(doc.root.to_xml).to eq(%(<r><!--note--></r>))
+    scratch.free
+    expect(doc.root.to_xml).to eq(%(<r><!--note--></r>))
+  end
+end
