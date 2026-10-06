@@ -14,6 +14,7 @@ module Leptris
     autoload :Namespace, "leptris/xml/namespace"
     autoload :Document, "leptris/xml/document"
     autoload :DocumentFragment, "leptris/xml/document_fragment"
+    autoload :Builder, "leptris/xml/builder"
     autoload :DocType, "leptris/xml/doc_type"
     autoload :NodeSet, "leptris/xml/node_set"
     autoload :Searchable, "leptris/xml/searchable"

@@ -665,6 +665,17 @@ class Leptris::XML::Element < Leptris::XML::Node
     Leptris::XML::Node.wrap_fresh(ptr, @document, Leptris::XML::FFI::NODE_ELEMENT)
   end
 
+  # Markup-accumulating child construction (#374 lever 2): the
+  # block accumulates well-formed child markup in Ruby; the flush
+  # appends every fragment child in ONE native crossing
+  # (append_markup). Returns the flush's value (the NodeSet of
+  # added children).
+  def build
+    builder = Leptris::XML::Builder.new(self)
+    yield builder
+    builder.flush
+  end
+
   def add_child(node_or_markup)
     case node_or_markup
     when Leptris::XML::Node
