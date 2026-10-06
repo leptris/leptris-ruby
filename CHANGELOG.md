@@ -1,3 +1,29 @@
+## [1.9.311.0] - 2026-10-06
+
+### Added
+
+- **Document#absorb — move semantics for doomed splice sources
+  (libleptris 1.9.311, engine #1548)**: one call transfers a
+  scratch document's pool ownership into the destination, so
+  subsequent cross-document splices of its nodes move BY REFERENCE
+  — O(1), no deep copy, no live-set doubling (the sectioned-
+  cleanup flow's 7GB cg3 overrun; completes without the copy
+  blow-up). The absorbed document's #free is handle-only (the
+  destination's free performs the real release); splices into any
+  THIRD document still deep-copy; chaining rejects. The splice
+  seams skip source-side removal for absorbed sources (the move
+  already transferred the node — nothing to remove).
+  leptris_document_absorb attached (audit 370/369).
+
+### Fixed — engine sync (1.9.309-1.9.311)
+
+- 1.9.309: XPath signed exponent literals (`1E+1` truncated at
+  the E; the sign is part of the literal now).
+- 1.9.310: a typed cast stored the operator frame's stack buffer
+  in the result's borrowed atomic_type slot (ASAN stack-use-after-
+  return); recursive closures sharing parameter names with an
+  outer frame no longer drop the outer bindings.
+
 ## [1.9.308.0] - 2026-10-05
 
 ### Engine sync (libleptris 1.9.308)
