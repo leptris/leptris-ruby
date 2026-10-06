@@ -306,7 +306,12 @@ module Leptris
                # unset = the historical wire-name lookup.
                :ns_form, :uint8,
                :pad_ns, :uint8,
-               :ns_uri, :pointer
+               :ns_uri, :pointer,
+               # libleptris 1.9.312 (#1551): intended wire prefix
+               # for plan-path serialization (ns_form EXACT emits
+               # "ns_prefix:wire_name"). NULL keeps matching-only
+               # behavior.
+               :ns_prefix, :pointer
       end
       class ChildPlan < ::FFI::Struct
         layout :wire_name, :pointer,
@@ -321,7 +326,13 @@ module Leptris
                # #1272: element-side predicates (same semantics).
                :predicate_count, :uint16,
                :pad_pred, :uint16,
-               :predicates, :pointer
+               :predicates, :pointer,
+               # libleptris 1.9.312 (#1551): serialization prefix,
+               # same contract as AttrPlan's. For WILDCARD rows
+               # (libleptris 1.9.312, #1552) pad0 marks an EXPLICIT
+               # ns_form (0 then filters no-namespace remainder);
+               # unset keeps the catch-all ANY default.
+               :ns_prefix, :pointer
       end
       class ElementPlan < ::FFI::Struct
         layout :element_name, :pointer,
@@ -333,7 +344,10 @@ module Leptris
                :attribute_plans, :pointer,
                :child_plans, :pointer,
                :flags, :uint16,
-               :pad1, :uint16
+               :pad1, :uint16,
+               # libleptris 1.9.312 (#1551): the root plan's
+               # serialization prefix.
+               :ns_prefix, :pointer
       end
       class PlanSpec < ::FFI::Struct
         layout :abi_version, :uint32,
@@ -349,6 +363,11 @@ module Leptris
       PLAN_KIND_RAW = 4
       PLAN_KIND_CONTENT = 5
       PLAN_KIND_CALLBACK = 6
+      # libleptris 1.9.312 (#1552): catch-all row — binds every
+      # element child no named sibling row bound (named rows win
+      # regardless of order); emits one COLLECTION echoing the
+      # row's wire_name/type_tag, members in document order.
+      PLAN_KIND_WILDCARD = 7
 
       PLAN_FLAG_MIXED_CONTENT = 0x1
       PLAN_FLAG_ORDERED = 0x2
@@ -391,6 +410,12 @@ module Leptris
         :leptris_plan_result
       attach_function :leptris_plan_result_free,
         [:leptris_plan_result], :void
+      # libleptris 1.9.312 (#1551): serialize a walk result back
+      # to XML guided by its plan — the plan supplies element
+      # wrappers (row wire_name + ns_prefix), the result the
+      # content. Caller-freed string (leptris_free_string).
+      attach_function :leptris_plan_serialize,
+        [:leptris_plan, :leptris_plan_result, :pointer], :pointer
       attach_function :leptris_plan_value_kind,
         [:leptris_plan_result], :int
       attach_function :leptris_plan_value_name,

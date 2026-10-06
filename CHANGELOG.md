@@ -1,3 +1,34 @@
+## [1.9.312.0] - 2026-10-07
+
+### Added — engine sync (libleptris 1.9.312)
+
+- **Descriptor#serialize — plan-guided serialization (#1551)**:
+  `leptris_plan_serialize` round-trips a walk result back to XML —
+  the plan supplies element wrappers (row wire_name + the new
+  `ns_prefix:` field on element/child/attr rows), the result the
+  content. Children emit in document order; rows with ns EXACT +
+  `ns_prefix:` emit prefixed names and every distinct (prefix,
+  uri) pair is declared exactly once, on the output root, in
+  first-encounter order; text/attr values escape; RAW members are
+  verbatim. The three plan structs take the additive trailing
+  `ns_prefix` field (attr row 40 → 48B; the row-size skew gate
+  holds). `PlanValue#result_ptr` exposes the whole-result handle
+  the face reads.
+- **Wildcard child rows (#1552)**: `kind: :wildcard` binds every
+  element child no named sibling row bound — named rows win
+  regardless of row order; the row emits exactly one COLLECTION
+  (echoing wire_name/type_tag, even when empty); members keep
+  document order; an explicit `ns:` filters the remainder
+  (`ns: :none` binds no-namespace children alone; unset stays the
+  catch-all ANY default). PLAN_KIND_WILDCARD = 7.
+
+### Fixed — engine sync (1.9.312)
+
+- **Root-level leaf splices adopt single-node (#1539)**: a leaf
+  directly on a scratch document's children chain (prolog
+  comment / PI) no longer reports LEPTRIS_ERROR_MEMORY on
+  cross-document append — spec-pinned in the adoption suite.
+
 ## [1.9.311.3] - 2026-10-06
 
 ### Performance
