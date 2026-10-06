@@ -446,7 +446,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 1).nil?
-        Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
     end
@@ -456,7 +455,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_prepend_child(c_ptr, node.c_ptr))
-    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
@@ -481,7 +479,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 2).nil?
-        Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
     end
@@ -491,7 +488,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
-    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
@@ -516,7 +512,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
         @document, @c_address, node.c_ptr.address, 3).nil?
-        Leptris::XML::Node.invalidate_cross_document!(node, @document)
         return node
       end
     end
@@ -526,7 +521,6 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
-    Leptris::XML::Node.invalidate_cross_document!(node, @document)
     node
   end
 
@@ -672,7 +666,6 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   def add_child(node_or_markup)
-    ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
       # Foreign-child adoption (1.9.304, #1528): the engine
@@ -686,22 +679,24 @@ class Leptris::XML::Element < Leptris::XML::Node
       # readonly/liveness gates, the provable no-op lift
       # predicate, the version bump, and the engine append. Qnil
       # means the child needs the namespace lift — fall through
-      # to the full path.
+      # to the full path. Same-document children cannot reach
+      # here from another document (foreign ones routed above),
+      # so there is no cross-document sweep to run (#374): the
+      # C-side version bump invalidates this document's memos.
       if native_fast_children?
         # The face raises on failure (TODO.perf/36); Qnil = the
         # child needs the lift — the full path handles it.
         unless Leptris::XML::Native.append_binding_child(
           @document, @c_address, node_or_markup.c_ptr.address).nil?
-          Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
           return node_or_markup
         end
       end
+      ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node_or_markup)
         Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       end
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_append_child(c_ptr, node_or_markup.c_ptr))
-      Leptris::XML::Node.invalidate_cross_document!(node_or_markup, @document)
       node_or_markup
     when String
       # TODO.perf/34: one dispatch parses the markup and appends
@@ -721,6 +716,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         # path (it re-fails fast)
         Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       end
+      ensure_writable!
       frag = Leptris::XML::DocumentFragment.parse(node_or_markup, @document)
       added = []
       frag.children.each do |n|
@@ -741,6 +737,7 @@ class Leptris::XML::Element < Leptris::XML::Node
   # original is removed after (the source loses the node, as
   # every pre-304 caller observed).
   def append_installed(node)
+    ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end

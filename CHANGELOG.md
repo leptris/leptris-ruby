@@ -1,3 +1,21 @@
+## [1.9.311.3] - 2026-10-06
+
+### Performance
+
+- **Same-document splices stop paying the cross-document sweep
+  (#374, the fresh-doc 0.80x follow-up)**: every fast splice path
+  is reached only after `foreign_to?` said no — the child's
+  document IS this one — so the post-splice
+  `invalidate_cross_document!` (a method call plus two ivar reads
+  that always returned at the equal check) was dead weight on the
+  hottest construction loop. Removed from the add_child /
+  prepend_child / sibling-insert fast paths and their FFI tails
+  (the foreign and batch paths keep their sweeps); `add_child` no
+  longer runs the Ruby-side readonly/version gate twice when the
+  C face self-gates. Measured under load with interleaved
+  CPU-time medians (3 rounds, 15k appends): add_child 1.69 →
+  1.41 µs/call (~16%), programmatic build ~14%.
+
 ## [1.9.311.2] - 2026-10-06
 
 ### Fixed
