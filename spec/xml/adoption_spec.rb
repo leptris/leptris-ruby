@@ -144,3 +144,102 @@ RSpec.describe "Document#absorb (1.9.311, #1548)" do
     expect(doc.xpath("//y").first.content).to eq("w")
   end
 end
+
+# #376 shape 3: moxml's create_element hands the binding FLOATING
+# (docless) wrappers — Node wrappers whose #document is nil but
+# whose C node is live in a foreign pool. The adoption contract
+# applies to them exactly as to attached-foreign nodes: the splice
+# returns the INSTALLED copy, declarations ride the lift.
+RSpec.describe "docless-child adoption (#376)" do
+  def docless_element(doc, name)
+    ptr = Leptris::XML::FFI.leptris_element_create(doc.c_ptr, name)
+    Leptris::XML::Node.wrap_fresh(ptr, nil, Leptris::XML::FFI::NODE_ELEMENT)
+  end
+
+  it "add_child of a docless element returns the installed copy" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    floater = docless_element(scratch, "made")
+    floater["id"] = "7"
+    installed = doc.root.add_child(floater)
+    expect(installed.name).to eq("made")
+    expect(installed["id"]).to eq("7")
+    expect(installed.document).to equal(doc)
+    expect(installed.parent).to equal(doc.root)
+    expect(doc.root.element_children.first).to equal(installed)
+  end
+
+  it "a docless element with a namespace keeps its declaration" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    attached = scratch.create_element("nsed")
+    attached.add_namespace_definition("x", "urn:x")
+    floater = Leptris::XML::Node.wrap_fresh(
+      attached.c_ptr, nil, Leptris::XML::FFI::NODE_ELEMENT)
+    expect(floater.document).to be_nil
+    installed = doc.root.add_child(floater)
+    expect(installed.name).to eq("nsed")
+    expect(installed.namespace_definitions.map(&:href)).to eq(%w[urn:x])
+    expect(doc.root.to_xml).to include(%(xmlns:x="urn:x"))
+  end
+
+  it "docless comment and processing-instruction children adopt" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    comment_ptr = Leptris::XML::FFI.leptris_document_add_comment(
+      scratch.c_ptr, "note")
+    floater = Leptris::XML::Node.wrap_fresh(
+      comment_ptr, nil, Leptris::XML::FFI::NODE_COMMENT)
+    installed = doc.root.add_child(floater)
+    expect(installed.comment?).to eq(true)
+    expect(installed.content).to eq("note")
+    expect(installed.document).to equal(doc)
+    expect(doc.root.to_xml).to eq(%(<r><!--note--></r>))
+  end
+
+  it "append_children returns installed copies for docless batches" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    floaters = %w[a1 a2].map { |n| docless_element(scratch, n) }
+    installed = doc.root.append_children(floaters)
+    expect(installed.map(&:name)).to eq(%w[a1 a2])
+    expect(installed.map(&:document).uniq).to eq([doc])
+    expect(doc.root.element_children.map(&:name)).to eq(%w[a1 a2])
+  end
+
+  it "prepend_child and sibling inserts return installed positions" do
+    doc = Leptris::XML::Document.parse(%(<r><keep/></r>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    first = docless_element(scratch, "lead")
+    installed = doc.root.prepend_child(first)
+    expect(installed.name).to eq("lead")
+    expect(doc.root.element_children.first).to equal(installed)
+
+    anchor = doc.root.element_children.last
+    after = docless_element(scratch, "tail")
+    nxt = anchor.add_next_sibling(after)
+    expect(nxt.name).to eq("tail")
+    expect(anchor.next_sibling).to equal(nxt)
+
+    before = docless_element(scratch, "head")
+    prev = anchor.add_previous_sibling(before)
+    expect(prev.name).to eq("head")
+    expect(anchor.previous_sibling).to equal(prev)
+  end
+
+  it "root= of a docless element installs a proper copy" do
+    doc = Leptris::XML::Document.create
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    floater = docless_element(scratch, "made")
+    floater["id"] = "9"
+    doc.root = floater
+    expect(doc.root.name).to eq("made")
+    expect(doc.root.document).to equal(doc)
+    # writes through the destination must land in the destination
+    doc.root["k"] = "v"
+    expect(doc.root["k"]).to eq("v")
+    expect(doc.root.to_xml).to eq(%(<made id="9" k="v"/>))
+    scratch.free
+    expect(doc.root.to_xml).to eq(%(<made id="9" k="v"/>))
+  end
+end
