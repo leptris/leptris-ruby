@@ -11,7 +11,9 @@ class Leptris::XML::Document
   # the explicit `free` path and the finalizer. This eliminates the
   # double-free that FFI::AutoPointer's release proc caused when
   # `Document#free` was called explicitly and then GC ran.
-  Freed = Struct.new(:state)  # state: :alive | :freed
+  # +absorbed+ (engine #1548, #386): pool ownership moved to an
+  # absorber — the finalizer must never call the engine free.
+  Freed = Struct.new(:state, :absorbed)  # state: :alive | :freed
 
   # Mutation version: advanced by every data mutation (via
   # Node#ensure_writable!, root=, add_pi). Node memos stamp the
@@ -286,7 +288,7 @@ class Leptris::XML::Document
 
   def self.finalizer(address, freed)
     proc do
-      next if freed.state == :freed
+      next if freed.state == :freed || freed.absorbed
       freed.state = :freed
       Leptris::XML::FFI.leptris_document_free(::FFI::Pointer.new(address))
     end
@@ -591,8 +593,16 @@ class Leptris::XML::Document
   # objects by hand): the absorbed document's #free skips the
   # engine release, and splice seams skip source-side removals
   # because absorbed splices MOVE the node (nothing to remove).
+  # The flag is mirrored into every release path (#386): the
+  # shared Freed struct (the no-native Ruby finalizer reads it)
+  # and the C lifetime handle (dh_free must be handle-only when
+  # the pool belongs to the absorber).
   def mark_absorbed_into(destination)
     @absorbed_into = destination
+    @freed.absorbed = true
+    if defined?(Leptris::XML::NATIVE_FAST)
+      Leptris::XML::Native.doc_handle_mark_absorbed(self)
+    end
   end
 
   def absorbed_into?(destination)

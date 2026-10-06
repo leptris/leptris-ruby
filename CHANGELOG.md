@@ -1,3 +1,20 @@
+## [1.9.311.2] - 2026-10-06
+
+### Fixed
+
+- **Absorbed sources alive at exit no longer double-free the pool
+  (#386)**: `Document#absorb`'s handle-only contract was enforced
+  only by the explicit `#free` — the C lifetime handle's dfree
+  and the no-native Ruby finalizer still called
+  `leptris_document_free`, destroying a pool already owned (and
+  released) by the absorber. Libraries that pin adopted-source
+  documents (moxml's lifetime pins) aborted at exit-time
+  finalization (`leptris_pool_destroy` → `free_small_botch`). The
+  absorbed flag now lives where every release path reads it: the
+  shared `Freed` struct (Ruby finalizer) and the C handle
+  (`doc_handle_mark_absorbed`; dfree is handle-only when the pool
+  moved). Both paths pinned by subprocess regression specs.
+
 ## [1.9.311.1] - 2026-10-06
 
 ### Fixed

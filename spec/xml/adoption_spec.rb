@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "open3"
 require "spec_helper"
 
 # 1.9.304 / #1528: foreign nodes are ADOPTED BY COPY at the splice.
@@ -241,5 +242,43 @@ RSpec.describe "docless-child adoption (#376)" do
     expect(doc.root.to_xml).to eq(%(<made id="9" k="v"/>))
     scratch.free
     expect(doc.root.to_xml).to eq(%(<made id="9" k="v"/>))
+  end
+end
+
+# #386: the absorb contract permits sources that stay ALIVE — a
+# library that pins adopted-source documents (moxml's lifetime
+# pins) keeps their handles past the destination's release, so
+# every finalization path must know the pool moved: the C
+# lifetime handle's dfree and the no-native Ruby finalizer.
+# Subprocess: the abort fires at exit-time finalization, which an
+# in-process suite cannot observe.
+RSpec.describe "absorbed-source exit finalization (#386)" do
+  REPRO = <<~'RUBY'
+    require "leptris"
+    doc = Leptris::XML::Document.parse("<r/>")
+    pinned = []
+    50.times do |i|
+      scratch = Leptris::XML::Document.parse("<s#{i}><x v='1'>t</x></s#{i}>")
+      doc.absorb(scratch)
+      doc.root.add_child(scratch.root.element_children.first)
+      pinned << scratch
+      GC.start
+    end
+    puts "done"
+  RUBY
+
+  it "does not double-free the transferred pool (native path)" do
+    lib = File.expand_path("../../lib", __dir__)
+    out, status = Open3.capture2e(RbConfig.ruby, "-I", lib, "-e", REPRO)
+    expect(status).to be_success
+    expect(out).to include("done")
+  end
+
+  it "does not double-free the transferred pool (FFI finalizer path)" do
+    lib = File.expand_path("../../lib", __dir__)
+    out, status = Open3.capture2e(
+      { "LEPTRIS_NO_NATIVE" => "1" }, RbConfig.ruby, "-I", lib, "-e", REPRO)
+    expect(status).to be_success
+    expect(out).to include("done")
   end
 end

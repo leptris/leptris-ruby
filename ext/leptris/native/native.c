@@ -2682,15 +2682,21 @@ static VALUE nf_fast_inner_xml(VALUE self, VALUE addr)
  * Ruby-finalizer path (which stays for LEPTRIS_NO_NATIVE). */
 struct doc_handle {
     void *doc;
+    /* Pool ownership transferred to an absorber (engine #1548):
+     * the destination's free performs the real release, so this
+     * handle's dfree is HANDLE-ONLY (#386: malloc_zone_error /
+     * free_small_botch when an absorbed source survived to
+     * exit-time finalization after its destination's release). */
+    int absorbed;
 };
 
 static void dh_free(void *p)
 {
     struct doc_handle *h = p;
-    if (h->doc) {
+    if (h->doc && !h->absorbed) {
         f_doc_free(h->doc);
-        h->doc = NULL;
     }
+    h->doc = NULL;
 }
 
 static size_t dh_size(const void *p)
@@ -2884,6 +2890,22 @@ static VALUE nf_doc_handle_release(VALUE self, VALUE document)
         struct doc_handle *h;
         TypedData_Get_Struct(handle, struct doc_handle, &dh_type, h);
         h->doc = NULL;
+    }
+    return Qnil;
+}
+
+/* Absorption bookkeeping (#386, engine #1548): Document#absorb
+ * calls this on the SOURCE right after the engine transfers pool
+ * ownership — the handle's dfree becomes handle-only, matching
+ * the Ruby-side Freed flag the no-native finalizer reads. */
+static VALUE nf_doc_handle_mark_absorbed(VALUE self, VALUE document)
+{
+    VALUE handle = rb_ivar_get(document, id_iv_doc_handle);
+    (void)self;
+    if (handle != Qnil) {
+        struct doc_handle *h;
+        TypedData_Get_Struct(handle, struct doc_handle, &dh_type, h);
+        h->absorbed = 1;
     }
     return Qnil;
 }
@@ -3158,6 +3180,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_doc_handle_attach, 1);
     rb_define_module_function(m_native, "doc_handle_release",
                               nf_doc_handle_release, 1);
+    rb_define_module_function(m_native, "doc_handle_mark_absorbed",
+                              nf_doc_handle_mark_absorbed, 1);
     rb_define_module_function(m_native, "create_binding_document",
                               nf_create_binding_document, 0);
     c_doc_handle = rb_define_class_under(m_xml, "DocHandle", rb_cObject);
