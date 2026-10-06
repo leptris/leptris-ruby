@@ -389,6 +389,15 @@ class Leptris::XML::Element < Leptris::XML::Node
     !Leptris::XML::Native.ns_lift_needed?(node.c_ptr.address)
   end
 
+  # A node is foreign to +document+ when it belongs to another one
+  # — or to NONE (#376): moxml's created nodes are live C nodes
+  # wrapped without a document, and they splice by copy exactly
+  # like attached-foreign ones. One definition of "foreign" for
+  # the element splices and Document#root=.
+  def self.foreign_to?(node, document)
+    node.document.nil? || !node.document.equal?(document)
+  end
+
   def self.lift_namespaces_for_adoption(node, target_scope)
     return unless node.is_a?(Leptris::XML::Element)
     # Declarations the node already carries (its own definitions —
@@ -419,11 +428,11 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
-    # Cross-document nodes skip the fast path entirely (1.9.304,
-    # #1528): the engine deep-copies them at the splice, so the
-    # full path's lift must run FIRST and the source original is
-    # removed after (move semantics).
-    if node.document && !node.document.equal?(@document)
+    # Cross-document and docless nodes skip the fast path entirely
+    # (1.9.304, #1528; #376): the engine deep-copies them at the
+    # splice, so the full path's lift must run FIRST and the source
+    # original is removed after (move semantics).
+    if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
         Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
@@ -455,10 +464,10 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
-    # Cross-document: full path first (lift + engine copy), then
-    # the source original is removed; returns the installed copy
-    # (self's new next sibling).
-    if node.document && !node.document.equal?(@document)
+    # Cross-document and docless (#376): full path first (lift +
+    # engine copy), then the source original is removed; returns
+    # the installed copy (self's new next sibling).
+    if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
         Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
@@ -490,10 +499,10 @@ class Leptris::XML::Element < Leptris::XML::Node
     # C-bound insert (TODO.perf/14): gates + predicate + version
     # bump + engine insert in one dispatch; Qnil = the child needs
     # the namespace lift — the full path below handles it.
-    # Cross-document: full path first (lift + engine copy), then
-    # the source original is removed; returns the installed copy
-    # (self's new previous sibling).
-    if node.document && !node.document.equal?(@document)
+    # Cross-document and docless (#376): full path first (lift +
+    # engine copy), then the source original is removed; returns
+    # the installed copy (self's new previous sibling).
+    if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
         Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
@@ -551,9 +560,7 @@ class Leptris::XML::Element < Leptris::XML::Node
       nodes.each { |n| add_child(n) }
       return
     end
-    cross = nodes.any? do |n|
-      n.document && !n.document.equal?(@document)
-    end
+    cross = nodes.any? { |n| Leptris::XML::Element.foreign_to?(n, @document) }
     if native_fast_children?
       addrs = nodes.map { |n| n.c_ptr.address }
       done = Leptris::XML::Native.append_binding_children(
@@ -668,13 +675,13 @@ class Leptris::XML::Element < Leptris::XML::Node
     ensure_writable!
     case node_or_markup
     when Leptris::XML::Node
-      # Cross-document adoption (1.9.304, #1528): the engine
+      # Foreign-child adoption (1.9.304, #1528): the engine
       # deep-copies foreign nodes at the splice — the returned
       # wrapper must be the INSTALLED copy, not the detached
-      # source. Route those through the re-resolving path.
-      cross = node_or_markup.document &&
-              !node_or_markup.document.equal?(@document)
-      return append_installed(node_or_markup) if cross
+      # source. Docless wrappers count as foreign (#376): moxml's
+      # created nodes carry live C pointers with no owning
+      # document, and their callers expect the in-tree handle.
+      return append_installed(node_or_markup) if Leptris::XML::Element.foreign_to?(node_or_markup, @document)
       # C-bound append (TODO.perf/08-09): one dispatch runs the
       # readonly/liveness gates, the provable no-op lift
       # predicate, the version bump, and the engine append. Qnil

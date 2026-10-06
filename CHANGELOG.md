@@ -1,3 +1,26 @@
+## [1.9.311.1] - 2026-10-06
+
+### Fixed
+
+- **Docless children now route through the adoption contract
+  (#376)**: moxml's created nodes arrive as Node wrappers whose
+  #document is nil but whose C node is live in a foreign pool —
+  the splice sites' foreign check required a document, so those
+  children bypassed the namespace lift and, worse, the returned
+  wrapper addressed the ABANDONED source instead of the installed
+  in-tree copy (moxml's flows then mutated a node the tree never
+  saw). `foreign_child?` now treats document-nil as foreign at
+  add_child, prepend_child, add_next_sibling,
+  add_previous_sibling, and append_children, so every splice
+  returns the installed wrapper. Document#root= routes docless
+  roots through the copying ex-face too — the plain set_root of a
+  foreign-pool node linked the pointer WITHOUT adopting it into
+  the destination pool, so destination-side writes landed in the
+  source arena and reads through the root memo missed them.
+  Node-level mutations on docless
+  wrappers no longer crash the version gate (they memoize
+  nothing, so there is no version to advance).
+
 ## [1.9.311.0] - 2026-10-06
 
 ### Added

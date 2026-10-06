@@ -281,14 +281,15 @@ class Leptris::XML::Node
   # passes through this gate, so it is where the document's mutation
   # version advances — the invalidation behind writable-document
   # memoization. Bumping before the C call is conservative: a failed
-  # mutation merely discards memos.
+  # mutation merely discards memos. Docless wrappers (#376) mutate
+  # fine — they memoize nothing, so there is no version to advance.
   def ensure_writable!
     ensure_alive!
     if readonly_document?
       raise Leptris::XML::ReadOnlyError,
         "document is readonly — mutation attempted on #{inspect}"
     end
-    @document.advance_version
+    @document&.advance_version
     nil
   end
 

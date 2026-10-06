@@ -388,7 +388,12 @@ class Leptris::XML::Document
     # the foreign subtree into this document's pool and reports the
     # installed element — a fresh handle distinct from the source
     # pointer. Same-document installs keep the native fast path.
-    cross = element.document && !element.document.equal?(self)
+    # Docless roots count as foreign (#376): a plain set_root of a
+    # foreign-pool node links the pointer WITHOUT adopting it into
+    # this pool — writes through this document land in the source
+    # arena and reads through the root memo miss them. The ex-face
+    # copies properly.
+    cross = Leptris::XML::Element.foreign_to?(element, self)
     installed_ptr = nil
     if cross
       out = ::FFI::MemoryPointer.new(:pointer)
