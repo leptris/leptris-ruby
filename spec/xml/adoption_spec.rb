@@ -302,3 +302,34 @@ RSpec.describe "root-level leaf splice (#1539)" do
     expect(doc.root.to_xml).to eq(%(<r><!--note--></r>))
   end
 end
+
+# Engine 1.9.313 (#1557): absorption-aware release at the C ABI.
+# The anchor dying while the source handle is still outstanding
+# defers the pool release to that handle's free (absorbed_deferred)
+# instead of clearing the state — the holder's free performs the
+# full release, handles released before the anchor keep the
+# handle-only no-op. The binding's #386 mitigation stays as
+# defense-in-depth; this pins the engine-side contract.
+RSpec.describe "absorbed-source release ordering (#1557)" do
+  it "anchor freed first, holder freed after — no double release" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s><x>v</x></s>))
+    doc.absorb(scratch)
+    doc.root.add_child(scratch.root.element_children.first)
+    expect(doc.root.to_xml).to eq(%(<r><x>v</x></r>))
+    doc.free
+    scratch.free
+    GC.start
+    expect(true).to eq(true) # reaching here is the contract — no abort
+  end
+
+  it "handle released before the anchor keeps the no-op shape" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s/>))
+    doc.absorb(scratch)
+    scratch.free # holder first: handle-only
+    doc.free
+    GC.start
+    expect(true).to eq(true)
+  end
+end
