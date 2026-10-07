@@ -380,6 +380,13 @@ module Leptris
       PLAN_NS_NONE = 0
       PLAN_NS_EXACT = 1
       PLAN_NS_ANY = 2
+      # libleptris 1.9.317 (#1560): matches the UNWRITTEN spelling
+      # on element rows — no written prefix, regardless of the
+      # effective namespace URI (binds under both a namespace-less
+      # and a default-xmlns document; prefixed spellings never
+      # bind). Attributes have no unprefixed namespace by XML
+      # rules, so the form is element-row only.
+      PLAN_NS_UNQUALIFIED = 3
 
       PLAN_VALUE_ELEMENT = 0
       PLAN_VALUE_SCALAR = 1
