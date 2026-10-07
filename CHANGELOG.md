@@ -1,3 +1,17 @@
+## [1.9.317.1] - 2026-10-08
+
+### Fixed
+
+- **The published 1.9.317.0 gem predates PR #395**: a parallel
+  release race published 1.9.317.0 from the carrier-folds ride
+  (bd81bdf) before the `:unqualified` ns form merged — this patch
+  release carries the #1560 `ns: :unqualified` DSL (element rows
+  bind the unwritten spelling under both namespace-less and
+  default-xmlns documents; the serialize→re-parse→re-walk
+  round-trip agrees) and the #1565 nested-capture serialization
+  pin to the published artifact line. Main already carried both
+  (PR #395); only the gem lagged.
+
 ## [1.9.317.0] - 2026-10-08
 
 ### Added — engine sync (libleptris 1.9.315-1.9.317)
