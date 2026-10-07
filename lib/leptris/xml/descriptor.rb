@@ -175,11 +175,15 @@ class Leptris::XML::Descriptor
         case ns
         when nil, :none then [Leptris::XML::FFI::PLAN_NS_NONE, nil]
         when :any then [Leptris::XML::FFI::PLAN_NS_ANY, nil]
+        when :unqualified
+          # libleptris 1.9.317 (#1560): the UNWRITTEN spelling.
+          [Leptris::XML::FFI::PLAN_NS_UNQUALIFIED, nil]
         when Hash
           [Leptris::XML::FFI::PLAN_NS_EXACT,
            anchor_string(anchors, ns.fetch(:exact))]
         else
-          raise ArgumentError, "ns must be :none, :any, or {exact: uri}"
+          raise ArgumentError,
+            "ns must be :none, :any, :unqualified, or {exact: uri}"
         end
       ep[:ns_form] = ns_form
       ep[:ns_uri] = ns_uri
@@ -230,10 +234,14 @@ class Leptris::XML::Descriptor
         # defaults to NONE for backward compatibility. WILDCARD
         # rows (#1552) read an explicit :ns through pad0 (an
         # explicit :none filters no-namespace remainder alone;
-        # unset stays the catch-all ANY default).
+        # unset stays the catch-all ANY default). :unqualified
+        # (libleptris 1.9.317, #1560) matches the unwritten
+        # spelling on element rows — element-row only (attributes
+        # have no unprefixed namespace by XML rules).
         cp[:ns_form] =
           case row[:ns]
           when :any then Leptris::XML::FFI::PLAN_NS_ANY
+          when :unqualified then Leptris::XML::FFI::PLAN_NS_UNQUALIFIED
           when Hash  then Leptris::XML::FFI::PLAN_NS_EXACT
           else         Leptris::XML::FFI::PLAN_NS_NONE
           end

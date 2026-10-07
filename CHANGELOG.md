@@ -1,3 +1,35 @@
+## [1.9.317.0] - 2026-10-08
+
+### Added — engine sync (libleptris 1.9.315-1.9.317)
+
+- **Unqualified-only ns form for child rows (1.9.317, #1560)**:
+  `ns: :unqualified` matches the UNWRITTEN spelling — an
+  unprefixed child binds under both a namespace-less document and
+  a default-`xmlns` document, and prefixed spellings never bind
+  (the `NS_ANY` superset lutaml-model#932 had to settle for). The
+  form keys on the spelling, not the URI, so
+  serialize→re-parse→re-walk round-trips agree: a default-ns child
+  serializes bare and still re-binds. Element-row only (attributes
+  have no unprefixed namespace by XML rules). `PLAN_NS_UNQUALIFIED
+  = 3` attached; all three shapes + the round-trip spec-pinned.
+
+### Fixed — engine sync (1.9.316)
+
+- **Nested captures emit their own rows (#1565)**: a captured
+  child's rows resolve against the CAPTURING row's
+  `child_plan_index` plan, so a child bound by a nested row (the
+  `w:font`-in-`w:fonts` shape) serializes its own attribute and
+  child rows instead of silently vanishing — pinned through
+  `Descriptor#serialize`.
+
+### Engine sync (1.9.315)
+
+- Carrier-by-pointer node identity for the higher-order argument
+  channel (QT3 fold-left-009/016): element members keep their node
+  pointer, `intersect` dedups by node, single-element results ride
+  the carrier. Engine-internal to the XQuery engine — the binding
+  contract is unchanged (suite carries it).
+
 ## [1.9.314.0] - 2026-10-07
 
 ### Changed — engine sync (libleptris 1.9.314)

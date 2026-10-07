@@ -465,3 +465,81 @@ RSpec.describe "wildcard child rows (1.9.312, #1552)" do
     expect(plan.walk(doc.root).to_ruby[:children]).to eq([["<b/>"]])
   end
 end
+
+# libleptris 1.9.317 (#1560): the UNQUALIFIED ns form matches the
+# UNWRITTEN spelling on element rows — no written prefix,
+# regardless of the effective namespace URI. Element-row only
+# (attributes have no unprefixed namespace by XML rules).
+RSpec.describe "unqualified child-row ns form (1.9.317, #1560)" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "c", kind: :nested, ns: :unqualified, plan: {
+          name: "c", ns: :unqualified,
+          attributes: [{ name: "x", kind: :scalar }],
+          children: [{ name: "t", kind: :scalar, ns: :unqualified }] } },
+      ])
+  end
+
+  it "binds unprefixed children under a namespace-less document" do
+    doc = Leptris::XML::Document.parse(%(<r><c x="1"><t>v</t></c></r>))
+    tree = plan.walk(doc.root).to_ruby
+    expect(tree[:children].first[:attributes]).to eq("x" => "1")
+    expect(tree[:children].first[:children]).to eq(["v"])
+  end
+
+  it "binds unprefixed children under a default-xmlns document" do
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns="urn:d"><c x="2"><t>w</t></c></r>))
+    tree = plan.walk(doc.root).to_ruby
+    expect(tree[:children].first[:attributes]).to eq("x" => "2")
+    expect(tree[:children].first[:children]).to eq(["w"])
+  end
+
+  it "never binds prefixed spellings (the NS_ANY superset)" do
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns:p="urn:p"><p:c x="3"/></r>))
+    expect(plan.walk(doc.root).to_ruby[:children]).to eq([])
+  end
+
+  it "round-trips: serialized bare form re-binds after re-parse" do
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns="urn:d"><c x="2"><t>w</t></c></r>))
+    out = plan.serialize(plan.walk(doc.root))
+    expect(out).to eq(%(<r><c x="2"><t>w</t></c></r>))
+    rewalked = plan.walk(Leptris::XML::Document.parse(out).root).to_ruby
+    expect(rewalked[:children].first[:children]).to eq(["w"])
+  end
+
+  it "rejects :unqualified in the boundary error message" do
+    expect { Leptris::XML::Descriptor.build(name: "r", ns: :bogus) }
+      .to raise_error(ArgumentError, /:unqualified/)
+  end
+end
+
+# libleptris 1.9.316 (#1565): a captured child's rows resolve
+# against the CAPTURING row's child_plan_index plan — a child
+# bound by a nested row serializes its own attribute and child
+# rows (the w:font-in-w:fonts shape) instead of silently
+# vanishing against the parent plan.
+RSpec.describe "nested-capture serialization (1.9.316, #1565)" do
+  it "emits the inner rows at every nesting level" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "fonts", ns: { exact: "urn:w" }, ns_prefix: "w",
+      children: [
+        { name: "font", kind: :nested, ns: { exact: "urn:w" },
+          ns_prefix: "w", plan: {
+            name: "font", ns: { exact: "urn:w" },
+            attributes: [{ name: "name", kind: :scalar }],
+            children: [
+              { name: "sz", kind: :scalar,
+                ns: { exact: "urn:w" }, ns_prefix: "w" },
+            ] } },
+      ])
+    doc = Leptris::XML::Document.parse(
+      %(<w:fonts xmlns:w="urn:w"><w:font name="A"><w:sz>12</w:sz></w:font></w:fonts>))
+    expect(plan.serialize(plan.walk(doc.root)))
+      .to eq(%(<w:fonts xmlns:w="urn:w"><w:font name="A"><w:sz>12</w:sz></w:font></w:fonts>))
+  end
+end
