@@ -38,12 +38,21 @@ RSpec.describe "Leptris::XML::XQuery (libleptris 1.9.64-1.9.66)" do
   end
 
   it "builds direct constructors with attribute value templates" do
-    expect(xquery(%q{<out total="{count(//item)}">{string(//item[1]/name)}</out>}))
-      .to eq('<out total="3">Alpha</out>')
+    # 1.9.314 (#181): element constructors materialize into real
+    # documents and yield their root ELEMENT node.
+    out = xquery(%q{<out total="{count(//item)}">{string(//item[1]/name)}</out>}).first
+    expect(out).to be_a(Leptris::XML::Element)
+    expect(out.name).to eq("out")
+    expect(out["total"]).to eq("3")
+    expect(out.at_xpath("string()") || out.content).to eq("Alpha")
+    expect(out.to_xml).to eq('<out total="3">Alpha</out>')
   end
 
   it "builds computed constructors" do
-    expect(xquery(%q{element big { string(//item[3]/name) }})).to eq("<big>Gamma</big>")
+    big = xquery(%q{element big { string(//item[3]/name) }}).first
+    expect(big).to be_a(Leptris::XML::Element)
+    expect(big.name).to eq("big")
+    expect(big.content).to eq("Gamma")
   end
 
   it "partitions the tuple stream with group by (1.9.67)" do
@@ -83,9 +92,13 @@ RSpec.describe "Leptris::XML::XQuery (libleptris 1.9.64-1.9.66)" do
   end
 
   it "returns a constructor from a for clause (leptris/leptris#790 fixed in 1.9.68)" do
-    # constructor items arrive as readable serialized strings
+    # 1.9.314 (#181): constructed elements ride sequences as real
+    # nodes — one stable element per evaluation, serialized on
+    # demand (the string-value collapse is gone).
     result = xquery(%q{for $i in //item return <v>{$i/name/text()}</v>})
-    expect(result.map(&:content).join)
+    expect(result.map { |n| n }).to all(be_a(Leptris::XML::Element))
+    expect(result.map(&:name).uniq).to eq(%w[v])
+    expect(result.map(&:to_xml).join)
       .to eq("<v>Alpha</v><v>Beta</v><v>Gamma</v>")
   end
 end
