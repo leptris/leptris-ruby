@@ -1,3 +1,17 @@
+## [1.9.313.0] - 2026-10-07
+
+### Fixed — engine sync (libleptris 1.9.313)
+
+- **Absorption-aware release at the C ABI (#1557, engine #1566)**:
+  the follow-up to the #386 mitigation — `leptris_document_free`
+  now consults the absorption state itself. The anchor dying while
+  `absorbed_handle > 0` detaches the source and defers its release
+  to the outstanding holder's free (`absorbed_deferred`); handles
+  released before the anchor keep the #1548 handle-only no-op. C
+  consumers no longer need to mirror the absorbed flag at their own
+  release sites; the binding's 1.9.311.2 mitigation stays as
+  defense-in-depth. Both release orderings spec-pinned.
+
 ## [1.9.312.1] - 2026-10-07
 
 ### Added
