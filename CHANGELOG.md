@@ -1,3 +1,33 @@
+## [1.9.314.0] - 2026-10-07
+
+### Changed — engine sync (libleptris 1.9.314)
+
+- **XQuery element constructors yield real nodes (#181, engine
+  #1568)**: `<a>…</a>`, `element name {…}`, and PI/comment
+  constructors materialize into real documents and yield their
+  root ELEMENT node — identity, axis steps, and higher-order
+  callbacks see one stable node per evaluation, and constructed
+  elements ride sequences, maps, `fn:reverse`, `unordered`, and
+  `deep-equal` as markup instead of collapsing to their string
+  value. Consumers wanting the old string form serialize
+  (`result.first.to_xml`). Source-doc anchoring (#691) fixes an
+  order-dependent use-after-free; the (AST, content)-keyed memo
+  bounds per-reference re-materialization (the fold-recursion
+  stress peaks ~83MB, was 200GB unbounded). The three
+  constructor-result pins adopt the node-yielding contract.
+
+### Fixed
+
+- **Whitespace DOM shape pinned cross-platform (#1559, engine
+  #1569)**: the divergence investigation traced to the 1.9.311
+  linux-aarch64 prebuilt binary. The binding mirrors
+  `test_ws_shape` — every indentation run preserved, nested
+  bibitem shape, sole-child whitespace as content, CRLF→LF
+  normalization, no text nodes in collapsed spellings — so any
+  stale or diverging vendored binary goes red on its own runner
+  (the gem-smoke ubuntu-24.04-arm leg exercises the published
+  aarch64 gem).
+
 ## [1.9.313.0] - 2026-10-07
 
 ### Fixed — engine sync (libleptris 1.9.313)
