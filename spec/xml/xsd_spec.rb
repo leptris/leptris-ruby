@@ -162,3 +162,63 @@ RSpec.describe "XSD instance validation (1.9.321 slices 3-4)" do
       .to raise_error(ArgumentError, /not a top-level element/)
   end
 end
+
+# libleptris 1.9.323 (#1592): inline ANONYMOUS complexType/
+# simpleType capture — the most common XSD spelling previously
+# got no content model (validation silently skipped the content
+# check; content_valid? answered -1). Inline types capture under
+# a synthesized element:NAME slot now.
+RSpec.describe "XSD inline anonymous type capture (1.9.323, #1592)" do
+  let(:schema) do
+    Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="book">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="title" type="xs:token"/>
+              <xs:element name="author" type="xs:token"
+                          minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <xs:attribute name="lang" type="xs:token" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:schema>
+    XSD
+  end
+
+  it "enforces the content model of inline anonymous types" do
+    good = Leptris::XML::Document.parse(
+      %(<book lang="en"><title>T</title><author>A</author></book>))
+    expect(schema.valid?(good)).to be(true)
+
+    bad = Leptris::XML::Document.parse(
+      %(<book lang="en"><author>A</author><author>B</author><isbn>9</isbn></book>))
+    expect(schema.valid?(bad)).to be(false)
+    expect(schema.validate_errors(bad)).to include(/content model/)
+  end
+
+  it "answers content_valid? for inline anonymous declarations" do
+    kids = Leptris::XML::Document.parse(
+      %(<b><title>t</title><author>x</author></b>)).root.element_children
+    expect(schema.content_valid?("book", kids)).to be(true)
+    swapped = Leptris::XML::Document.parse(
+      %(<b><author>x</author><title>t</title></b>)).root.element_children
+    expect(schema.content_valid?("book", swapped)).to be(false)
+  end
+
+  it "types anonymous simpleType particles' text" do
+    simple = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="code">
+          <xs:simpleType>
+            <xs:restriction base="xs:token">
+              <xs:pattern value="[A-Z]{3}"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+      </xs:schema>
+    XSD
+    expect(simple.valid?(Leptris::XML::Document.parse(%(<code>ABC</code>)))).to be(true)
+    expect(simple.valid?(Leptris::XML::Document.parse(%(<code>ABCD</code>)))).to be(false)
+  end
+end
