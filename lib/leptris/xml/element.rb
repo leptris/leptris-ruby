@@ -943,6 +943,14 @@ class Leptris::XML::Element < Leptris::XML::Node
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
 
+  # Nokogiri parity (leptris#1595): to_s serializes the node —
+  # the default Object#to_s object dump leaked into migrated
+  # consumers (coradoc math stems). Serialization options ride
+  # to_xml; to_s is the no-options convenience form.
+  def to_s
+    to_xml
+  end
+
   # HTML5 serialization of this element subtree (#309 — see
   # Document#to_html for the semantics).
   def to_html

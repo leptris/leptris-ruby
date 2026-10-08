@@ -533,6 +533,11 @@ class Leptris::XML::Document
       Leptris::XML::Serialization::DOCUMENT_SERIALIZE_INTO, c_ptr,
       indent: indent, no_decl: no_decl, encoding: encoding)
   end
+
+  # Nokogiri parity (leptris#1595): to_s serializes the document.
+  def to_s
+    to_xml
+  end
   alias_method :to_s, :to_xml
   alias_method :serialize, :to_xml
 
