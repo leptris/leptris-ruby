@@ -1304,6 +1304,18 @@ attach_function :leptris_parse_string,
         [:string, :string], :int
       attach_function :leptris_xsd_simple_valid,
         [:leptris_xsd_schema, :string, :string], :int
+      # Slices 3-4 (libleptris 1.9.321, #1075): content models via
+      # Thompson NFA and whole-document instance validation with
+      # accumulated errors.
+      attach_function :leptris_xsd_content_valid,
+        [:leptris_xsd_schema, :string, :pointer, :pointer, :size_t],
+        :int
+      attach_function :leptris_xsd_validate,
+        [:leptris_xsd_schema, :leptris_document], :int
+      attach_function :leptris_xsd_error_count,
+        [:leptris_xsd_schema], :size_t
+      attach_function :leptris_xsd_error_at,
+        [:leptris_xsd_schema, :size_t], UTF8_STRING
 
       attach_function :leptris_rng_parse,
         [:string, :size_t, :pointer], :leptris_relaxng

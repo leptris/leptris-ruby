@@ -74,6 +74,57 @@ module Leptris::XML::XSD
       msg.nil? || msg.empty? ? nil : msg
     end
 
+    # Slices 3-4 (libleptris 1.9.321, #1075): instance validation.
+    # +document+ is a Leptris::XML::Document. Returns the engine's
+    # accumulated error messages ([] = valid); -1 (validator could
+    # not run) raises — a silent [] would read as "valid".
+    def validate(document)
+      r = Leptris::XML::FFI.leptris_xsd_validate(@handle, document.c_ptr)
+      case r
+      when 1 then []
+      when 0
+        Leptris::XML::FFI.leptris_xsd_error_count(@handle).times.map do |i|
+          msg = Leptris::XML::FFI.leptris_xsd_error_at(@handle, i)
+          msg.nil? || msg.empty? ? "validation failed" : msg
+        end
+      else
+        raise Leptris::XML::Error,
+          "validator could not run on this document"
+      end
+    end
+
+    def valid?(document)
+      validate(document).empty?
+    end
+
+    # Slice 3: content-model check for one element's children —
+    # +children+ is the child element local-name list, +child_ns+
+    # their (possibly nil) namespace URI list. Unknown element
+    # names raise (the -1 contract).
+    def content_valid?(element_name, children, child_ns: nil)
+      names = children.map(&:to_s)
+      ns = child_ns || Array.new(names.size)
+      names_ptr = ::FFI::MemoryPointer.new(:pointer, names.size + 1)
+      ns_ptr = ::FFI::MemoryPointer.new(:pointer, names.size + 1)
+      name_ptrs = names.map { |n| ::FFI::MemoryPointer.from_string(n) }
+      ns_ptrs = ns.each_with_index.map do |u, idx|
+        u && !u.to_s.empty? ? ::FFI::MemoryPointer.from_string(u.to_s) : nil
+      end
+      name_ptrs.each_with_index { |p, idx| names_ptr.put_pointer(idx * 8, p) }
+      names_ptr.put_pointer(names.size * 8, nil)
+      ns_ptrs.each_with_index { |p, idx| ns_ptr.put_pointer(idx * 8, p) }
+      ns_ptr.put_pointer(names.size * 8, nil)
+      r = Leptris::XML::FFI.leptris_xsd_content_valid(
+        @handle, element_name.to_s, names_ptr, ns_ptr, names.size)
+      case r
+      when 1 then true
+      when 0 then false
+      else
+        raise ArgumentError,
+          "#{element_name.inspect} is not a global element in this schema"
+      end
+    end
+
     # Slice 2 (libleptris 1.9.319, #1075): lexical validation of
     # +lexical+ against the user simpleType +type_name+ (local
     # name) — restriction chains validate every hop's facets,
