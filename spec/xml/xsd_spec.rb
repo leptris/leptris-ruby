@@ -102,3 +102,63 @@ RSpec.describe "XSD lexical validation (1.9.319 slice 2)" do
     end
   end
 end
+
+# libleptris 1.9.321 (#1075 slices 3-4): content models through a
+# Thompson NFA and whole-instance validation with enumerated
+# failures. The inline-anonymous complexType capture gap is filed
+# upstream (leptris#1592) — these pins use the named-ref shape,
+# which captures and validates end to end.
+RSpec.describe "XSD instance validation (1.9.321 slices 3-4)" do
+  let(:schema) do
+    Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:complexType name="bookType">
+          <xs:sequence>
+            <xs:element name="title" type="xs:date"/>
+            <xs:element name="author" type="xs:token"/>
+          </xs:sequence>
+          <xs:attribute name="lang" type="xs:token" use="required"/>
+        </xs:complexType>
+        <xs:element name="book" type="bookType"/>
+      </xs:schema>
+    XSD
+  end
+
+  it "accepts a valid instance" do
+    doc = Leptris::XML::Document.parse(
+      %(<book lang="en"><title>2026-01-02</title><author>A</author></book>))
+    expect(schema.valid?(doc)).to be(true)
+    expect(schema.validate_errors(doc)).to be_empty
+  end
+
+  it "enumerates lexical failures with element context" do
+    doc = Leptris::XML::Document.parse(
+      %(<book lang="en"><title>not-a-date</title><author>A</author></book>))
+    expect(schema.valid?(doc)).to be(false)
+    errors = schema.validate_errors(doc)
+    expect(errors).not_to be_empty
+    expect(errors.first).to include("title")
+  end
+
+  it "checks required attributes" do
+    doc = Leptris::XML::Document.parse(
+      %(<book><title>2026-01-02</title><author>A</author></book>))
+    expect(schema.valid?(doc)).to be(false)
+  end
+
+  it "orders content through the NFA (content_valid?)" do
+    kids = Leptris::XML::Document.parse(
+      %(<b><title>2026-01-02</title><author>x</author></b>)).root.element_children
+    expect(schema.content_valid?("book", kids)).to be(true)
+    swapped = Leptris::XML::Document.parse(
+      %(<b><author>x</author><title>2026-01-02</title></b>)).root.element_children
+    expect(schema.content_valid?("book", swapped)).to be(false)
+  end
+
+  it "raises on unknown element declarations (the -1 contract)" do
+    kids = Leptris::XML::Document.parse(%(<b><title>2026-01-02</title></b>))
+      .root.element_children
+    expect { schema.content_valid?("nope", kids) }
+      .to raise_error(ArgumentError, /not a top-level element/)
+  end
+end
