@@ -1,3 +1,17 @@
+## [1.9.323.0] - 2026-10-08
+
+### Fixed — engine sync (libleptris 1.9.323)
+
+- **Inline anonymous complexType/simpleType capture (#1592,
+  engine PR #1596)**: elements carrying an inline anonymous type —
+  the most common XSD spelling — previously got no content model
+  (instance validation silently skipped their content check;
+  content_valid? answered -1). Inline types capture under a
+  synthesized element:NAME slot now; particle text types through
+  the slot too. Pinned: content-model enforcement with enumerated
+  errors, content_valid? answering, anonymous simpleType
+  patterns binding.
+
 ## [1.9.322.0] - 2026-10-08
 
 ### Engine sync (libleptris 1.9.322)
