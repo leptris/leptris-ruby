@@ -1,3 +1,14 @@
+## [1.9.322.0] - 2026-10-08
+
+### Engine sync (libleptris 1.9.322)
+
+- `leptris validate --xsd FILE` rides the CLI's validate command
+  (compile error detail, every accumulated instance error,
+  non-zero exit) — CLI-only, no binding surface; audit 381/380
+  unchanged. The inline-anonymous complexType capture fix
+  (leptris#1592, engine PR #1596) merged after this tag and ships
+  with the engine's next release — the binding pin follows there.
+
 ## [1.9.321.0] - 2026-10-08
 
 ### Added — engine sync (libleptris 1.9.321)
