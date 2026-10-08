@@ -144,3 +144,28 @@ RSpec.describe "Leptris::XML::Schematron (libleptris 1.9.144 family)" do
     end
   end
 end
+
+# libleptris 1.9.319: the regex engine's {n} EXACT quantifiers
+# parsed open-ended — [A-Z]{3} matched ABCD. Any schema using
+# exact bounds silently over-accepted; never-again pin through
+# the binding's datatype path.
+RSpec.describe "RELAX NG exact {n} quantifiers (1.9.319)" do
+  let(:schema) do
+    Leptris::XML::RelaxNG.parse(<<~RNG)
+      <element name="code" xmlns="http://relaxng.org/ns/structure/1.0"
+               datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+        <data type="token">
+          <param name="pattern">[A-Z]{3}</param>
+        </data>
+      </element>
+    RNG
+  end
+
+  it "accepts exactly-n runs" do
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<code>ABC</code>)))).to be(true)
+  end
+
+  it "rejects longer runs" do
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<code>ABCD</code>)))).to be(false)
+  end
+end

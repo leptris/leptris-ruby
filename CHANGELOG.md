@@ -1,3 +1,33 @@
+## [1.9.319.0] - 2026-10-08
+
+### Added — engine sync (libleptris 1.9.319)
+
+- **XSD lexical validation, slice 2 (#1075)**:
+  `XSD.builtin_valid?` covers the tier-1 built-in table (string
+  family, token, boolean, decimal/integer ranges, float/double,
+  date/time with bounds, duration, hex/base64Binary) by the
+  "xs:NAME" reference spelling; `Schema#simple_valid?` resolves
+  user simpleTypes through cycle-guarded restriction chains
+  (pattern / enumeration / min-max / length / digits facets).
+  The C face's -1 (not-in-table / unknown type) raises — a silent
+  false would let misspelled types validate nothing forever.
+  (Slice 1's compile surface rode in the parallel 1.9.318.0.)
+
+### Fixed — engine sync (1.9.319)
+
+- **RELAX NG exact `{n}` quantifiers (PR #1583)**: the regex
+  engine's no-comma branch never set the hi bound — `[A-Z]{3}`
+  matched `ABCD`, so any schema using exact bounds silently
+  over-accepted. Pinned through the binding's datatype path
+  (accepts ABC, rejects ABCD).
+
+### Performance — engine sync (1.9.318)
+
+- Per-thread small-span arena recycle (#1436): the tiny-doc
+  create/destroy row drops ~15% (183→159 ns/doc quiet-hardware) —
+  engine-internal; the binding inherits it on every
+  Document.create cycle.
+
 ## [1.9.317.1] - 2026-10-08
 
 ### Fixed

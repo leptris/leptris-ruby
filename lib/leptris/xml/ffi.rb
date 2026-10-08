@@ -1295,6 +1295,15 @@ attach_function :leptris_parse_string,
         [:leptris_xsd_schema], :size_t
       attach_function :leptris_xsd_error,
         [:leptris_xsd_schema], UTF8_STRING
+      # Slice 2 (libleptris 1.9.319, #1075): lexical validation.
+      # Built-ins take the "xs:NAME" reference spelling; -1 = not
+      # in the tier-1 table. simple_valid resolves a user
+      # simpleType by local name through cycle-guarded restriction
+      # chains; -1 = unknown type.
+      attach_function :leptris_xsd_builtin_valid,
+        [:string, :string], :int
+      attach_function :leptris_xsd_simple_valid,
+        [:leptris_xsd_schema, :string, :string], :int
 
       attach_function :leptris_rng_parse,
         [:string, :size_t, :pointer], :leptris_relaxng
