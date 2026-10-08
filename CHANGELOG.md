@@ -1,3 +1,20 @@
+## [1.9.321.0] - 2026-10-08
+
+### Added — engine sync (libleptris 1.9.321)
+
+- **XSD instance validation, slices 3-4 (#1075)**:
+  `Schema#valid?` walks the whole document — element declarations,
+  attribute rows (required + typed + lenient qualified spellings),
+  text lexical checks, child content models through a Thompson NFA
+  (linear in children x states, no backtracking blowup);
+  `Schema#validate_errors` enumerates every failure (the engine
+  replaces the list per run); `Schema#content_valid?` evaluates a
+  child sequence directly against a top-level declaration's model.
+  The -1 contract raises (unknown declaration never masquerades as
+  invalid input). Pins use the named-ref shape — the inline-
+  anonymous complexType capture gap is filed upstream
+  (leptris#1592).
+
 ## [1.9.320.0] - 2026-10-08
 
 ### Fixed — engine sync (libleptris 1.9.320)
