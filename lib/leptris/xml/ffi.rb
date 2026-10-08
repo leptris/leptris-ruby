@@ -157,6 +157,7 @@ module Leptris
       typedef :pointer, :leptris_xpath_ns_set
       typedef :pointer, :leptris_xpath_compiled
       typedef :pointer, :leptris_relaxng
+      typedef :pointer, :leptris_xsd_schema
       typedef :pointer, :leptris_xslt
       typedef :pointer, :leptris_xquery
       typedef :pointer, :leptris_schematron
@@ -1275,6 +1276,18 @@ attach_function :leptris_parse_string,
                :line, :int,
                :column, :int
       end
+
+      # XSD tier-1 (libleptris 1.9.318, #1075): compilation surface —
+      # compile a schema, count its top-level declarations, surface
+      # schema-level errors. Validation is a later tier.
+      attach_function :leptris_xsd_compile,
+        [:string, :size_t, :pointer], :leptris_xsd_schema
+      attach_function :leptris_xsd_free,
+        [:leptris_xsd_schema], :void
+      attach_function :leptris_xsd_declaration_count,
+        [:leptris_xsd_schema], :size_t
+      attach_function :leptris_xsd_error,
+        [:leptris_xsd_schema], UTF8_STRING
 
       attach_function :leptris_rng_parse,
         [:string, :size_t, :pointer], :leptris_relaxng
