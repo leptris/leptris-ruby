@@ -1,3 +1,21 @@
+## [1.9.320.0] - 2026-10-08
+
+### Fixed — engine sync (libleptris 1.9.320)
+
+- **Exact-URI child rows survive build-anchor GC (#1585)**: the
+  engine's plan build let child-row `ns_uri` ride a pointer into
+  the caller's build buffers instead of deep-copying — bindings
+  GC their anchors after build, so exact-URI child rows
+  deterministically stopped matching (uniword's
+  dc:title/dc:creator/dc:description hydrated nil). The engine
+  retains the URI; pinned with build + GC + walk.
+- **Plain attribute rows match any qualification (#1586)**:
+  ns-unset attr rows try the exact wire spelling first, then any
+  qualification by local name (#758 parity) — plain rows bind
+  `w:name`/`w:val` exactly as the interpretive path does, top
+  level and nested; exact-URI rows keep their #1486 precedence.
+  Pinned at both depths.
+
 ## [1.9.319.0] - 2026-10-08
 
 ### Added — engine sync (libleptris 1.9.319)

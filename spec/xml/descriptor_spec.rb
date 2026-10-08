@@ -543,3 +543,51 @@ RSpec.describe "nested-capture serialization (1.9.316, #1565)" do
       .to eq(%(<w:fonts xmlns:w="urn:w"><w:font name="A"><w:sz>12</w:sz></w:font></w:fonts>))
   end
 end
+
+# libleptris 1.9.320 (#1585): the engine's plan build deep-copied
+# child ns_prefix but let exact-URI ns_uri ride a pointer into the
+# CALLER's build buffers — bindings GC their anchors after build,
+# so a warm walk plus one GC deterministically stopped the rows
+# matching (uniword's dc:title/dc:creator). The engine retains the
+# URI now; this pin keeps it that way.
+RSpec.describe "exact-URI child rows survive build-anchor GC (#1585)" do
+  it "still binds after GC trashes the build buffers" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "title", kind: :scalar,
+          ns: { exact: "http://purl.org/dc/elements/1.1/" } },
+        { name: "creator", kind: :scalar,
+          ns: { exact: "http://purl.org/dc/elements/1.1/" } },
+      ])
+    GC.start
+    doc = Leptris::XML::Document.parse(
+      %(<r xmlns:dc="http://purl.org/dc/elements/1.1/">) +
+      %(<dc:title>T</dc:title><dc:creator>C</dc:creator></r>))
+    expect(plan.walk(doc.root).to_ruby[:children]).to eq(%w[T C])
+  end
+end
+
+# libleptris 1.9.320 (#1586): plain (ns-unset) attribute rows
+# match ANY qualification — the exact wire spelling first, then by
+# local name (#758 parity) — so plain rows bind w:name / w:val
+# exactly as the interpretive path does, top level and nested.
+# Exact-URI rows keep their #1486 precedence.
+RSpec.describe "plain attribute rows match any qualification (#1586)" do
+  it "binds qualified spellings top level and nested" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "font", ns: { exact: "urn:w" },
+      attributes: [{ name: "name", kind: :scalar },
+                   { name: "val", kind: :scalar }],
+      children: [
+        { name: "sz", kind: :nested, ns: { exact: "urn:w" }, plan: {
+          name: "sz", ns: { exact: "urn:w" },
+          attributes: [{ name: "val", kind: :scalar }] } },
+      ])
+    doc = Leptris::XML::Document.parse(
+      %(<w:font xmlns:w="urn:w" w:name="A" w:val="B"><w:sz w:val="24"/></w:font>))
+    tree = plan.walk(doc.root).to_ruby
+    expect(tree[:attributes]).to eq("name" => "A", "val" => "B")
+    expect(tree[:children].first[:attributes]).to eq("val" => "24")
+  end
+end
