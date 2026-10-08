@@ -9,6 +9,22 @@ module Leptris::XML::XSD
     Schema.compile(schema_xml)
   end
 
+  # Slice 2 (libleptris 1.9.319, #1075): built-in lexical table.
+  # +builtin+ takes the "xs:NAME" reference spelling. Returns
+  # true/false; an unknown table name raises — a silent false
+  # would let misspelled types validate nothing forever.
+  def builtin_valid?(builtin, lexical)
+    r = Leptris::XML::FFI.leptris_xsd_builtin_valid(
+      builtin.to_s, lexical.to_s)
+    case r
+    when 1 then true
+    when 0 then false
+    else
+      raise ArgumentError,
+        "#{builtin.inspect} is not in the tier-1 built-in table"
+    end
+  end
+
   # A compiled XSD schema (libleptris >= 1.9.318, #1075 tier-1):
   # the compilation surface — a declaration census and schema-level
   # error reporting. Validation is a later tier and not exposed yet.
@@ -56,6 +72,22 @@ module Leptris::XML::XSD
     def error
       msg = Leptris::XML::FFI.leptris_xsd_error(@handle)
       msg.nil? || msg.empty? ? nil : msg
+    end
+
+    # Slice 2 (libleptris 1.9.319, #1075): lexical validation of
+    # +lexical+ against the user simpleType +type_name+ (local
+    # name) — restriction chains validate every hop's facets,
+    # cycle-guarded. Unknown type names raise (the -1 contract).
+    def simple_valid?(type_name, lexical)
+      r = Leptris::XML::FFI.leptris_xsd_simple_valid(
+        @handle, type_name.to_s, lexical.to_s)
+      case r
+      when 1 then true
+      when 0 then false
+      else
+        raise ArgumentError,
+          "#{type_name.inspect} is not a simpleType in this schema"
+      end
     end
   end
 end
