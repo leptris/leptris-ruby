@@ -1289,6 +1289,11 @@ attach_function :leptris_parse_string,
       # schema-level errors. Validation is a later tier.
       attach_function :leptris_xsd_compile,
         [:string, :size_t, :pointer], :leptris_xsd_schema
+      # libleptris 1.9.326: compile from a file path — NULL only
+      # when unreadable; malformed schemas yield error-carrying
+      # handles, exactly like the string face.
+      attach_function :leptris_xsd_compile_file,
+        [:string, :pointer], :leptris_xsd_schema
       attach_function :leptris_xsd_free,
         [:leptris_xsd_schema], :void
       attach_function :leptris_xsd_declaration_count,

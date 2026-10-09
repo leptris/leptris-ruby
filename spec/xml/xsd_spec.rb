@@ -286,3 +286,86 @@ RSpec.describe "XSD identity constraints (1.9.324)" do
       .to include(/missing a field value/)
   end
 end
+
+# libleptris 1.9.325: a child declared only as a PARTICLE of its
+# parent's content model (no global xs:element) is governed by
+# the parent's particle declaration — attribute types included.
+# Previously such children skipped attribute/content checks.
+RSpec.describe "XSD local particle governance (1.9.325)" do
+  it "validates particle-only children's attributes" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="order">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="item" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:attribute name="qty" type="xs:integer" use="required"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:schema>
+    XSD
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<order><item qty="7"/></order>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<order><item qty="nan"/></order>)))).to be(false)
+  end
+end
+
+# libleptris 1.9.326: charter completion — unions, lists.
+# KNOWN GAP (leptris#1615): memberTypes + inline anonymous member
+# together over-accepts; these pins use each spelling alone,
+# which is correct on both the lexical and instance paths.
+RSpec.describe "XSD unions and lists (1.9.326)" do
+  let(:schema) do
+    Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:simpleType name="intOrAuto">
+          <xs:union>
+            <xs:simpleType><xs:restriction base="xs:integer"/></xs:simpleType>
+            <xs:simpleType>
+              <xs:restriction base="xs:token">
+                <xs:enumeration value="auto"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:union>
+        </xs:simpleType>
+        <xs:element name="v" type="intOrAuto"/>
+        <xs:simpleType name="ints">
+          <xs:list itemType="xs:integer"/>
+        </xs:simpleType>
+        <xs:element name="list" type="ints"/>
+      </xs:schema>
+    XSD
+  end
+
+  it "unions accept any member — lexical and instance" do
+    expect(Leptris::XML::XSD.builtin_valid?("xs:integer", "42")).to be(true)
+    expect(schema.simple_valid?("intOrAuto", "42")).to be(true)
+    expect(schema.simple_valid?("intOrAuto", "auto")).to be(true)
+    expect(schema.simple_valid?("intOrAuto", "zz")).to be(false)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<v>auto</v>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<v>zz</v>)))).to be(false)
+  end
+
+  it "lists type every item" do
+    expect(schema.simple_valid?("ints", "1 2 3")).to be(true)
+    expect(schema.simple_valid?("ints", "1 x 3")).to be(false)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<list>1 2 3</list>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<list>1 x 3</list>)))).to be(false)
+  end
+end
+
+# libleptris 1.9.331: a duplicate <!DOCTYPE keeps the FIRST
+# model (keep-first, matching the duplicate-attribute rule) —
+# the first internal subset's entities apply.
+RSpec.describe "duplicate DOCTYPE keeps the first model (1.9.331)" do
+  it "resolves entities from the first internal subset" do
+    doc = Leptris::XML::Document.parse(
+      %(<!DOCTYPE r [<!ENTITY x "first">]>) +
+      %(<!DOCTYPE r [<!ENTITY x "second">]>) +
+      %(<r>&x;</r>), recover: true)
+    expect(doc.root.content).to eq("first")
+  end
+end
