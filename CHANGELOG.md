@@ -1,3 +1,17 @@
+## [1.9.324.0] - 2026-10-09
+
+### Added — engine sync (libleptris 1.9.324)
+
+- **XSD identity constraints — tier-1 scope complete (#1075)**:
+  `xs:key` / `xs:unique` / `xs:keyref` capture on top-level
+  declarations (incl. inline complexTypes) and two-pass instance
+  validation: key/unique tuple collection with uniqueness +
+  non-empty-field enforcement, then keyref resolution — attribute
+  fields included, selectors through the engine's own XPath.
+  Completes compile → datatypes/facets → content models →
+  instance validation → identity constraints. Pinned: resolved
+  refs, duplicate tuples, dangling refs, empty fields.
+
 ## [1.9.323.0] - 2026-10-08
 
 ### Fixed — engine sync (libleptris 1.9.323)

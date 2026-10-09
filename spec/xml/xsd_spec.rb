@@ -222,3 +222,67 @@ RSpec.describe "XSD inline anonymous type capture (1.9.323, #1592)" do
     expect(simple.valid?(Leptris::XML::Document.parse(%(<code>ABCD</code>)))).to be(false)
   end
 end
+
+# libleptris 1.9.324 (#1075): identity constraints — xs:key /
+# xs:unique / xs:keyref on top-level declarations, two-pass
+# validation driven by the engine's XPath. Tier-1 complete:
+# compile -> datatypes/facets -> content models -> instance
+# validation -> identity constraints.
+RSpec.describe "XSD identity constraints (1.9.324)" do
+  let(:schema) do
+    Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="lib">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="book" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:attribute name="id" type="xs:token" use="required"/>
+                  <xs:attribute name="ref" type="xs:token"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+          <xs:key name="bookKey">
+            <xs:selector xpath="book"/>
+            <xs:field xpath="@id"/>
+          </xs:key>
+          <xs:keyref name="bookRef" refer="bookKey">
+            <xs:selector xpath="book"/>
+            <xs:field xpath="@ref"/>
+          </xs:keyref>
+        </xs:element>
+      </xs:schema>
+    XSD
+  end
+
+  it "accepts resolved keyrefs" do
+    doc = Leptris::XML::Document.parse(
+      %(<lib><book id="a" ref="b"/><book id="b"/></lib>))
+    expect(schema.valid?(doc)).to be(true)
+    expect(schema.validate_errors(doc)).to be_empty
+  end
+
+  it "rejects duplicate key tuples" do
+    doc = Leptris::XML::Document.parse(
+      %(<lib><book id="a"/><book id="a"/></lib>))
+    expect(schema.valid?(doc)).to be(false)
+    expect(schema.validate_errors(doc)).to include(/duplicate key tuple/)
+  end
+
+  it "rejects dangling keyrefs" do
+    doc = Leptris::XML::Document.parse(
+      %(<lib><book id="a" ref="zzz"/></lib>))
+    expect(schema.valid?(doc)).to be(false)
+    expect(schema.validate_errors(doc))
+      .to include(/reference does not resolve to any key/)
+  end
+
+  it "requires non-empty key fields" do
+    doc = Leptris::XML::Document.parse(
+      %(<lib><book/><book id="b"/></lib>))
+    expect(schema.valid?(doc)).to be(false)
+    expect(schema.validate_errors(doc))
+      .to include(/missing a field value/)
+  end
+end
