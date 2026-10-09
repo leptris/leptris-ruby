@@ -1,3 +1,31 @@
+## [1.9.331.0] - 2026-10-10
+
+### Added — engine sync (libleptris 1.9.325-1.9.331)
+
+- **XSD.compile_file (1.9.326)**: the file-path compile face —
+  unreadable files raise; malformed schemas compile to
+  error-carrying handles, exactly like the string face.
+  Audit 382/381.
+- **XSD charter completion (1.9.326)**: xs:union / xs:list
+  derivation (typed items, length semantics), groups,
+  attributeGroups, complexContent/simpleContent derivation,
+  substitution groups, fixed values, includes — pinned for
+  unions (any-member acceptance, lexical + instance) and lists
+  (per-item typing). KNOWN GAP filed upstream (leptris#1615):
+  memberTypes + an inline anonymous member together over-accept;
+  each spelling alone is correct and pinned.
+
+### Fixed — engine sync
+
+- 1.9.325: local particle declarations govern nested children —
+  particle-only children's attributes and content models validate
+  (the `<item qty="nan"/>` shape), pinned.
+- 1.9.327-1.9.331: five nightly-fuzz finds (NUL-leading text
+  runs, two dp-fail-path leaks, the fast-path declaration probe
+  read, duplicate DOCTYPE model replacement) — the observable one
+  pinned: a duplicate DOCTYPE keeps the FIRST internal subset
+  (keep-first, matching the duplicate-attribute rule).
+
 ## [1.9.324.0] - 2026-10-09
 
 ### Added — engine sync (libleptris 1.9.324)

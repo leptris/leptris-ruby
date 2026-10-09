@@ -9,6 +9,13 @@ module Leptris::XML::XSD
     Schema.compile(schema_xml)
   end
 
+  # Compile from a file path (libleptris >= 1.9.326): unreadable
+  # files raise; malformed schemas compile to an error-carrying
+  # handle, exactly like .compile.
+  def compile_file(path)
+    Schema.compile_file(path)
+  end
+
   # Slice 2 (libleptris 1.9.319, #1075): built-in lexical table.
   # +builtin+ takes the "xs:NAME" reference spelling. Returns
   # true/false; an unknown table name raises — a silent false
@@ -59,6 +66,17 @@ module Leptris::XML::XSD
 
     def initialize(handle)
       @handle = handle
+    end
+
+    # Compile from a file path: the engine reads it directly.
+    def self.compile_file(path)
+      status = ::FFI::MemoryPointer.new(:int)
+      raw = Leptris::XML::FFI.leptris_xsd_compile_file(path.to_s, status)
+      if raw.null?
+        raise Leptris::XML::Error,
+          "schema file unreadable (status #{status.read_int}): #{path}"
+      end
+      new(Handle.new(raw))
     end
 
     # Number of top-level schema declarations the compiler
