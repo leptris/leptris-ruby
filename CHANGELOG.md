@@ -1,3 +1,34 @@
+## [1.9.334.0] - 2026-10-10
+
+### Added — engine sync (libleptris 1.9.332-1.9.334)
+
+- **Descriptor#build_result — serialize-side construction
+  (#408's face)**: `leptris_plan_result_build` builds a result
+  tree from row ops (:element structural opens, :scalar nesting
+  inside its producing row's element implicitly, :attr by name,
+  :end closes) that `#serialize` renders — the reverse of #walk,
+  byte-identical round-trip pinned. `leptris_element_add_child_addr`
+  attached (the #408 address-based attach; sugar is #408's design
+  work). Audit 384/383.
+- **XSD 1.1 tier 2 (1.9.332)**: `xs:assert` on complexTypes
+  (XPath 2 lane, per-instance), `xs:assertion` on simpleTypes,
+  `xs:openContent` — `xs:assert` pinned.
+- **Completion wave (1.9.334)**: `xs:all` order-free with foreign
+  children rejected; strict validation of undeclared elements
+  and attributes — both pinned.
+
+### Fixed
+
+- **#1615 resolved as a malformed repro**: the well-formed mixed
+  union (memberTypes + inline member) validates correctly on
+  both paths — my filed schema was missing a `</xs:restriction>`
+  close. On 1.9.334 the malformed schema compiles to an
+  error-carrying handle ("schema document is not well-formed
+  XML") and fails validation CLOSED (it over-accepted silently
+  on 1.9.331 — the real defect, fixed engine-side by their
+  regression pin). Both behaviors spec-pinned; leptris#1615
+  closed with the correction.
+
 ## [1.9.331.0] - 2026-10-10
 
 ### Added — engine sync (libleptris 1.9.325-1.9.331)

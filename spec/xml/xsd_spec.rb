@@ -369,3 +369,87 @@ RSpec.describe "duplicate DOCTYPE keeps the first model (1.9.331)" do
     expect(doc.root.content).to eq("first")
   end
 end
+
+# libleptris 1.9.332-1.9.334: XSD 1.1 tier 2 + the completion
+# wave. Also pins the #1615 outcome: the WELL-FORMED mixed union
+# (memberTypes + inline member) validates correctly on both
+# paths, and a MALFORMED schema compiles to an error-carrying
+# handle that fails validation closed.
+RSpec.describe "XSD 1.1 and completion wave (1.9.332-334)" do
+  it "evaluates xs:assert on complexTypes (1.1)" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                 version="1.1">
+        <xs:element name="order">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="start" type="xs:integer"/>
+              <xs:element name="end" type="xs:integer"/>
+            </xs:sequence>
+            <xs:assert test="xs:integer(end) gt xs:integer(start)"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:schema>
+    XSD
+    expect(schema.valid?(Leptris::XML::Document.parse(
+      %(<order><start>1</start><end>9</end></order>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(
+      %(<order><start>9</start><end>1</end></order>)))).to be(false)
+  end
+
+  it "xs:all is order-free with foreign children rejected" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="cfg">
+          <xs:complexType>
+            <xs:all>
+              <xs:element name="a" type="xs:token"/>
+              <xs:element name="b" type="xs:token"/>
+            </xs:all>
+          </xs:complexType>
+        </xs:element>
+      </xs:schema>
+    XSD
+    expect(schema.valid?(Leptris::XML::Document.parse(
+      %(<cfg><b>x</b><a>y</a></cfg>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(
+      %(<cfg><a>x</a><c>z</c></cfg>)))).to be(false)
+  end
+
+  it "the well-formed mixed union validates correctly (#1615)" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:simpleType name="intOrAuto">
+          <xs:union memberTypes="xs:integer">
+            <xs:simpleType>
+              <xs:restriction base="xs:token">
+                <xs:enumeration value="auto"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:union>
+        </xs:simpleType>
+        <xs:element name="v" type="intOrAuto"/>
+      </xs:schema>
+    XSD
+    expect(schema.simple_valid?("intOrAuto", "42")).to be(true)
+    expect(schema.simple_valid?("intOrAuto", "auto")).to be(true)
+    expect(schema.simple_valid?("intOrAuto", "zz")).to be(false)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<v>42</v>)))).to be(true)
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<v>zz</v>)))).to be(false)
+  end
+
+  it "malformed schemas compile error-carrying and fail closed" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:simpleType name="t">
+          <xs:union memberTypes="xs:integer">
+            <xs:simpleType><xs:restriction base="xs:token"><xs:enumeration value="auto"/></xs:simpleType>
+          </xs:union>
+        </xs:simpleType>
+        <xs:element name="v" type="t"/>
+      </xs:schema>
+    XSD
+    expect(schema.error).to include("not well-formed")
+    expect(schema.valid?(Leptris::XML::Document.parse(%(<v>42</v>)))).to be(false)
+  end
+end

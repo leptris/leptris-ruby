@@ -418,6 +418,26 @@ module Leptris
         :leptris_plan_result
       attach_function :leptris_plan_result_free,
         [:leptris_plan_result], :void
+      # libleptris 1.9.324+: construct a result tree from row ops
+      # (the serialize-side fast path — the reverse of the walk):
+      # ELEMENT opens under the current parent, SCALAR/ATTR carry
+      # values, END closes. Strings are copied at build; free with
+      # leptris_plan_result_free (the ResultHandle does).
+      class PlanRowOp < ::FFI::Struct
+        layout :kind, :int,
+               :plan_index, :uint32,
+               :row_index, :uint32,
+               :name, :pointer,
+               :value, :pointer,
+               :value_len, :size_t
+      end
+      PLAN_OP_SCALAR = 0
+      PLAN_OP_ELEMENT = 1
+      PLAN_OP_ATTR = 2
+      PLAN_OP_END = 3
+      attach_function :leptris_plan_result_build,
+        [:leptris_plan, :pointer, :size_t, :pointer], :leptris_plan_result
+
       # libleptris 1.9.312 (#1551): serialize a walk result back
       # to XML guided by its plan — the plan supplies element
       # wrappers (row wire_name + ns_prefix), the result the
@@ -858,6 +878,11 @@ attach_function :leptris_parse_string,
         [:leptris_element, :string], :leptris_status
       attach_function :leptris_element_append_child,
         [:leptris_element, :leptris_element], :leptris_status
+      # #408: address-based attach — bindings pass raw addresses
+      # and skip the per-node FFI pointer-wrapper mint. Same
+      # semantics and status contract as the pointer face.
+      attach_function :leptris_element_add_child_addr,
+        [:uintptr_t, :uintptr_t], :leptris_status
       # Fused create+append (libleptris 1.9.153): one document
       # resolution, identical tree semantics to the two-call pair.
       attach_function :leptris_element_create_child,

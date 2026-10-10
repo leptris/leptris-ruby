@@ -591,3 +591,34 @@ RSpec.describe "plain attribute rows match any qualification (#1586)" do
     expect(tree[:children].first[:attributes]).to eq("val" => "24")
   end
 end
+
+# libleptris 1.9.334: leptris_plan_result_build — serialize-side
+# construction. Ops: :element opens structurally (UINT32_MAX row
+# = root), :scalar nests inside its producing row's element
+# implicitly, :attr attaches by name, :end closes.
+RSpec.describe "Descriptor#build_result (1.9.334)" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      attributes: [{ name: "lang", kind: :scalar }],
+      children: [{ name: "a", kind: :scalar }])
+  end
+
+  it "round-trips byte-identically with walk + serialize" do
+    doc = Leptris::XML::Document.parse(%(<r lang="en"><a>v</a></r>))
+    expect(plan.serialize(plan.walk(doc.root)))
+      .to eq(%(<r lang="en"><a>v</a></r>))
+    result = plan.build_result([
+      { kind: :element, plan_index: 0 },
+      { kind: :attr, name: "lang", value: "en", row_index: 0 },
+      { kind: :scalar, value: "v", plan_index: 0, row_index: 0 },
+      { kind: :end },
+    ])
+    expect(plan.serialize(result)).to eq(%(<r lang="en"><a>v</a></r>))
+  end
+
+  it "rejects unknown op kinds at the boundary" do
+    expect { plan.build_result([{ kind: :bogus }]) }
+      .to raise_error(ArgumentError, /op kind must be one of/)
+  end
+end
