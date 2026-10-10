@@ -31,6 +31,22 @@ CMAKE_FLAGS = %w[
 require "tmpdir"
 
 desc "Build libleptris #{LIBLEPTRIS_VERSION} (+ utf8proc) from release tarballs into lib/"
+# leptris#1623: macOS 14's dyld intermittently SIGKILLs
+# linker-signed adhoc images at load ("CODESIGNING Invalid Page" —
+# the same kill the atomic-replace dance below already guards in
+# dev). The linker's implicit signature is the bare minimum; an
+# explicit codesign at package time writes a complete, deterministic
+# CodeDirectory that survives the gem pipeline (cp, packaging,
+# install). Re-sign every shipped darwin binary and verify it.
+def sign_darwin_binaries(*bins)
+  return unless RUBY_PLATFORM =~ /darwin/
+
+  bins.flatten.compact.each do |bin|
+    sh "codesign --force --sign - #{bin}"
+    sh "codesign --verify #{bin}"
+  end
+end
+
 task :compile do
   # GitHub tarball downloads intermittently return a non-gzip body
   # (rate-limit/redirect HTML) — the piped curl|tar form then fails
@@ -256,6 +272,7 @@ task :compile do
            Dir.glob("#{u8_prefix}/{lib,bin}/utf8proc.dll").first
   raise "utf8proc shared library not found after build" unless u8_lib
   cp(u8_lib, "lib/#{File.basename(u8_lib)}")
+  sign_darwin_binaries("lib/libleptris#{ext}", "lib/#{File.basename(u8_lib)}")
   puts "Vendored #{File.basename(lib)} + #{File.basename(u8_lib)} into lib/"
 
   # Opt-in native read layer ext (#185): built and vendored beside
@@ -319,6 +336,7 @@ task :compile do
       dest = "lib/leptris/xml/#{File.basename(bundle)}"
       cp(bundle, "#{dest}.new")
       mv("#{dest}.new", dest)
+      sign_darwin_binaries(dest)
       puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
     end
   end
