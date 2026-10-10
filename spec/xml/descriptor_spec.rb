@@ -621,4 +621,27 @@ RSpec.describe "Descriptor#build_result (1.9.334)" do
     expect { plan.build_result([{ kind: :bogus }]) }
       .to raise_error(ArgumentError, /op kind must be one of/)
   end
+
+  # libleptris 1.9.336 (#1625): members emit in OP order on every
+  # platform — the serializer's byte-position qsort broke ties on
+  # unspecified libc behavior and REVERSED builder-created members
+  # on Windows. Builder values carry a dense insertion rank now;
+  # this is the four-member out-of-row-order shape that flipped.
+  it "emits members in strict op order (1.9.336, #1625)" do
+    plan = Leptris::XML::Descriptor.build(
+      name: "r",
+      children: %i[a b c d].map do |n|
+        { name: n.to_s, kind: :scalar }
+      end)
+    res = plan.build_result([
+      { kind: :element },
+      { kind: :scalar, value: "3", row_index: 2 },
+      { kind: :scalar, value: "1", row_index: 0 },
+      { kind: :scalar, value: "4", row_index: 3 },
+      { kind: :scalar, value: "2", row_index: 1 },
+      { kind: :end },
+    ])
+    expect(plan.serialize(res))
+      .to eq(%(<r><c>3</c><a>1</a><d>4</d><b>2</b></r>))
+  end
 end
