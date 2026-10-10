@@ -31,3 +31,40 @@ RSpec.describe "Node#to_s serialization parity" do
     expect(node.to_s).to include("<p>hi</p>")
   end
 end
+
+  # #1595 follow-up: the #403 fix covered Element/Document — the
+  # leaf node types (Text, Comment, CDATA, PI) still fell back to
+  # Object#to_s object dumps. Nokogiri's Node#to_s serializes
+  # EVERY node type.
+  RSpec.describe "Node#to_s leaf types" do
+    let(:doc) do
+      Leptris::XML::Document.parse(
+        "<r><!--c-->t<ct><![CDATA[data]]></ct><?pi instr?></r>")
+    end
+
+    it "serializes text" do
+      text = doc.at("r").children.find { |n| n.is_a?(Leptris::XML::Text) }
+      expect(text.to_s).to eq("t")
+      expect(text.to_s).not_to match(/0x[0-9a-f]+>/)
+    end
+
+    it "serializes comments" do
+      comment = doc.at("r").children.find { |n| n.is_a?(Leptris::XML::Comment) }
+      expect(comment.to_s).to eq("<!--c-->")
+      expect(comment.to_s).not_to match(/0x[0-9a-f]+>/)
+    end
+
+    it "serializes CDATA" do
+      cdata = doc.at("ct").children.find { |n| n.is_a?(Leptris::XML::CDATA) }
+      expect(cdata.to_s).to include("data")
+      expect(cdata.to_s).not_to match(/0x[0-9a-f]+>/)
+    end
+
+    it "serializes processing instructions" do
+      pi = doc.at("r").children.find do |n|
+        n.is_a?(Leptris::XML::ProcessingInstruction)
+      end
+      expect(pi.to_s).to eq("<?pi instr?>")
+      expect(pi.to_s).not_to match(/0x[0-9a-f]+>/)
+    end
+  end

@@ -36,4 +36,8 @@ class Leptris::XML::Text < Leptris::XML::Node
       Leptris::XML::FFI.leptris_text_node_set_content(c_ptr, new_content.to_s))
     new_content
   end
+
+  def to_s
+    Leptris::XML::Serialization.escape_text(content)
+  end
 end

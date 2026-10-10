@@ -10,4 +10,8 @@ class Leptris::XML::EntityReference < Leptris::XML::Node
     Leptris::XML::FFI.leptris_entity_ref_node_name(c_ptr)
   end
   alias_method :node_name, :name
+
+  def to_s
+    "&#{name};"
+  end
 end

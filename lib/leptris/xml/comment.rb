@@ -31,4 +31,8 @@ class Leptris::XML::Comment < Leptris::XML::Node
       Leptris::XML::FFI.leptris_comment_node_set_content(c_ptr, new_content.to_s))
     new_content
   end
+
+  def to_s
+    "<!--#{content}-->"
+  end
 end
