@@ -1,3 +1,17 @@
+## [1.9.335.0] - 2026-10-11
+
+### Fixed — engine sync (libleptris 1.9.335)
+
+- **The #414 wave (#1626, engine PR #1627)**: cross-namespace
+  `xs:import` declarations merge under a compiling schema's own
+  targetNamespace (the wml-2010 chain shape — previously invisible),
+  prefixed QName type references (`type="w:CT_Border"`) resolve
+  with `xs:`/`xsd:` builtin spellings canonized (closing a silent
+  gap where `xsd:`-spelled types were untyped), and content-model
+  failures NAME the offending child once (`(at 'right')`) — a
+  misordered child no longer cascades anonymously down the
+  ancestors. All three pinned with minimal cases.
+
 ## [1.9.334.1] - 2026-10-10
 
 ### Performance
