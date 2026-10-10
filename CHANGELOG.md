@@ -1,3 +1,16 @@
+## [1.9.336.0] - 2026-10-11
+
+### Fixed — engine sync (libleptris 1.9.336)
+
+- **build_result members emit in op order on every platform
+  (#1625, engine PR #1629)**: the serializer's byte-position
+  qsort broke ties on unspecified libc behavior and REVERSED
+  builder-created members on Windows (x64 and arm64). Builder
+  values carry a dense insertion rank now — the comparator is a
+  total order and platform-independent. Pinned with the
+  four-member out-of-row-order shape (the Windows CI legs
+  enforce it); walk output undisturbed.
+
 ## [1.9.335.0] - 2026-10-11
 
 ### Fixed — engine sync (libleptris 1.9.335)
