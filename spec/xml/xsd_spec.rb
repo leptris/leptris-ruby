@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+require "fileutils"
 require "spec_helper"
 
 # XSD tier-1 (libleptris >= 1.9.318, #1075): the compilation
@@ -451,5 +453,91 @@ RSpec.describe "XSD 1.1 and completion wave (1.9.332-334)" do
     XSD
     expect(schema.error).to include("not well-formed")
     expect(schema.valid?(Leptris::XML::Document.parse(%(<v>42</v>)))).to be(false)
+  end
+end
+
+# libleptris 1.9.335 (#1626, from leptris-ruby#414): the OOXML
+# wave — cross-namespace imports, prefixed type refs, and named
+# content-model errors without ancestor cascade.
+RSpec.describe "XSD cross-namespace imports (1.9.335, #1626)" do
+  it "merges imported declarations under a compiling schema's own targetNamespace" do
+    Dir.mktmpdir do |dir|
+      iso = File.join(dir, "iso"); ms = File.join(dir, "ms")
+      FileUtils.mkdir_p([iso, ms])
+      File.write(File.join(iso, "inner.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:w="urn:w" targetNamespace="urn:w"
+                   elementFormDefault="qualified">
+          <xs:element name="doc">
+            <xs:complexType><xs:sequence>
+              <xs:element name="p" type="xs:token"
+                          minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+        </xs:schema>
+      XSD
+      File.write(File.join(ms, "wrapper.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:w="urn:w" targetNamespace="urn:2010"
+                   elementFormDefault="qualified">
+          <xs:import namespace="urn:w"
+                     schemaLocation="../iso/inner.xsd"/>
+          <xs:element name="extra" type="xs:token"/>
+        </xs:schema>
+      XSD
+      schema = Leptris::XML::XSD.compile_file(File.join(ms, "wrapper.xsd"))
+      doc = Leptris::XML::Document.parse(%(<w:doc xmlns:w="urn:w"><w:p>x</w:p></w:doc>))
+      expect(schema.valid?(doc)).to be(true)
+    end
+  end
+
+  it "resolves prefixed QName type references" do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "prefixed.xsd")
+      File.write(path, <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:w="urn:w" targetNamespace="urn:w"
+                   elementFormDefault="qualified">
+          <xs:complexType name="CT_Border">
+            <xs:attribute name="val" type="xs:token"/>
+          </xs:complexType>
+          <xs:element name="b" type="w:CT_Border"/>
+        </xs:schema>
+      XSD
+      schema = Leptris::XML::XSD.compile_file(path)
+      ok = Leptris::XML::Document.parse(%(<b xmlns="urn:w" val="x"/>))
+      expect(schema.valid?(ok)).to be(true)
+    end
+  end
+
+  it "names the offending child without ancestor cascade" do
+    schema = Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                 xmlns="urn:w" targetNamespace="urn:w"
+                 elementFormDefault="qualified">
+        <xs:complexType name="CT_Border">
+          <xs:attribute name="val" type="xs:token"/>
+        </xs:complexType>
+        <xs:complexType name="CT_TblBorders">
+          <xs:sequence>
+            <xs:element name="top" type="CT_Border" minOccurs="0"/>
+            <xs:element name="left" type="CT_Border" minOccurs="0"/>
+            <xs:element name="bottom" type="CT_Border" minOccurs="0"/>
+            <xs:element name="right" type="CT_Border" minOccurs="0"/>
+            <xs:element name="insideH" type="CT_Border" minOccurs="0"/>
+            <xs:element name="insideV" type="CT_Border" minOccurs="0"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:element name="tblBorders" type="CT_TblBorders"/>
+      </xs:schema>
+    XSD
+    bad = Leptris::XML::Document.parse(
+      %(<tblBorders xmlns="urn:w"><top val="a"/><left val="b"/>) +
+      %(<bottom val="c"/><insideH val="d"/><right val="e"/>) +
+      %(<insideV val="f"/></tblBorders>))
+    errors = schema.validate_errors(bad)
+    # one report, naming the misordered child — no ancestor cascade
+    expect(errors.size).to eq(1)
+    expect(errors.first).to include("at 'right'")
   end
 end
