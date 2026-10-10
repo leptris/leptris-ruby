@@ -347,6 +347,61 @@ class Leptris::XML::Descriptor
                                 owner: true, plans: @plans, plan: @plans[0])
   end
 
+  # Serialize-side construction (leptris_plan_result_build): a
+  # result tree from +ops+ — hashes of {kind: :element / :scalar /
+  # :attr / :end, plan_index:, row_index:, name:, value:} — that
+  # #serialize renders through this plan. Encoding: an :element op
+  # opens a structural element (row_index UINT32_MAX = the root);
+  # a :scalar op carries its PRODUCING row and nests inside that
+  # row's element implicitly; :attr attaches by name; :end closes.
+  # Returns a root-owned PlanValue.
+  ROW_OP_KINDS = {
+    scalar: Leptris::XML::FFI::PLAN_OP_SCALAR,
+    element: Leptris::XML::FFI::PLAN_OP_ELEMENT,
+    attr: Leptris::XML::FFI::PLAN_OP_ATTR,
+    end: Leptris::XML::FFI::PLAN_OP_END,
+  }.freeze
+  private_constant :ROW_OP_KINDS
+
+  def build_result(ops)
+    memory = ::FFI::MemoryPointer.new(Leptris::XML::FFI::PlanRowOp, ops.size)
+    anchors = [memory]
+    ops.each_with_index do |op, i|
+      row = Leptris::XML::FFI::PlanRowOp.new(memory[i])
+      kind = ROW_OP_KINDS.fetch(op.fetch(:kind)) do
+        raise ArgumentError,
+          "op kind must be one of #{ROW_OP_KINDS.keys.inspect}"
+      end
+      value = op[:value]
+      row[:kind] = kind
+      row[:plan_index] = op.fetch(:plan_index, 0)
+      row[:row_index] = op.fetch(:row_index, 0xFFFF_FFFF)
+      row[:name] =
+        if (n = op[:name])
+          anchors << (ptr = ::FFI::MemoryPointer.from_string(n.to_s))
+          ptr
+        end
+      if value.nil?
+        row[:value] = nil
+        row[:value_len] = 0
+      else
+        s = value.to_s
+        anchors << (ptr = ::FFI::MemoryPointer.from_string(s))
+        row[:value] = ptr
+        row[:value_len] = s.bytesize
+      end
+    end
+    status = ::FFI::MemoryPointer.new(:int)
+    raw = Leptris::XML::FFI.leptris_plan_result_build(
+      @handle, memory, ops.size, status)
+    if raw.null?
+      raise Leptris::XML::Error,
+        "plan result build failed (status=#{status.read_int})"
+    end
+    Leptris::XML::PlanValue.new(ResultHandle.new(raw),
+                                owner: true, plans: @plans, plan: @plans[0])
+  end
+
   # libleptris 1.9.312 (#1551): serialize a walk result back to
   # XML guided by this plan — the plan supplies element wrappers
   # (row wire_name + ns_prefix), the result the content; children
