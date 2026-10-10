@@ -882,7 +882,7 @@ attach_function :leptris_parse_string,
       # and skip the per-node FFI pointer-wrapper mint. Same
       # semantics and status contract as the pointer face.
       attach_function :leptris_element_add_child_addr,
-        [:uintptr_t, :uintptr_t], :leptris_status
+        [:ulong_long, :ulong_long], :leptris_status
       # Fused create+append (libleptris 1.9.153): one document
       # resolution, identical tree semantics to the two-call pair.
       attach_function :leptris_element_create_child,
