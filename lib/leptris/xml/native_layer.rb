@@ -27,6 +27,12 @@ begin
   if Gem.win_platform?
     require "leptris/xml/native_#{RUBY_VERSION[/\A\d+\.\d+/].tr('.', '_')}"
   else
+    # #1623: the bundle beside this file must carry a valid
+    # signature before dyld maps it — pre-verify and re-stamp.
+    Leptris.resign_bundle_if_needed(
+      File.expand_path(
+        "native#{RUBY_PLATFORM.include?('darwin') ? '.bundle' : '.so'}",
+        __dir__))
     require "leptris/xml/native"
   end
 rescue LoadError => e

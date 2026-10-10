@@ -3,6 +3,23 @@
 require "leptris/version"
 
 module Leptris
+  # leptris#1623: macOS 14.x dyld intermittently SIGKILLs native
+  # bundles whose adhoc signature went stale (post-build byte
+  # rewrites) or is absent (x86_64 links carry none by default).
+  # A kill cannot be rescued — pre-verify and re-stamp BEFORE dyld
+  # ever sees the binary. Adhoc is deterministic and needs no
+  # identity; Developer ID rides owner secrets when wired.
+  def self.resign_bundle_if_needed(path)
+    return false unless path && File.exist?(path)
+    return false unless RUBY_PLATFORM.include?("darwin")
+    return true if system("codesign", "--verify", path.to_s,
+                          out: File::NULL, err: File::NULL)
+    system("codesign", "--force", "--sign", "-", path.to_s,
+           out: File::NULL, err: File::NULL) &&
+      system("codesign", "--verify", path.to_s,
+             out: File::NULL, err: File::NULL)
+  end
+
   autoload :XML, "leptris/xml"
   # One file, three entry constants (HTML/HTML4/HTML5) — each
   # autoload maps so any reference loads the facade.
