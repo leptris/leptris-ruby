@@ -386,7 +386,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     # build appends.
     return true unless node.is_a?(Leptris::XML::Element)
     return false unless defined?(Leptris::XML::NATIVE_FAST)
-    !Leptris::XML::Native.ns_lift_needed?(node.c_ptr.address)
+    !Leptris::XML::Native.ns_lift_needed?(node.c_address)
   end
 
   # A node is foreign to +document+ when it belongs to another one
@@ -445,7 +445,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 1).nil?
+        @document, @c_address, node.c_address, 1).nil?
         return node
       end
     end
@@ -478,7 +478,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 2).nil?
+        @document, @c_address, node.c_address, 2).nil?
         return node
       end
     end
@@ -511,7 +511,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     if native_fast_children?
       unless Leptris::XML::Native.insert_binding_child(
-        @document, @c_address, node.c_ptr.address, 3).nil?
+        @document, @c_address, node.c_address, 3).nil?
         return node
       end
     end
@@ -556,7 +556,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     cross = nodes.any? { |n| Leptris::XML::Element.foreign_to?(n, @document) }
     if native_fast_children?
-      addrs = nodes.map { |n| n.c_ptr.address }
+      addrs = nodes.map { |n| n.c_address }
       done = Leptris::XML::Native.append_binding_children(
         @document, @c_address, addrs)
       done = 0 unless done.is_a?(Integer)
@@ -698,7 +698,7 @@ class Leptris::XML::Element < Leptris::XML::Node
         # The face raises on failure (TODO.perf/36); Qnil = the
         # child needs the lift — the full path handles it.
         unless Leptris::XML::Native.append_binding_child(
-          @document, @c_address, node_or_markup.c_ptr.address).nil?
+          @document, @c_address, node_or_markup.c_address).nil?
           return node_or_markup
         end
       end
@@ -706,8 +706,11 @@ class Leptris::XML::Element < Leptris::XML::Node
       unless Leptris::XML::Element.skip_adoption_lift?(node_or_markup)
         Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       end
+      # Address-based attach (#408): same status contract, no
+      # FFI::Pointer mint for either side.
       Leptris::XML::FFI.check_status(
-        Leptris::XML::FFI.leptris_element_append_child(c_ptr, node_or_markup.c_ptr))
+        Leptris::XML::FFI.leptris_element_add_child_addr(
+          @c_address, node_or_markup.c_address))
       node_or_markup
     when String
       # TODO.perf/34: one dispatch parses the markup and appends
@@ -732,7 +735,8 @@ class Leptris::XML::Element < Leptris::XML::Node
       added = []
       frag.children.each do |n|
         Leptris::XML::FFI.check_status(
-          Leptris::XML::FFI.leptris_element_append_child(c_ptr, n.c_ptr))
+          Leptris::XML::FFI.leptris_element_add_child_addr(
+            @c_address, n.c_address))
         added << n
       end
       Leptris::XML::NodeSet.new(@document, added)
@@ -753,7 +757,8 @@ class Leptris::XML::Element < Leptris::XML::Node
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_append_child(c_ptr, node.c_ptr))
+      Leptris::XML::FFI.leptris_element_add_child_addr(
+        @c_address, node.c_address))
     Leptris::XML::Node.invalidate_cross_document!(node, @document)
     remove_from_source_original(node)
     last_installed

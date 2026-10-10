@@ -1,3 +1,19 @@
+## [1.9.334.1] - 2026-10-10
+
+### Performance
+
+- **The attach paths stop minting FFI::Pointer wrappers per node
+  (#408 Ask 1)**: every native fast path read the canonical
+  Integer address through `c_ptr.address` — lazily materializing
+  a Pointer per node handed to one C call — instead of the
+  `c_address` twin. The FFI-fallback append paths route through
+  `leptris_element_add_child_addr` (both sides as Integers; same
+  status contract). Measured on the object-mode build(500):
+  FFI::Pointer allocations 1002 → 2 (the document/root wrappers
+  that genuinely need one), ~4% CPU off the build row under
+  load. Ask 2's face (`Descriptor#build_result`) shipped in
+  1.9.334.0.
+
 ## [1.9.334.0] - 2026-10-10
 
 ### Added — engine sync (libleptris 1.9.332-1.9.334)
