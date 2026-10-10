@@ -31,4 +31,8 @@ class Leptris::XML::CDATA < Leptris::XML::Text
       Leptris::XML::FFI.leptris_cdata_node_set_content(c_ptr, new_content.to_s))
     new_content
   end
+
+  def to_s
+    "<![CDATA[#{content}]]>"
+  end
 end

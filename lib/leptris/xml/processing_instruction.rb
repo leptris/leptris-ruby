@@ -50,6 +50,10 @@ class Leptris::XML::ProcessingInstruction < Leptris::XML::Node
     new_data
   end
 
+  def to_s
+    content.to_s.empty? ? "<?#{name}?>" : "<?#{name} #{content}?>"
+  end
+
   # Document-level PIs have no tree parent for leptris_node_unlink
   # — route through the document-level removal (libleptris 1.9.9,
   # #612), identity-matched by index so the right same-target PI
