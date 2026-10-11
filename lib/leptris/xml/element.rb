@@ -696,9 +696,16 @@ class Leptris::XML::Element < Leptris::XML::Node
       # C-side version bump invalidates this document's memos.
       if native_fast_children?
         # The face raises on failure (TODO.perf/36); Qnil = the
-        # child needs the lift — the full path handles it.
-        unless Leptris::XML::Native.append_binding_child(
-          @document, @c_address, node_or_markup.c_address).nil?
+        # child needs the lift — the full path handles it. The
+        # return is the INSTALLED address (leptris#1636): the
+        # engine adopts cross-pool children by copy, and the
+        # wrapper must follow the installed node or it addresses
+        # the foreign original, freed with its source document.
+        installed = Leptris::XML::Native.append_binding_child(
+          @document, @c_address, node_or_markup.c_address)
+        unless installed.nil?
+          Leptris::XML::Node.rebase_installed!(node_or_markup,
+                                               installed, @document)
           return node_or_markup
         end
       end
@@ -706,11 +713,15 @@ class Leptris::XML::Element < Leptris::XML::Node
       unless Leptris::XML::Element.skip_adoption_lift?(node_or_markup)
         Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       end
-      # Address-based attach (#408): same status contract, no
-      # FFI::Pointer mint for either side.
+      # Address-based attach (#408 + leptris#1636): the installed
+      # twin returns the adopted address — rebase the wrapper when
+      # the engine copied the child out of its pool.
+      installed_out = ::FFI::MemoryPointer.new(:uint64)
       Leptris::XML::FFI.check_status(
-        Leptris::XML::FFI.leptris_element_add_child_addr(
-          @c_address, node_or_markup.c_address))
+        Leptris::XML::FFI.leptris_element_add_child_addr_installed(
+          @c_address, node_or_markup.c_address, installed_out))
+      Leptris::XML::Node.rebase_installed!(
+        node_or_markup, installed_out.read_uint64, @document)
       node_or_markup
     when String
       # TODO.perf/34: one dispatch parses the markup and appends
