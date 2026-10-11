@@ -56,6 +56,7 @@ typedef void *(*elem_new_attrs_fn)(void *, const char *, const char **,
 typedef void *(*text_create_fn)(void *, const char *);
 typedef void *(*create_child_fn)(void *, const char *);
 typedef int (*append_child_fn)(void *, void *);
+typedef int (*append_child_installed_fn)(void *, void *, void **);
 typedef int (*set_attr_fn)(void *, const char *, const char *);
 typedef int (*set_root_fn)(void *, void *);
 typedef void (*doc_free_fn)(void *);
@@ -90,6 +91,7 @@ static elem_new_attrs_fn f_elem_new_with_attrs;
 static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
+static append_child_installed_fn f_append_child_installed;
 static append_child_fn f_prepend_child, f_insert_after, f_insert_before;
 typedef void *(*elem_new_attrs_fn)(void *, const char *, const char **,
                                    const char **, size_t);
@@ -241,6 +243,8 @@ static void resolve_symbols(const char *lib_path)
     f_text_create = (text_create_fn)lib_sym(h, "leptris_text_node_create");
     f_create_child = (create_child_fn)lib_sym(h, "leptris_element_create_child");
     f_append_child = (append_child_fn)lib_sym(h, "leptris_element_append_child");
+    f_append_child_installed = (append_child_installed_fn)lib_sym(
+        h, "leptris_element_add_child_addr_installed");
     f_prepend_child = (append_child_fn)lib_sym(h, "leptris_element_prepend_child");
     f_insert_after = (append_child_fn)lib_sym(h, "leptris_element_insert_after");
     f_insert_before = (append_child_fn)lib_sym(h, "leptris_element_insert_before");
@@ -789,9 +793,19 @@ static VALUE nf_append_binding_child(VALUE self, VALUE document,
      * mutation merely discards memos. */
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
+    /* leptris#1636: cross-pool children are adopted by COPY inside
+     * the engine — return the INSTALLED address so the caller can
+     * rebase its wrapper. 0 means the move was by reference; the
+     * argument address stays valid. */
+    if (f_append_child_installed) {
+        void *installed = NULL;
+        st = f_append_child_installed(parent, child, &installed);
+        check_status_c(st);
+        return ULL2NUM((unsigned long long)(uintptr_t)installed);
+    }
     st = f_append_child(parent, child);
     check_status_c(st);
-    return Qtrue;
+    return ULL2NUM(0);
 }
 
 /* Batch append (leptris-ruby#366): one crossing for N children.

@@ -255,6 +255,28 @@ class Leptris::XML::Node
   # structural stamps (stamped against the SOURCE version) and the
   # source document's sibling/parent stamps. Scope-owned nodes
   # answer nil from #document and never memoize — nothing to do.
+  # leptris#1636: after an address-based attach the engine may have
+  # adopted a cross-pool child BY COPY — the wrapper must follow the
+  # installed node, or it addresses the foreign original, freed with
+  # its source document (the Windows SEGV in fast_element_xml).
+  def self.rebase_installed!(node, installed_address, target_document)
+    return if installed_address.nil? || installed_address.zero? ||
+              installed_address == node.c_address
+    node.rebase_to(installed_address, target_document)
+  end
+
+  # Point the wrapper at a different native node and forget every
+  # memo derived from the old one. The owning document follows
+  # +new_document+ (post-adoption, the node lives in the target).
+  def rebase_to(installed_address, new_document)
+    @c_address = installed_address
+    @c_ptr = nil
+    invalidate_structural_stamps!
+    @document = new_document
+    @pub_document = new_document
+    nil
+  end
+
   def self.invalidate_cross_document!(node, target_document)
     source = node.document
     return if source.nil? || source.equal?(target_document)
