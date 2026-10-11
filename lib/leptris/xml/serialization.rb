@@ -60,10 +60,30 @@ module Leptris::XML::Serialization
   # one FFI fast-path dispatch per child.
   # Document HTML serialization (libleptris 1.9.225, #1311): the
   # native HTML mode — voids unclosed, raw-text script/style,
-  # explicit closes, no declaration, DOCTYPE first.
-  def self.document_html(c_ptr)
+  # explicit closes, no declaration, DOCTYPE first. With +indent+
+  # (spaces per level) or +indent_text+ (a unit string like "\t"),
+  # the ext serializer runs method="html" layout over the standard
+  # indent machinery (moxml#354 / leptris#1635): line breaks around
+  # block/element children per the HTML element table, raw-text and
+  # mixed content verbatim.
+  def self.document_html(c_ptr, indent: 0, indent_text: nil)
+    if indent.to_i.zero? && indent_text.nil?
+      return Leptris::XML::FFI.read_owned_string(
+        Leptris::XML::FFI.leptris_document_serialize_html(c_ptr, nil))
+    end
+
+    opts, _encoding_anchor = build_options(indent: indent, no_decl: true)
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    ext[:html_method] = 1
+    ext[:indent_html] = 1
+    unit_anchor = nil
+    if indent_text
+      unit_anchor = ::FFI::MemoryPointer.from_string(indent_text.to_s)
+      ext[:indent_unit] = unit_anchor
+    end
     Leptris::XML::FFI.read_owned_string(
-      Leptris::XML::FFI.leptris_document_serialize_html(c_ptr, nil))
+      Leptris::XML::FFI.leptris_document_serialize_ext_sized(
+        c_ptr, opts.pointer, ext.pointer, ext.size))
   end
 
   # Element-level HTML mode through the ext serializer (the

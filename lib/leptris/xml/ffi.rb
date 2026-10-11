@@ -205,7 +205,12 @@ module Leptris
                # libleptris 1.9.225 (#1311): tri-state — 0 = the
                # document's default method, 1 = force HTML, -1 =
                # force XML (to_xml on an HTML document).
-               :html_method, :int
+               :html_method, :int,
+               # libleptris 1.9.xxx (#1635): 1 = the html layout
+               # nests with the indent machinery (libxml2 format
+               # mode); 0 = the §16.2 newline-only shape. Appended —
+               # the sized entry keeps older allocations zeroed.
+               :indent_html, :int
       end
 
       # Mirrors LeptrisParseOptions (libleptris >= 1.9.0 carries the
