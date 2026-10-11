@@ -541,3 +541,44 @@ RSpec.describe "XSD cross-namespace imports (1.9.335, #1626)" do
     expect(errors.first).to include("at 'right'")
   end
 end
+
+# libleptris 1.9.337 (#419): instance errors carry the owning
+# element and the recorded source position, in the libxml2/
+# Nokogiri-presentable shape:
+# `element 'pgMar' @2:22: attribute 'header': required but absent`.
+# Applied to attribute rows (required-absent, strict-undeclared),
+# strict elements, unresolved types, and content-model failures;
+# simple_valid keeps the prior form.
+RSpec.describe "XSD errors carry element + position (1.9.337, #419)" do
+  let(:schema) do
+    Leptris::XML::XSD.compile(<<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="sectPr">
+          <xs:complexType><xs:sequence>
+            <xs:element name="pgMar">
+              <xs:complexType>
+                <xs:attribute name="header" type="xs:integer"
+                              use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:schema>
+    XSD
+  end
+
+  it "attribute errors name the element and the source position" do
+    doc = Leptris::XML::Document.parse(
+      %(<sectPr>\n  <pgMar top="1440"/>\n</sectPr>\n))
+    errors = schema.validate_errors(doc)
+    expect(errors).to include(match(%r{element 'pgMar' @\d+:\d+: attribute 'header': required but absent}))
+    expect(errors).to include(match(/attribute 'top': not declared \(strict\)/))
+  end
+
+  it "content-model failures carry the position alongside the culprit" do
+    doc = Leptris::XML::Document.parse(
+      %(<sectPr>\n  <pgMar header="1" bogus="x"/>\n</sectPr>))
+    errors = schema.validate_errors(doc)
+    expect(errors).to include(match(%r{element 'pgMar' @\d+:\d+: attribute 'bogus': not declared \(strict\)}))
+  end
+end
