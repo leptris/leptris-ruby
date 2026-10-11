@@ -333,3 +333,38 @@ RSpec.describe "absorbed-source release ordering (#1557)" do
     expect(true).to eq(true)
   end
 end
+
+# leptris#1636: a consumer that re-parents its WRAPPER to the target
+# document before attaching (moxml's merge bookkeeping) leaves the
+# wrapper claiming a document whose pool does not own the C node.
+# foreign_to? answers false, the same-document fast path runs, the
+# engine adopts by copy — and the wrapper must be rebased onto the
+# installed copy or it addresses the freed source pool.
+RSpec.describe "wrapper rebase on engine-side adoption (#1636)" do
+  it "a wrapper claiming the target document rebases onto the installed copy" do
+    frag = Leptris::XML::Document.parse(
+      %(<w><a id="k1"><b>p:t</b><c>deep text</c></a></w>))
+    target = Leptris::XML::Document.parse(%(<r/>))
+    frag_node = frag.root.element_children.first
+    # The lying wrapper: target-document identity over a fragment-pool
+    # node — exactly what moxml's re-parenting bookkeeping produces.
+    liar = Leptris::XML::Node.wrap(frag_node.c_ptr, target)
+
+    returned = target.root.add_child(liar)
+    expect(returned).to equal(liar)
+
+    frag.free
+    # Recycle the freed pool pages so stale reads cannot pass by luck.
+    20.times { Leptris::XML::Document.parse(%(<x>#{"y" * 4096}</x>)) }
+
+    expect(liar.name).to eq("a")
+    expect(liar["id"]).to eq("k1")
+    expect(liar.element_children.map(&:name)).to eq(%w[b c])
+    expect(liar.element_children[1].content).to eq("deep text")
+    expect(target.root.to_xml)
+      .to eq(%(<r><a id="k1"><b>p:t</b><c>deep text</c></a></r>))
+    # Edits through the rebased wrapper must hit the installed copy.
+    liar["x"] = "y"
+    expect(target.root.to_xml).to include("x=\"y\"")
+  end
+end
