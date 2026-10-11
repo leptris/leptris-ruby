@@ -1165,6 +1165,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.341.0] - 2026-10-12
+
+### Changed
+
+- **Ride libleptris v1.9.341** — XSD import-DAG dedup (the
+  dml-main multi-GB/minutes compile fix, leptris#1644 /
+  leptris-ruby#423), indent_html last-block-child nesting
+  (leptris#1647), and the absorb/copy survival specs
+  (leptris#1646).
+
+
 ### Added — Descriptor typed scalars + the fused materialize entry (#230's consumer contract)
 
 - **Typed scalars**: attribute and child plan rows accept
