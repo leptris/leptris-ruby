@@ -449,6 +449,26 @@ module Leptris
       # content. Caller-freed string (leptris_free_string).
       attach_function :leptris_plan_serialize,
         [:leptris_plan, :leptris_plan_result, :pointer], :pointer
+      # libleptris 1.9.341 (leptris-ruby#425): formatting-bearing
+      # plan serialization. Zero-init = the compact historical
+      # form; indent > 0 pretty-prints element boundaries (one
+      # newline + indent per level, RAW/CONTENT runs verbatim
+      # inline); indent_unit replaces the two-space default
+      # (requires indent > 0). options NULL is the compact form;
+      # opts_size must cover the struct as compiled here.
+      class PlanSerializeOptions < ::FFI::Struct
+        layout :indent, :int,
+               :indent_unit, :pointer
+      end
+      attach_function :leptris_plan_serialize_ext,
+        [:leptris_plan, :leptris_plan_result, :pointer, :size_t,
+         :pointer], :pointer
+      # libleptris 1.9.341 (leptris-ruby#426): materialize a built
+      # result as a native document tree — build_result -> this ->
+      # the document writer, no string round trip. Only an ELEMENT
+      # root is accepted.
+      attach_function :leptris_document_from_plan_result,
+        [:leptris_plan, :leptris_plan_result, :pointer], :pointer
       attach_function :leptris_plan_value_kind,
         [:leptris_plan_result], :int
       attach_function :leptris_plan_value_name,
