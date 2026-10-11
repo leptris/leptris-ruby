@@ -1,3 +1,25 @@
+## [1.9.340.0] - 2026-10-11
+
+### Added — engine sync (libleptris 1.9.338-1.9.340)
+
+- **`leptris_element_add_child_addr_installed` (1.9.340)**: the
+  addr-attach twin returning the EFFECTIVE installed address — a
+  foreign node adopted by copy (#1528) reports the copy's address,
+  which callers must use for every later handle (the dangling-
+  wrapper mechanism behind the Windows `fast_element_xml`
+  segfault). Audit 385/384.
+
+### Fixed — engine sync
+
+- 1.9.339: cycle-creating reparents rejected (#1636) — appending
+  a node into its own descendant subtree built parent cycles that
+  unbounded the serializer's recursion.
+- 1.9.338: in-body drops table-structure start tags (#1634);
+  indent_html ext option (#1635).
+
+Note: the #425/#426 plan faces (engine PR #1645, merged) were cut
+AFTER the v1.9.340 tag — they ride the next engine release.
+
 ## [1.9.337.0] - 2026-10-11
 
 ### Added — engine sync (libleptris 1.9.337)
