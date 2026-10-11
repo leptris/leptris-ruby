@@ -888,6 +888,13 @@ attach_function :leptris_parse_string,
       # semantics and status contract as the pointer face.
       attach_function :leptris_element_add_child_addr,
         [:ulong_long, :ulong_long], :leptris_status
+      # #1636: the addr-attach twin returning the EFFECTIVE
+      # installed child address — a foreign node is adopted by
+      # copy (#1528) and the caller must use the copy's address
+      # for every later handle. installed may be NULL
+      # (status-only).
+      attach_function :leptris_element_add_child_addr_installed,
+        [:ulong_long, :ulong_long, :pointer], :leptris_status
       # Fused create+append (libleptris 1.9.153): one document
       # resolution, identical tree semantics to the two-call pair.
       attach_function :leptris_element_create_child,
