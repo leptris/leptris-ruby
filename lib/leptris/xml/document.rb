@@ -546,9 +546,10 @@ class Leptris::XML::Document
   # entity escaping per HTML rules, the DOCTYPE emitted first.
   # Walks the tree in Ruby — the engine-side serialization mode is
   # the perf headroom this face gates on.
-  def to_html
+  def to_html(indent: 0, indent_text: nil)
     raise Leptris::XML::UseAfterFreeError if @freed.state == :freed
-    Leptris::XML::Serialization.document_html(c_ptr)
+    Leptris::XML::Serialization.document_html(
+      c_ptr, indent: indent, indent_text: indent_text)
   end
 
   def save(path, mode: :xml, **opts)
