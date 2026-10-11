@@ -91,6 +91,11 @@ static text_create_fn f_text_create;
 static create_child_fn f_create_child;
 static append_child_fn f_append_child;
 static append_child_fn f_prepend_child, f_insert_after, f_insert_before;
+/* leptris#1636: the addr-attach twin returning the EFFECTIVE
+ * installed child address (cross-pool attaches adopt by copy). */
+typedef int (*add_child_addr_installed_fn)(uintptr_t, uintptr_t,
+                                           uintptr_t *);
+static add_child_addr_installed_fn f_add_child_addr_installed;
 typedef void *(*elem_new_attrs_fn)(void *, const char *, const char **,
                                    const char **, size_t);
 static elem_new_attrs_fn f_elem_new_with_attrs;
@@ -242,6 +247,9 @@ static void resolve_symbols(const char *lib_path)
     f_create_child = (create_child_fn)lib_sym(h, "leptris_element_create_child");
     f_append_child = (append_child_fn)lib_sym(h, "leptris_element_append_child");
     f_prepend_child = (append_child_fn)lib_sym(h, "leptris_element_prepend_child");
+    f_add_child_addr_installed =
+        (add_child_addr_installed_fn)lib_sym(
+            h, "leptris_element_add_child_addr_installed");
     f_insert_after = (append_child_fn)lib_sym(h, "leptris_element_insert_after");
     f_insert_before = (append_child_fn)lib_sym(h, "leptris_element_insert_before");
     f_set_attr = (set_attr_fn)lib_sym(h, "leptris_element_set_attribute");
@@ -279,7 +287,8 @@ static void resolve_symbols(const char *lib_path)
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
-        !f_create_child || !f_append_child || !f_prepend_child ||
+        !f_create_child || !f_append_child || !f_add_child_addr_installed ||
+        !f_prepend_child ||
         !f_insert_after || !f_insert_before || !f_set_attr || !f_set_root ||
         !f_xp_type || !f_xp_free || !f_first_child ||
         !f_comment_content || !f_cdata_content || !f_pi_target ||
@@ -755,8 +764,11 @@ static VALUE nf_ns_lift_needed(VALUE self, VALUE addr)
  * One dispatch for the common programmatic-build adoption: the
  * readonly + liveness gates, the provable no-op namespace-lift
  * predicate, the version bump, and the engine append. Returns
- * the engine status int; Qnil means the child DOES need the
- * namespace lift — the caller falls back to the Ruby path. */
+ * the EFFECTIVE installed child address as an Integer (#1636: a
+ * cross-pool attach adopts by copy and the caller must rebase its
+ * wrapper when it differs from the attached address); Qnil means
+ * the child DOES need the namespace lift — the caller falls back
+ * to the Ruby path. */
 static VALUE nf_append_binding_child(VALUE self, VALUE document,
                                      VALUE parent_addr, VALUE child_addr)
 {
@@ -789,9 +801,11 @@ static VALUE nf_append_binding_child(VALUE self, VALUE document,
      * mutation merely discards memos. */
     rb_ivar_set(document, id_iv_version,
                 LONG2FIX(FIX2LONG(rb_ivar_get(document, id_iv_version)) + 1));
-    st = f_append_child(parent, child);
+    uintptr_t installed = 0;
+    st = f_add_child_addr_installed((uintptr_t)parent, (uintptr_t)child,
+                                    &installed);
     check_status_c(st);
-    return Qtrue;
+    return ULL2NUM((unsigned long long)installed);
 }
 
 /* Batch append (leptris-ruby#366): one crossing for N children.

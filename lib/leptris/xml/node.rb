@@ -250,6 +250,19 @@ class Leptris::XML::Node
     @previous_sibling_version = nil
   end
 
+  # leptris#1636: the engine adopted this node by copy at an attach
+  # — the wrapper now addresses the INSTALLED copy, which the target
+  # document owns. Resets every cached identity: the Pointer memo,
+  # the parent memo, and the structural stamps (stamped against the
+  # source document's version and meaningless for the copy).
+  def rebase_installed!(new_c_address)
+    @c_address = new_c_address
+    @c_ptr = nil
+    @parent = nil
+    invalidate_structural_stamps!
+    self
+  end
+
   # Mutation-site helper: when +node+ moves into +target_document+
   # from a different one, the move invalidates the node's own
   # structural stamps (stamped against the SOURCE version) and the

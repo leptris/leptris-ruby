@@ -697,8 +697,14 @@ class Leptris::XML::Element < Leptris::XML::Node
       if native_fast_children?
         # The face raises on failure (TODO.perf/36); Qnil = the
         # child needs the lift — the full path handles it.
-        unless Leptris::XML::Native.append_binding_child(
-          @document, @c_address, node_or_markup.c_address).nil?
+        unless (installed = Leptris::XML::Native.append_binding_child(
+          @document, @c_address, node_or_markup.c_address)).nil?
+          # #1636: the engine may adopt by copy even when the
+          # wrapper claims this document (the consumer re-parented
+          # its wrapper first) — rebase onto the installed copy.
+          unless installed == node_or_markup.c_address
+            node_or_markup.rebase_installed!(installed)
+          end
           return node_or_markup
         end
       end
@@ -707,10 +713,17 @@ class Leptris::XML::Element < Leptris::XML::Node
         Leptris::XML::Element.lift_namespaces_for_adoption(node_or_markup, namespaces)
       end
       # Address-based attach (#408): same status contract, no
-      # FFI::Pointer mint for either side.
+      # FFI::Pointer mint for either side. #1636: the installed
+      # twin reports an adopted copy — rebase the wrapper when the
+      # engine did not install the argument itself.
+      installed_buf = ::FFI::MemoryPointer.new(:ulong_long)
       Leptris::XML::FFI.check_status(
-        Leptris::XML::FFI.leptris_element_add_child_addr(
-          @c_address, node_or_markup.c_address))
+        Leptris::XML::FFI.leptris_element_add_child_addr_installed(
+          @c_address, node_or_markup.c_address, installed_buf))
+      installed = installed_buf.read_ulong_long
+      unless installed == node_or_markup.c_address
+        node_or_markup.rebase_installed!(installed)
+      end
       node_or_markup
     when String
       # TODO.perf/34: one dispatch parses the markup and appends
