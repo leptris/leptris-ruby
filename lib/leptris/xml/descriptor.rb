@@ -410,16 +410,52 @@ class Leptris::XML::Descriptor
   # declared exactly once, on the output root, first-encounter
   # order. Text and attribute values are escaped; RAW members are
   # verbatim.
-  def serialize(plan_value)
+  def serialize(plan_value, indent: 0, indent_unit: nil)
     result_ptr = plan_value.result_ptr
     status = ::FFI::MemoryPointer.new(:int)
-    raw = Leptris::XML::FFI.leptris_plan_serialize(
-      @handle, result_ptr, status)
+    raw =
+      if indent.to_i > 0
+        # libleptris 1.9.341 (leptris-ruby#425): the ext face owns
+        # the formatting; the optionless call keeps the compact
+        # historical shape.
+        opts = Leptris::XML::FFI::PlanSerializeOptions.new
+        opts[:indent] = indent.to_i
+        unit_anchor = nil
+        if indent_unit
+          unit_anchor = ::FFI::MemoryPointer.from_string(indent_unit.to_s)
+          opts[:indent_unit] = unit_anchor
+        end
+        Leptris::XML::FFI.leptris_plan_serialize_ext(
+          @handle, result_ptr, opts,
+          Leptris::XML::FFI::PlanSerializeOptions.size, status)
+      else
+        Leptris::XML::FFI.leptris_plan_serialize(
+          @handle, result_ptr, status)
+      end
     if raw.null?
       raise Leptris::XML::Error,
         "plan serialize failed (status=#{status.read_int})"
     end
     Leptris::XML::FFI.read_owned_string(raw)
+  end
+
+  # libleptris 1.9.341 (leptris-ruby#426): install a built result
+  # as a native document tree — build_result -> this -> the
+  # document writer, with no string round trip. Attributes carry
+  # verbatim (wire spellings); root namespace declarations ride as
+  # xmlns attributes. Only an ELEMENT root is accepted. The
+  # returned document owns its pool (GC/freed like any parsed
+  # document).
+  def to_document(plan_value)
+    result_ptr = plan_value.result_ptr
+    status = ::FFI::MemoryPointer.new(:int)
+    raw = Leptris::XML::FFI.leptris_document_from_plan_result(
+      @handle, result_ptr, status)
+    if raw.null?
+      raise Leptris::XML::Error,
+        "document from plan result failed (status=#{status.read_int})"
+    end
+    Leptris::XML::Document.wrap(raw)
   end
 
   # The fused loop (#1269b): source bytes → typed rows in ONE C

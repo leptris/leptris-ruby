@@ -645,3 +645,76 @@ RSpec.describe "Descriptor#build_result (1.9.334)" do
       .to eq(%(<r><c>3</c><a>1</a><d>4</d><b>2</b></r>))
   end
 end
+
+# libleptris 1.9.341 (leptris-ruby#425): formatting on the plan
+# serialize face — indent/indent_unit pretty-print element
+# boundaries; the optionless call keeps the compact byte shape.
+RSpec.describe "Descriptor#serialize formatting (1.9.341, #425)" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "a", kind: :scalar },
+        { name: "b", kind: :scalar },
+      ])
+  end
+
+  let(:ops) do
+    [{ kind: :element, plan_index: 0 },
+     { kind: :scalar, plan_index: 0, row_index: 0, value: "v1" },
+     { kind: :scalar, plan_index: 0, row_index: 1, value: "v2" },
+     { kind: :end }]
+  end
+
+  it "indent pretty-prints boundaries; the compact default is unchanged" do
+    expect(plan.serialize(plan.build_result(ops)))
+      .to eq("<r><a>v1</a><b>v2</b></r>")
+    expect(plan.serialize(plan.build_result(ops), indent: 2))
+      .to eq("<r>\n  <a>v1</a>\n  <b>v2</b>\n</r>\n")
+  end
+
+  it "indent_unit replaces the per-level spaces" do
+    expect(
+      plan.serialize(plan.build_result(ops), indent: 1, indent_unit: "\t"))
+      .to eq("<r>\n\t<a>v1</a>\n\t<b>v2</b>\n</r>\n")
+  end
+end
+
+# libleptris 1.9.341 (leptris-ruby#426): build_result -> a native
+# document -> the document writer — no string round trip.
+RSpec.describe "Descriptor#to_document (1.9.341, #426)" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [
+        { name: "a", kind: :scalar },
+        { name: "b", kind: :scalar },
+      ])
+  end
+
+  it "materializes a built result as a native document" do
+    result = plan.build_result(
+      [{ kind: :element, plan_index: 0 },
+       { kind: :attr, plan_index: 0, row_index: 0, name: "k", value: "1" },
+       { kind: :scalar, plan_index: 0, row_index: 0, value: "v1" },
+       { kind: :scalar, plan_index: 0, row_index: 1, value: "v2" },
+       { kind: :end }])
+    doc = plan.to_document(result)
+    expect(doc).to be_a(Leptris::XML::Document)
+    expect(doc.root.name).to eq("r")
+    expect(doc.root["k"]).to eq("1")
+    expect(doc.root.element_children.map(&:name)).to eq(%w[a b])
+    expect(doc.root.element_children.first.text).to eq("v1")
+    expect(doc.root.to_xml).to eq(%(<r k="1"><a>v1</a><b>v2</b></r>))
+  end
+
+  it "rejects results that cannot root a document" do
+    # A bare leading SCALAR op is refused at the result build
+    # itself (status -5) — the binding surfaces that as the same
+    # Leptris::XML::Error the bridge face raises.
+    expect {
+      plan.to_document(plan.build_result(
+        [{ kind: :scalar, plan_index: 0, row_index: 0, value: "x" }]))
+    }.to raise_error(Leptris::XML::Error)
+  end
+end
