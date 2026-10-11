@@ -21,12 +21,103 @@
 # elements serialize with the HTML5-legal trailing slash).
 module Leptris
   module HTML
+    # WHATWG fragment parsing with a context element (#1634 /
+    # moxml#353). Composed over the WHATWG lane: the fragment runs
+    # inside the context element's ancestor chain, so tree
+    # construction lands in the right insertion mode (body context
+    # keeps <title>/<meta> at fragment top level; table contexts
+    # take the in-table rules). The wrapper document stays alive
+    # for the fragment's lifetime - children address its pool.
+    class Fragment
+      # chains are the ancestors the parser opens before the
+      # fragment: the innermost element carries the children
+      TABLE_CHAINS = {
+        table: %w[table],
+        tbody: %w[table tbody],
+        thead: %w[table thead],
+        tfoot: %w[table tfoot],
+        tr: %w[table tbody tr],
+        td: %w[table tbody tr td],
+        th: %w[table tbody tr th],
+        caption: %w[table caption],
+        colgroup: %w[table colgroup],
+      }.freeze
+
+      def initialize(document, chain)
+        # The wrapper document always carries a body (explicit tag
+        # or synthesis); table chains nest under it.
+        @document = document
+        el = first_element_named(document.root, "body")
+        chain.each do |tag|
+          break unless el
+          el = first_element_named(el, tag)
+        end
+        @context = el
+      end
+
+      # The parsed top-level nodes (text, elements, comments) in
+      # tree order - the fragment's children, Nokogiri's
+      # DocumentFragment#children shape.
+      def children
+        @context ? @context.children.to_a : []
+      end
+
+      def each(&block)
+        children.each(&block)
+      end
+
+      include Enumerable
+
+      def size
+        children.size
+      end
+
+      def empty?
+        children.empty?
+      end
+
+      # The fragment serialized as its children joined (HTML
+      # method per node; text verbatim).
+      def to_html
+        children.map do |c|
+          c.is_a?(Leptris::XML::Text) ? c.content : c.to_html
+        end.join
+      end
+
+      private
+
+      def first_element_named(parent, name)
+        parent.children.find do |c|
+          c.is_a?(Leptris::XML::Element) && c.name == name
+        end
+      end
+    end
+
     module_function
 
     # Nokogiri::HTML shape: the default lane is html4 (byte-parity
     # with libxml2/Nokogiri::HTML), matching XML.parse_html's default.
     def parse(html)
       Leptris::XML.parse_html(html, mode: :html4)
+    end
+
+    # WHATWG fragment parse (body context by default; the table
+    # contexts wrap their ancestor chain). Matches
+    # Nokogiri::HTML5.fragment semantics on the head-sweep and
+    # foster-parenting divergence set (verified against the
+    # html5lib trees).
+    def parse_fragment(html, context: :body)
+      chain = context == :body ? ["body"] : Fragment::TABLE_CHAINS.fetch(context) do
+        raise ArgumentError,
+              "context must be :body or a table context " \
+              "(#{(Fragment::TABLE_CHAINS.keys + [:body]).join(', ')}), " \
+              "got #{context.inspect}"
+      end
+      prefix = "<body>#{chain.map { |t| "<#{t}>" }.join}"
+      suffix = "#{chain.reverse.map { |t| "</#{t}>" }.join}</body>"
+      wrapped = "#{prefix}#{html}#{suffix}"
+      Fragment.new(Leptris::HTML5.parse(wrapped),
+                   chain.first == "body" ? chain.drop(1) : chain)
     end
 
     # Fresh document with the HTML 4.01 Transitional doctype preset
