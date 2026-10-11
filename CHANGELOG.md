@@ -1,3 +1,17 @@
+## [1.9.337.0] - 2026-10-11
+
+### Added — engine sync (libleptris 1.9.337)
+
+- **XSD instance errors carry the owning element and source
+  position (#419, engine PR #1632)**: the libxml2/Nokogiri-
+  presentable shape — `element 'pgMar' @2:22: attribute 'header':
+  required but absent` — across attribute rows (required-absent,
+  fixed mismatch, strict-undeclared), strict elements, unresolved
+  types, and content-model failures (the #1626 culprit naming
+  rides along). Position from the recorded parse-time source
+  stamp; prior form for skipped-position parses and
+  `simple_valid`. Pinned for attribute and content shapes.
+
 ## [1.9.336.0] - 2026-10-11
 
 ### Fixed — engine sync (libleptris 1.9.336)
