@@ -796,8 +796,11 @@ static VALUE nf_append_binding_child(VALUE self, VALUE document,
     /* leptris#1636: cross-pool children are adopted by COPY inside
      * the engine — return the INSTALLED address so the caller can
      * rebase its wrapper. 0 means the move was by reference; the
-     * argument address stays valid. */
-    if (f_append_child_installed) {
+     * argument address stays valid. The twin reads element-form
+     * fields on the child (get_document misreads non-element
+     * structs), so text/comment/PI children keep the legacy face. */
+    if (f_append_child_installed &&
+        f_node_type(child) == NT_ELEMENT) {
         void *installed = NULL;
         st = f_append_child_installed(parent, child, &installed);
         check_status_c(st);
