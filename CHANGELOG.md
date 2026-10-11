@@ -1,3 +1,17 @@
+## [1.9.340.1] - 2026-10-11
+
+### Changed
+
+- **The foreign-splice path wires the installed-address rebase
+  (#1636)**: `append_installed` calls
+  `leptris_element_add_child_addr_installed` — the engine reports
+  the EFFECTIVE installed address (same-doc: the argument;
+  foreign: the adopted copy) and the returned wrapper is minted
+  from it directly, replacing the O(children) walk to find it.
+  No wrapper can dangle on the abandoned original. Same-document
+  attaches rebase to the argument address (pinned); the returned
+  address survives the source document's free (pinned).
+
 ## [1.9.340.0] - 2026-10-11
 
 ### Added — engine sync (libleptris 1.9.338-1.9.340)

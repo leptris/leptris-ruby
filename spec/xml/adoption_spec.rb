@@ -333,3 +333,31 @@ RSpec.describe "absorbed-source release ordering (#1557)" do
     expect(true).to eq(true)
   end
 end
+
+# #1636: the installed-address twin — add_child's returned wrapper
+# addresses the EFFECTIVE installed node (the adopted copy for
+# foreign splices), and that address survives the source
+# document's free: the wrapper can never dangle on the abandoned
+# original.
+RSpec.describe "installed-address rebase (#1636)" do
+  it "the returned wrapper's address is the live tree node" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    scratch = Leptris::XML::Document.parse(%(<s><new attr="v">t</new></s>))
+    foreign_addr = scratch.root.element_children.first.c_address
+    installed = doc.root.add_child(scratch.root.element_children.first)
+    expect(installed.c_address).not_to eq(foreign_addr)
+    expect(doc.root.element_children.first.c_address)
+      .to eq(installed.c_address)
+    scratch.free
+    expect(doc.root.element_children.first.c_address)
+      .to eq(installed.c_address)
+    expect(doc.root.to_xml).to eq(%(<r><new attr="v">t</new></r>))
+  end
+
+  it "same-document attaches rebase to the argument address" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    kid = doc.create_element("same")
+    installed = doc.root.add_child(kid)
+    expect(installed.c_address).to eq(kid.c_address)
+  end
+end

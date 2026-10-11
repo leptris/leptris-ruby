@@ -756,12 +756,18 @@ class Leptris::XML::Element < Leptris::XML::Node
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
     end
+    # The installed twin (#1636) reports the EFFECTIVE address: a
+    # same-doc attach installs the argument, a foreign one the
+    # adopted copy — the engine tells us which node is live, so no
+    # children walk to find it and no wrapper can dangle on the
+    # abandoned original.
+    out = ::FFI::MemoryPointer.new(:pointer)
     Leptris::XML::FFI.check_status(
-      Leptris::XML::FFI.leptris_element_add_child_addr(
-        @c_address, node.c_address))
+      Leptris::XML::FFI.leptris_element_add_child_addr_installed(
+        @c_address, node.c_address, out))
     Leptris::XML::Node.invalidate_cross_document!(node, @document)
     remove_from_source_original(node)
-    last_installed
+    Leptris::XML::Node.wrap(out.read_pointer, @document)
   end
   private :append_installed
 
