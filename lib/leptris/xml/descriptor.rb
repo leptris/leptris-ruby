@@ -410,16 +410,50 @@ class Leptris::XML::Descriptor
   # declared exactly once, on the output root, first-encounter
   # order. Text and attribute values are escaped; RAW members are
   # verbatim.
-  def serialize(plan_value)
+  # libleptris 1.9.341 (#425): +indent:+ pretty-prints element
+  # boundaries (one newline + indent_unit-or-two-spaces per level;
+  # RAW/CONTENT runs stay verbatim inline). Without options the
+  # compact historical form.
+  def serialize(plan_value, indent: nil, indent_unit: nil)
     result_ptr = plan_value.result_ptr
     status = ::FFI::MemoryPointer.new(:int)
-    raw = Leptris::XML::FFI.leptris_plan_serialize(
-      @handle, result_ptr, status)
+    raw =
+      if indent.nil?
+        Leptris::XML::FFI.leptris_plan_serialize(
+          @handle, result_ptr, status)
+      else
+        opts = Leptris::XML::FFI::PlanSerializeOptions.new
+        opts[:indent] = indent.to_i
+        opts[:indent_unit] =
+          if indent_unit
+            ::FFI::MemoryPointer.from_string(indent_unit.to_s).tap do |m|
+              @option_anchors = [m]
+            end
+          end
+        Leptris::XML::FFI.leptris_plan_serialize_ext(
+          @handle, result_ptr, opts, opts.size, status)
+      end
     if raw.null?
       raise Leptris::XML::Error,
         "plan serialize failed (status=#{status.read_int})"
     end
     Leptris::XML::FFI.read_owned_string(raw)
+  end
+
+  # libleptris 1.9.341 (#426): materialize a built result as a
+  # native DOCUMENT tree — build_result -> this -> the document
+  # writer (with its full formatting), no string round trip. The
+  # returned Document owns the minted nodes.
+  def document(plan_value)
+    result_ptr = plan_value.result_ptr
+    status = ::FFI::MemoryPointer.new(:int)
+    raw = Leptris::XML::FFI.leptris_document_from_plan_result(
+      @handle, result_ptr, status)
+    if raw.null?
+      raise Leptris::XML::Error,
+        "plan result document failed (status=#{status.read_int})"
+    end
+    Leptris::XML::Document.wrap(raw.address)
   end
 
   # The fused loop (#1269b): source bytes → typed rows in ONE C

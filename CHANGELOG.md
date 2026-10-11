@@ -1,3 +1,27 @@
+## [1.9.341.0] - 2026-10-12
+
+### Added — engine sync (libleptris 1.9.341)
+
+- **Descriptor#serialize formatting + the result→document bridge
+  (#425, #426)**: `serialize(result, indent: n, indent_unit: s)`
+  rides `leptris_plan_serialize_ext` — pretty element boundaries
+  with RAW/CONTENT runs verbatim inline, compact default
+  unchanged; `Descriptor#document(result)` rides
+  `leptris_document_from_plan_result` — a native document minted
+  from the built result, feeding the document writer with full
+  formatting, no reparse (lutaml-model's plan fast path drops
+  its last C-side round trips). Audit 387/386.
+
+### Fixed — engine sync (libleptris 1.9.341)
+
+- **XSD compile of large multi-import schemas (#423,
+  leptris#1644)**: the import DAG is visited once per unit —
+  dml-main.xsd compiles in 0.01 s at ~40 MB through the binding
+  (was unbounded: 13-21 GB, killed at 180-600 s, never
+  finishing). Sequential-compile accumulation was allocator
+  survival of the same blowup. Verified end to end.
+- indent_html LAST-block nesting (leptris#1647).
+
 ## [1.9.340.0] - 2026-10-11
 
 ### Added — engine sync (libleptris 1.9.338-1.9.340)

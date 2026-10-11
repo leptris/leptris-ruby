@@ -645,3 +645,52 @@ RSpec.describe "Descriptor#build_result (1.9.334)" do
       .to eq(%(<r><c>3</c><a>1</a><d>4</d><b>2</b></r>))
   end
 end
+
+# libleptris 1.9.341 (#425/#426): formatting on the plan-serialize
+# face and the result→document bridge — the last two C-side gaps
+# on lutaml-model's plan fast path (#408 lineage).
+RSpec.describe "plan serialize formatting + document bridge (1.9.341)" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      attributes: [{ name: "lang", kind: :scalar }],
+      children: [{ name: "a", kind: :scalar },
+                 { name: "b", kind: :scalar }])
+  end
+
+  let(:result) do
+    plan.build_result([
+      { kind: :element },
+      { kind: :attr, name: "lang", value: "en", row_index: 0 },
+      { kind: :scalar, value: "1", row_index: 0 },
+      { kind: :scalar, value: "2", row_index: 1 },
+      { kind: :end },
+    ])
+  end
+
+  it "serializes compact by default and pretty with indent:" do
+    expect(plan.serialize(result))
+      .to eq(%(<r lang="en"><a>1</a><b>2</b></r>))
+    expect(plan.serialize(result, indent: 2))
+      .to eq(%(<r lang="en">\n  <a>1</a>\n  <b>2</b>\n</r>\n))
+  end
+
+  it "honors indent_unit" do
+    expect(plan.serialize(result, indent: 1, indent_unit: "\t"))
+      .to eq(%(<r lang="en">\n\t<a>1</a>\n\t<b>2</b>\n</r>\n))
+  end
+
+  it "mints a native document with the full tree" do
+    doc = plan.document(result)
+    expect(doc.root.name).to eq("r")
+    expect(doc.root["lang"]).to eq("en")
+    expect(doc.root.element_children.map(&:name)).to eq(%w[a b])
+    expect(doc.root.element_children.map(&:content)).to eq(%w[1 2])
+  end
+
+  it "feeds the document writer with full formatting — no reparse" do
+    doc = plan.document(result)
+    expect(doc.serialize(indent: 2))
+      .to eq(%(<?xml version="1.0"?>\n<r lang="en">\n  <a>1</a>\n  <b>2</b>\n</r>))
+  end
+end
