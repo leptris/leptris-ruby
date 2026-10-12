@@ -48,6 +48,28 @@ module Leptris::XML::XSD
       end
     end
 
+    # Deterministic drop (#362.3 / moxml): frees the compiled
+    # schema NOW instead of waiting for GC — long-lived validation
+    # services holding dozens of schemas stop parking engine-side
+    # trees for the process lifetime. The AutoPointer's GC
+    # finalizer is disarmed first (autorelease=false), so the free
+    # happens exactly once. Faces on a released schema raise.
+    #
+    #   schema = Leptris::XML::XSD.compile_file(path)
+    #   schema.release  # => true
+    #   schema.released? # => true
+    def release
+      return true if released?
+      @handle.autorelease = false
+      Leptris::XML::FFI.leptris_xsd_free(@handle)
+      @released = true
+      true
+    end
+
+    def released?
+      instance_variable_defined?(:@released) ? @released : false
+    end
+
     # Compile a schema from XML text. Raises Error when the text is
     # not usable at all (not well-formed, no root); schema-level
     # problems compile to a handle whose #error carries the detail
@@ -82,12 +104,14 @@ module Leptris::XML::XSD
     # Number of top-level schema declarations the compiler
     # recognized (elements, types, groups, ...).
     def declaration_count
+      check_released!
       Leptris::XML::FFI.leptris_xsd_declaration_count(@handle)
     end
 
     # The engine's schema-level error message, or nil when the
     # schema compiled cleanly.
     def error
+      check_released!
       msg = Leptris::XML::FFI.leptris_xsd_error(@handle)
       msg.nil? || msg.empty? ? nil : msg
     end
@@ -97,6 +121,7 @@ module Leptris::XML::XSD
     # name) — restriction chains validate every hop's facets,
     # cycle-guarded. Unknown type names raise (the -1 contract).
     def simple_valid?(type_name, lexical)
+      check_released!
       tri_state(
         Leptris::XML::FFI.leptris_xsd_simple_valid(
           @handle, type_name.to_s, lexical.to_s),
@@ -109,6 +134,7 @@ module Leptris::XML::XSD
     # and child content models through the Thompson NFA. Returns
     # true/false.
     def valid?(document)
+      check_released!
       tri_state(
         Leptris::XML::FFI.leptris_xsd_validate(
           @handle, document.c_ptr), "invalid document handle")
@@ -117,6 +143,7 @@ module Leptris::XML::XSD
     # The enumerated failure list of the last #validate run
     # (empty when valid; the NEXT validate replaces the list).
     def validate_errors(document)
+      check_released!
       valid?(document)
       Leptris::XML::FFI.leptris_xsd_error_count(@handle).times.map do |i|
         Leptris::XML::FFI.leptris_xsd_error_at(@handle, i)
@@ -129,6 +156,7 @@ module Leptris::XML::XSD
     # + effective namespace extracted per child). Unknown element
     # declarations raise (the -1 contract).
     def content_valid?(element_name, children)
+      check_released!
       kids = children.to_a
       nb, na = Leptris::XML::CStringArray.to_c(
         kids.map { |c| c.name.to_s })
@@ -141,6 +169,11 @@ module Leptris::XML::XSD
     end
 
     private
+
+    def check_released!
+      raise Leptris::XML::UseAfterFreeError,
+            "schema released (moxml #362.3)" if released?
+    end
 
     # A child's effective namespace URI (nil = none) — read
     # through its own c_ptr, so docless wrappers work.
