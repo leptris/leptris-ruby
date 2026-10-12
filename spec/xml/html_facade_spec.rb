@@ -156,3 +156,29 @@ RSpec.describe "Document#to_html / Element#to_html (#309's HTML serialization mo
     expect(body.to_html).to eq("<body><ul><li>x</li></ul><hr></body>")
   end
 end
+
+# libleptris 1.9.346 (#1664): reserved prefixes resolve on
+# declaration-free trees — the HTML/WHATWG parse lane and the
+# mutation API stamp the attribute ns side-cache like the XML
+# fused parse loop, so xml:lang answers by definition (XML
+# Namespaces 3) on every tree flavor.
+RSpec.describe "reserved-prefix resolution (1.9.346, #1664)" do
+  it "the HTML parse lane resolves xml:lang" do
+    doc = Leptris::HTML.parse(
+      %(<html><body><p xml:lang="en-GB">x</p></body></html>))
+    p_el = doc.at_xpath("//*[local-name()='p']")
+    attr = p_el.attributes["xml:lang"]
+    expect(attr.value).to eq("en-GB")
+    expect(attr.namespace_uri)
+      .to eq("http://www.w3.org/XML/1998/namespace")
+  end
+
+  it "the mutation API (element_set_attribute) resolves xml:lang" do
+    doc = Leptris::XML::Document.parse(%(<r/>))
+    doc.root["xml:lang"] = "en"
+    a = doc.root.attribute_nodes.find { |a| a.name == "xml:lang" }
+    expect(a.value).to eq("en")
+    expect(a.namespace_uri)
+      .to eq("http://www.w3.org/XML/1998/namespace")
+  end
+end
