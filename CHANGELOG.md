@@ -1,3 +1,21 @@
+## [1.9.345.1] - 2026-10-12
+
+### Added
+
+- **TODO.final/04 gates — shipped-artifact codesign + artifact/
+  version sync (#388)**: `rake audit:artifacts` (darwin) fails on
+  an unsigned/tampered vendored macOS artifact (`codesign
+  --verify --strict` against the CURRENT bytes) and on
+  engine-version drift (the vendored library's
+  `leptris_version()` must equal the Rakefile pin — a half-bumped
+  lockstep state can no longer package; the drift path proved
+  itself live during development). The darwin platform-gem builds
+  ad-hoc sign as the last pre-package step (audit:artifacts
+  between compile and pack). Negative proof in
+  spec/audit_codesign_spec.rb: flipped-byte and
+  stripped-signature copies fail the strict gate; the version
+  gate flags drift and accepts the pin.
+
 ## [1.9.345.0] - 2026-10-12
 
 ### Fixed — engine sync (libleptris 1.9.345)

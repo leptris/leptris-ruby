@@ -404,6 +404,45 @@ namespace :audit do
     end
   end
 
+  # TODO.final/04: shipped-macOS-artifact gates — (a) the
+  # embedded signature verifies strictly against the CURRENT
+  # bytes (a copy/strip/recompress in packaging invalidates the
+  # linker's ad-hoc signature and this fails instead of a user
+  # machine's dlopen), (b) the vendored library's
+  # leptris_version() equals the gem's engine pin (a half-bumped
+  # lockstep state can no longer package). Negative proof lives
+  # in spec/audit_codesign_spec.rb.
+  desc "Fail on unsigned/tampered macOS artifacts or engine-version drift"
+  task :artifacts do
+    unless RUBY_PLATFORM =~ /darwin/
+      puts "audit:artifacts: skipped off-darwin (codesign gates " \
+           "the macOS packaging legs)"
+      next
+    end
+    abort "audit:artifacts: codesign unavailable" \
+          unless AuditArtifacts.codesign_available?
+    libs = AuditArtifacts.darwin_artifacts.select { |f| File.file?(f) }
+    abort "audit:artifacts: no vendored macOS artifacts found " \
+          "— run rake compile" if libs.empty?
+    libs.each do |lib|
+      unless AuditArtifacts.signature_ok?(lib)
+        abort "audit:artifacts: signature invalid or missing on " \
+              "#{lib} — ad-hoc sign before packaging"
+      end
+    end
+    main_lib = libs.find { |f| f.end_with?("libleptris.dylib") }
+    pinned = ENV.fetch("LIBLEPTRIS_VERSION", LIBLEPTRIS_VERSION)
+    unless AuditArtifacts.version_synced?(
+      main_lib, File.dirname(main_lib), pinned)
+      vendored = AuditArtifacts.vendored_version(
+        main_lib, File.dirname(main_lib))
+      abort "audit:artifacts: engine-version drift — vendored " \
+            "#{vendored.inspect} != pin #{pinned.inspect}"
+    end
+    puts "audit:artifacts: #{libs.size} macOS artifacts verify " \
+         "strictly and engine-synced (#{pinned})"
+  end
+
   # Packaging doctrine (#271): every BUILT gem carries the engine
   # source (vendor-src/libleptris build inputs) and the ext sources;
   # platform gems additionally carry the prebuilt libraries and must
@@ -453,6 +492,8 @@ namespace :audit do
 end
 
 require "rubygems/package_task"
+require_relative "rakelib/audit_artifacts"
+require "open3"
 
 desc "Build the pure-Ruby gem"
 task "gem:native:any" do
@@ -499,7 +540,16 @@ platforms = [
 platforms.each do |platform|
   desc "Build pre-compiled gem for the #{platform} platform"
   task "gem:native:#{platform}" do
-    sh "rake compile platform:#{platform} gem"
+    if platform.end_with?("darwin")
+      # TODO.final/04: ad-hoc sign as the LAST step before the
+      # packager touches nothing else — the signature must cover
+      # the final bytes, and audit:artifacts verifies strictly.
+      sh "rake compile platform:#{platform}"
+      sh "rake audit:artifacts"
+      sh "rake platform:#{platform} gem"
+    else
+      sh "rake compile platform:#{platform} gem"
+    end
   end
 
   desc "Define the gem task to build on the #{platform} platform (binary gem)"
