@@ -1,3 +1,14 @@
+## [1.9.346.0] - 2026-10-12
+
+### Fixed — engine sync (libleptris 1.9.346)
+
+- **Reserved prefixes resolve on declaration-free trees (#1664)**:
+  xml:lang on an HTML/WHATWG-parsed tree and on mutation-created
+  attributes (element_set_attribute) resolves to the XML
+  namespace — both creation paths stamp the colon-gated attribute
+  ns side-cache like the XML parse lane's fused loop. Pinned for
+  both lanes through the binding API.
+
 ## [1.9.345.1] - 2026-10-12
 
 ### Added
