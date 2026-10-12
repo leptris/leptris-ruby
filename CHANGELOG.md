@@ -1,3 +1,20 @@
+## [1.9.345.0] - 2026-10-12
+
+### Fixed — engine sync (libleptris 1.9.345)
+
+- **Namespace-keyed lookups in the merged-import schema (#440,
+  #439)**: the xs:import/include merge is flat and was keyed by
+  name alone, so a foreign-namespace global (dml's global a:tbl)
+  typed every same-named instance element and the home schema's
+  local content models never applied - strict OOXML validation
+  produced hundreds of false content-model errors per document
+  against the ISO 29500-4:2016 transitional set (wml's tcPr/tcW
+  and tblBorders left/right repros; the ECMA-376 first edition
+  passed only by importing fewer units). Declarations now carry
+  their declaring unit's targetNamespace and element/attribute
+  lookups match it. Both issue repros verified clean against
+  three independent OOXML schema sets, matching Nokogiri.
+
 ## [1.9.344.0] - 2026-10-12
 
 ### Fixed — engine sync (libleptris 1.9.343-1.9.344)
