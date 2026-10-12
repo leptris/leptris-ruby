@@ -1,3 +1,23 @@
+## [1.9.342.0] - 2026-10-12
+
+### Fixed — engine sync (libleptris 1.9.342)
+
+- **The #434 corpus lexical families (#1655)**: (1) the XSD
+  length family counts OCTETS for hexBinary/base64Binary (Part 2
+  semantics) — ST_LongHexNumber = hexBinary+length 4 = 8 hex
+  digits; the engine demanded 4 characters and rejected every
+  canonical rsid. The restriction chain's terminal builtin threads
+  into the facet check (hex digits/2, base64 decoded). (2) The
+  XSD regex matcher gains property classes (\p{IsBasicLatin} et
+  al.), character-class subtraction, and \t/\n/\r escapes —
+  ST_ContentType's giant pattern previously failed to PARSE and a
+  parse failure rejected everything. Verified through the binding:
+  octet hex semantics at the type level; the real
+  [Content_Types].xml validates with ZERO errors against the real
+  opc-contentTypes.xsd (the 339-error family is gone); document
+  error distributions carry no lexical families — the residual
+  corpus delta is the documented strict-ISO structural layer.
+
 ## [1.9.340.0] - 2026-10-11
 
 ### Added — engine sync (libleptris 1.9.338-1.9.340)
