@@ -1,3 +1,22 @@
+## [1.9.345.0] - 2026-10-12
+
+### Fixed — engine sync (libleptris 1.9.345)
+
+- **Namespace-keyed lookups in the merged-import schema (#439,
+  #440, leptris#1663/#1665)**: the import/include merge flattened
+  declarations into one name-keyed table, and OOXML declares the
+  same names across namespaces (wml CT_TcPr vs dml, dml's
+  particles vs wml's), so validation resolved to the wrong unit's
+  declarations — hundreds of false content-model errors per real
+  document (#440's tr/tc/tcPr cascade was dml CT_TableRow
+  semantics applied to a wordprocessing table) and the r:id
+  "not declared (strict)" false positive (#439). Declarations
+  carry their declaring targetNamespace; foreign-namespace
+  fallback is forbidden once a resolving namespace is in hand.
+  Verified against the real wml.xsd: both reported documents
+  validate CLEAN. Pinned: cross-namespace same-name resolution
+  and imported-attribute (r:id) shapes.
+
 ## [1.9.344.0] - 2026-10-12
 
 ### Fixed — engine sync (libleptris 1.9.343-1.9.344)

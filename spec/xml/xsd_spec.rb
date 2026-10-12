@@ -582,3 +582,81 @@ RSpec.describe "XSD errors carry element + position (1.9.337, #419)" do
     expect(errors).to include(match(%r{element 'pgMar' @\d+:\d+: attribute 'bogus': not declared \(strict\)}))
   end
 end
+
+# libleptris 1.9.345 (#1663/#1665, from leptris-ruby#439/#440):
+# namespace-keyed lookups in the merged-import schema — the
+# import/include merge flattened every unit's declarations into
+# one name-keyed table, and OOXML declares the same names across
+# namespaces (wml CT_TcPr vs dml), so validation resolved to the
+# wrong unit's declarations. Declarations carry their declaring
+# targetNamespace; a foreign-namespace fallback is forbidden once
+# a resolving namespace is in hand.
+RSpec.describe "XSD namespace-keyed lookups (1.9.345, #439/#440)" do
+  it "resolves same-name declarations across imported namespaces" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "a.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:a="urn:A" targetNamespace="urn:A"
+                   elementFormDefault="qualified">
+          <xs:complexType name="A_T">
+            <xs:sequence>
+              <xs:element name="x" type="xs:token" minOccurs="0"/>
+            </xs:sequence>
+            <xs:attribute name="h" type="xs:token" use="required"/>
+          </xs:complexType>
+          <xs:element name="e" type="A_T"/>
+        </xs:schema>
+      XSD
+      File.write(File.join(dir, "b.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:b="urn:B" targetNamespace="urn:B"
+                   elementFormDefault="qualified">
+          <xs:import namespace="urn:A" schemaLocation="a.xsd"/>
+          <xs:complexType name="B_T">
+            <xs:sequence>
+              <xs:element name="y" type="xs:token"/>
+            </xs:sequence>
+          </xs:complexType>
+          <xs:element name="e" type="B_T"/>
+        </xs:schema>
+      XSD
+      schema = Leptris::XML::XSD.compile_file(File.join(dir, "b.xsd"))
+      doc = Leptris::XML::Document.parse(%(<e xmlns="urn:B"><y>v</y></e>))
+      expect(schema.valid?(doc)).to be(true)
+      # the A-namespace spelling keeps A's own required attribute
+      foreign = Leptris::XML::Document.parse(%(<e xmlns="urn:A"/>))
+      expect(schema.valid?(foreign)).to be(false)
+    end
+  end
+
+  it "resolves imported-namespace attributes (the r:id shape)" do
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "rel.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:r="urn:R" targetNamespace="urn:R">
+          <xs:simpleType name="ST_RelationshipId">
+            <xs:restriction base="xs:token"/>
+          </xs:simpleType>
+          <xs:attribute name="id" type="ST_RelationshipId"/>
+        </xs:schema>
+      XSD
+      File.write(File.join(dir, "main.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:w="urn:W" xmlns:r="urn:R"
+                   targetNamespace="urn:W" elementFormDefault="qualified">
+          <xs:import namespace="urn:R" schemaLocation="rel.xsd"/>
+          <xs:complexType name="CT_Ref">
+            <xs:attribute name="type" type="xs:token" use="required"/>
+            <xs:attribute ref="r:id"/>
+          </xs:complexType>
+          <xs:element name="headerReference" type="CT_Ref"/>
+        </xs:schema>
+      XSD
+      schema = Leptris::XML::XSD.compile_file(File.join(dir, "main.xsd"))
+      ok = Leptris::XML::Document.parse(
+        %(<headerReference xmlns="urn:W" xmlns:r="urn:R") +
+          %( type="default" r:id="rId1"/>))
+      expect(schema.valid?(ok)).to be(true)
+    end
+  end
+end
