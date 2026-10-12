@@ -1,3 +1,18 @@
+## [1.9.344.0] - 2026-10-12
+
+### Fixed — engine sync (libleptris 1.9.343-1.9.344)
+
+- **recover matches XML_PARSE_RECOVER (#1660)**: structural
+  malformations commit the best-effort tree — a close tag naming
+  an open ancestor closes intermediates implicitly, a stray in-tree
+  close is dropped, unclosed elements close at EOF (pinned for
+  both shapes). Residual edge reported upstream: trailing
+  content after the root close still fails the parse
+  (comment on leptris#1660).
+- plan_result_build SCALAR ops validate plan_index (the OOB
+  shape from the #425/#426 line) and mid-build failures no
+  longer leak the partially built tree; GCC 14 compile fix.
+
 ## [1.9.342.0] - 2026-10-12
 
 ### Fixed — engine sync (libleptris 1.9.342)
