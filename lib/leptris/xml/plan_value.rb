@@ -18,16 +18,29 @@ class Leptris::XML::PlanValue
     Leptris::XML::FFI::PLAN_VALUE_SCALAR => :scalar,
     Leptris::XML::FFI::PLAN_VALUE_COLLECTION => :collection,
     Leptris::XML::FFI::PLAN_VALUE_RAW => :raw,
-    Leptris::XML::FFI::PLAN_VALUE_CALLBACK => :callback,
+    Leptris::XML::FFI::PLAN_VALUE_CALLBACK => :callback
   }.freeze
   private_constant :VALUE_KINDS
 
-  def initialize(ptr, owner: nil, plans: nil, plan: nil, counter: nil)
+  def initialize(ptr, owner: nil, plans: nil, plan: nil, counter: nil,
+                 root: nil)
     @ptr = ptr
     @owner = owner
     @plans = plans
     @plan = plan
     @counter = counter || [0]
+    # #1673: child views borrow their pointer from the root's
+    # result arena — retaining the root here (transitively) keeps
+    # the whole-result handle alive for as long as any borrowed
+    # view exists. Without it a Ruby-3.3-timed GC can free the
+    # root mid-read (the ride's linux/3.3 segfault).
+    @root = root
+  end
+
+  # The whole-result owner this view borrows from (self for a
+  # root). Retained by every borrowed child via #at.
+  def lifetime_root
+    @root || self
   end
 
   # The engine value handle — the ROOT value's is the whole-result
@@ -75,18 +88,21 @@ class Leptris::XML::PlanValue
   def int_value
     out = ::FFI::MemoryPointer.new(:int64)
     return nil unless Leptris::XML::FFI.leptris_plan_value_int(@ptr, out).zero?
+
     out.read_int64
   end
 
   def float_value
     out = ::FFI::MemoryPointer.new(:double)
     return nil unless Leptris::XML::FFI.leptris_plan_value_float(@ptr, out).zero?
+
     out.read_double
   end
 
   def bool_value
     out = ::FFI::MemoryPointer.new(:int)
     return nil unless Leptris::XML::FFI.leptris_plan_value_bool(@ptr, out).zero?
+
     out.read_int != 0
   end
 
@@ -114,9 +130,11 @@ class Leptris::XML::PlanValue
     @counter[0] += 1
     ptr = Leptris::XML::FFI.leptris_plan_value_at(@ptr, i)
     return nil if ptr.null?
+
     child_plan = child_plan_for_position(ptr)
     Leptris::XML::PlanValue.new(ptr, plans: @plans, plan: child_plan,
-                                    counter: @counter)
+                                     counter: @counter,
+                                     root: lifetime_root)
   end
 
   # ELEMENT: the whole child list in one FFI crossing — parallel
@@ -136,7 +154,8 @@ class Leptris::XML::PlanValue
       tags = ::FFI::MemoryPointer.new(:uint8, n)
       handles = ::FFI::MemoryPointer.new(:pointer, n)
       needed = Leptris::XML::FFI.leptris_plan_value_children_snapshot(
-        @ptr, blob, cap, offsets, tags, handles)
+        @ptr, blob, cap, offsets, tags, handles
+      )
       break snapshot_build(blob, offsets, tags, handles, n) if needed.zero?
 
       cap = needed
@@ -187,7 +206,7 @@ class Leptris::XML::PlanValue
         name: name,
         type_tag: type_tag,
         attributes: kwarg_attributes,
-        children: kwarg_children,
+        children: kwarg_children
       }
     when :collection
       kwarg_collection_children
@@ -212,7 +231,7 @@ class Leptris::XML::PlanValue
         name: name,
         type_tag: type_tag,
         attributes: collected_attributes,
-        children: Array.new(count) { |i| at(i).to_ruby },
+        children: Array.new(count) { |i| at(i).to_ruby }
       }
     when :collection
       Array.new(count) { |i| at(i).to_ruby }
@@ -225,7 +244,6 @@ class Leptris::XML::PlanValue
 
   private
 
-
   def kwarg_attributes
     ((@plan && @plan[:attributes]) || []).each_with_object({}) do |row, result|
       v = attribute(row[:name])
@@ -234,18 +252,19 @@ class Leptris::XML::PlanValue
   end
 
   def kwarg_children
-    rows = ((@plan && @plan[:children]) || [])
+    rows = (@plan && @plan[:children]) || []
     result = {}
     rows.each_with_index do |row, i|
       value = at(i)
       next if value.nil?
+
       key = row[:name]
       coerced = coerce_kwarg(value, row[:kind])
       result[key] = if result.key?(key)
-        Array(result[key]) << coerced
-      else
-        coerced
-      end
+                      Array(result[key]) << coerced
+                    else
+                      coerced
+                    end
     end
     result
   end
@@ -273,14 +292,23 @@ class Leptris::XML::PlanValue
 
   def typed_string_value_for(value)
     case value.type_tag
-    when 1 then value.int_value || (Integer(value.string_value, 10) rescue value.string_value)
-    when 2 then value.float_value || (Float(value.string_value) rescue value.string_value)
+    when 1 then value.int_value || begin
+      Integer(value.string_value, 10)
+    rescue StandardError
+      value.string_value
+    end
+    when 2 then value.float_value || begin
+      Float(value.string_value)
+    rescue StandardError
+      value.string_value
+    end
     when 3
       v = value.bool_value
       v.nil? ? typed_bool_fallback(value.string_value) : v
     else value.string_value
     end
   end
+
   # contract): 1=Integer, 2=Float, 3=boolean. Executed in-pass by
   # the engine (#1269a); on its soft-fail (non-numeric source) the
   # lenient Ruby path applies, then the raw String wins.
@@ -288,9 +316,17 @@ class Leptris::XML::PlanValue
   def typed_string_value
     case type_tag
     when 1
-      int_value || (string_value && (Integer(string_value, 10) rescue string_value))
+      int_value || (string_value && begin
+        Integer(string_value, 10)
+      rescue StandardError
+        string_value
+      end)
     when 2
-      float_value || (string_value && (Float(string_value) rescue string_value))
+      float_value || (string_value && begin
+        Float(string_value)
+      rescue StandardError
+        string_value
+      end)
     when 3
       v = bool_value
       v.nil? ? typed_bool_fallback(string_value) : v
@@ -331,14 +367,16 @@ class Leptris::XML::PlanValue
       ptr = handles.get_pointer(i * POINTER_SIZE)
       child_plan = child_plan_for_position(ptr, name: names[i])
       children[i] = Leptris::XML::PlanValue.new(ptr, plans: @plans,
-                                                plan: child_plan,
-                                                counter: @counter)
+                                                     plan: child_plan,
+                                                     counter: @counter,
+                                                     root: lifetime_root)
     end
     [names, tag_values, children]
   end
 
   def child_plan_for_position(ptr, name: nil)
     return nil unless @plan
+
     rows = @plan[:children] || []
     row = rows.size == 1 ? rows.first : nil
     unless row
@@ -350,6 +388,7 @@ class Leptris::XML::PlanValue
       row = rows.find { |r| r[:name] == child_name }
     end
     return nil unless row && @plans
+
     row[:kind] == :nested ? @plans[row[:child_plan_index]] : nil
   end
 
@@ -358,6 +397,7 @@ class Leptris::XML::PlanValue
       r[:kind] == :nested && r[:name] == child_wire_name
     end
     return nil unless row && @plans
+
     @plans[row[:child_plan_index]]
   end
 
@@ -376,7 +416,11 @@ class Leptris::XML::PlanValue
   def cast_attribute(value, row)
     tag = Leptris::XML::Descriptor.type_tag_code(row)
     case tag
-    when 1 then Integer(value, 10) rescue value
+    when 1 then begin
+      Integer(value, 10)
+    rescue StandardError
+      value
+    end
     when 2
       begin
         Float(value)
