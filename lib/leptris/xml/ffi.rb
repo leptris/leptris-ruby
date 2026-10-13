@@ -494,6 +494,17 @@ module Leptris
         [:leptris_plan_result, :size_t], :leptris_plan_result
       attach_function :leptris_plan_value_attribute,
         [:leptris_plan_result, :string], UTF8_STRING
+      # #1670 (libleptris 1.9.347): the ELEMENT value's attribute
+      # census + one-call flat read (ParallelArrays mirrors
+      # children_snapshot: NULL blobs size, retry at the returned
+      # capacity; (size_t)-1 = still too small). Engine-face
+      # coverage — the plan-value consumer port rides the #425/#426
+      # Descriptor round.
+      attach_function :leptris_plan_value_attribute_count,
+        [:leptris_plan_result], :size_t
+      attach_function :leptris_plan_value_attributes_snapshot,
+        [:leptris_plan_result, :pointer, :size_t, :pointer, :pointer,
+         :size_t, :pointer], :size_t
       # One-call flat child list: names blob with per-child offsets
       # (SIZE_MAX = NULL name, i.e. content runs), type tags, and
       # borrowed child handles. Returns 0 on success or the blob
