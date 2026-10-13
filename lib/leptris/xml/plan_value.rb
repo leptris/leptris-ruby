@@ -168,6 +168,58 @@ class Leptris::XML::PlanValue
     Leptris::XML::FFI.leptris_plan_value_attribute(@ptr, wire_name.to_s)
   end
 
+  # ELEMENT: ALL bound attributes in one FFI crossing (#1670) —
+  # { wire_name => value } in the plan's attribute-row order.
+  # Mirrors #children_snapshot: enumerating through #attribute costs
+  # one crossing per attribute per node; this costs one per node.
+  # Empty hash for non-ELEMENT values.
+  def attributes_snapshot
+    n = Leptris::XML::FFI.leptris_plan_value_attribute_count(@ptr)
+    return {}.freeze if n.zero?
+
+    @counter[0] += 2 # count + the snapshot crossing
+    need = Leptris::XML::FFI.leptris_plan_value_attributes_snapshot(
+      @ptr, nil, 0, nil, nil, 0, nil
+    )
+    return {}.freeze if need.zero?
+
+    cap = need
+    loop do
+      names = ::FFI::MemoryPointer.new(:char, cap)
+      values = ::FFI::MemoryPointer.new(:char, cap)
+      name_offsets = ::FFI::MemoryPointer.new(:size_t, n + 1)
+      value_offsets = ::FFI::MemoryPointer.new(:size_t, n + 1)
+      rc = Leptris::XML::FFI.leptris_plan_value_attributes_snapshot(
+        @ptr, names, cap, name_offsets, values, cap, value_offsets
+      )
+      break attributes_snapshot_build(
+        names, name_offsets, values, value_offsets, n
+      ) if rc.zero?
+
+      # The sizing call reports the exact capacity, so (size_t)-1
+      # here can only mean the tree grew between calls — retry at
+      # the doubled guess rather than looping on a stale size.
+      raise "attributes snapshot failed" if rc != SIZE_MAX
+
+      cap *= 2
+    end
+  end
+
+  def attributes_snapshot_build(names, name_offsets, values,
+                                value_offsets, n)
+    result = {}
+    n.times do |i|
+      noff = name_offsets.get_uint64(i * SIZE_T_SIZE)
+      voff = value_offsets.get_uint64(i * SIZE_T_SIZE)
+      # Raw pointer reads come back ASCII-8BIT; the per-name reader
+      # attaches UTF8_STRING, so match its encoding contract.
+      result[names.get_string(noff).force_encoding(Encoding::UTF_8)] =
+        values.get_string(voff).force_encoding(Encoding::UTF_8)
+    end
+    result
+  end
+  private :attributes_snapshot_build
+
   # The number of FFI accessor calls this PlanValue (and its
   # #as_kwarg_hash descendants, via the borrowed-#at chain) have
   # counted. Reset with #reset_crossings! before the work you want
@@ -245,9 +297,11 @@ class Leptris::XML::PlanValue
   private
 
   def kwarg_attributes
-    ((@plan && @plan[:attributes]) || []).each_with_object({}) do |row, result|
-      v = attribute(row[:name])
-      result[row[:name]] = cast_attribute(v, row) unless v.nil?
+    rows = ((@plan && @plan[:attributes]) || [])
+    by_name = rows.each_with_object({}) { |row, h| h[row[:name]] = row }
+    attributes_snapshot.each_with_object({}) do |(k, v), result|
+      row = by_name[k]
+      result[k] = row ? cast_attribute(v, row) : v
     end
   end
 
