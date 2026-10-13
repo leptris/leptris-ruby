@@ -1,3 +1,29 @@
+## [1.9.351.0] - 2026-10-14
+
+### Fixed — engine sync (libleptris 1.9.350/1.9.351)
+
+- **Chain-compiled XSD: forward-referenced extension bases fold
+  after the schema merges, subfiles resolve their own relative
+  schemaLocations, and attribute types resolve (ns, name)-first
+  (leptris-ruby#440; libleptris 1.9.350, PR leptris/leptris#1679)**:
+  the corpus-stuck-at-8 family. The engine's visited memo (#1644)
+  stopped each schema unit being captured twice and unmasked three
+  latent defects: the extension fold ran at capture time (a base
+  defined after its derived type — CT_TcPr -> CT_TcPrInner —
+  silently dropped), a subfile's own schemaLocations resolved
+  against the COMPILED file's directory (wml.xsd's same-dir
+  shared-*.xsd imports vanished), and attribute type names resolved
+  by bare local name (wml's ST_Jc shadowed shared-math's, so
+  m:defJc val="centerGroup" failed). Pinned through the binding API
+  in spec/xml/xsd_chain_shapes_spec.rb (tempdir chain trees — no
+  vendored corpus needed).
+- **GCC LTO carrier link (#1681, libleptris 1.9.350/1.9.351)**:
+  ppc64le/s390x/truffleruby legs failed the engine link
+  (undefined xpath_carrier_node_of) — fixed engine-side; the
+  #445-family legs go green. libleptris 1.9.351 additionally
+  removed every function-scope extern (84 sites across 18 TUs), so
+  the class cannot recur.
+
 ## [1.9.346.0] - 2026-10-12
 
 ### Fixed — engine sync (libleptris 1.9.346)
