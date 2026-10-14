@@ -117,6 +117,17 @@ RSpec.describe "NativeNode surface completion (TODO.perf/05)" do
     expect(rec.attributes.keys).to eq(%w[id sku])
   end
 
+  it "answers empty attributes for non-element nodes (leptris#1712)" do
+    # svg_conform's duck-typed element? probe passes text nodes to
+    # #attributes. The adjacent-text-node shape is the corrupting
+    # one: the element attr overlay reads the NEXT node's type word
+    # (=1), handing C a dangling attr == node + 1 — segfault.
+    doc = Leptris::XML::Document.parse(%q{<r a="1">x<!--c-->y</r>})
+    text = doc.native_node.children.first
+    expect(text.node_type).to eq(:text)
+    expect(text.attributes).to eq({})
+  end
+
   it "reads line and byte_offset with binding parity" do
     doc = Leptris::XML::Document.parse(%q{<r><rec id="7">x</rec></r>})
     native_rec = doc.native_node.element_children.first
