@@ -845,6 +845,15 @@ attach_function :leptris_parse_string,
         [:leptris_element], UTF8_STRING
       attach_function :leptris_element_attribute_count,
         [:leptris_element], :size_t
+      # leptris#1689: ALL attribute names/values (+ optional ns
+      # lanes) in ONE crossing — two-phase capacity/retry, the
+      # element sibling of the #1670 plan-value snapshot.
+      attach_function :leptris_element_attributes_snapshot,
+        [:leptris_element,
+         :pointer, :size_t, :pointer,
+         :pointer, :size_t, :pointer,
+         :pointer, :size_t, :pointer,
+         :pointer, :size_t, :pointer], :size_t
       attach_function :leptris_element_attribute_name_at,
         [:leptris_element, :size_t], UTF8_STRING
       attach_function :leptris_element_attribute_value_at,

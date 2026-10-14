@@ -1,3 +1,17 @@
+## [1.9.353.0] - 2026-10-14
+
+### Added — engine sync (libleptris 1.9.353)
+
+- **Element#attributes_snapshot — ALL attribute names/values in
+  ONE FFI crossing (libleptris 1.9.353, leptris/leptris#1689/
+  #1690)**: the element sibling of PlanValue#attributes_snapshot
+  (#447). Two-phase capacity/retry (sizing pass returns the exact
+  blob capacity; SIZE_MAX retries double the guess for
+  between-call mutations), UTF-8 encoded like the per-name reader,
+  prefixed attributes carried by their spelled names (ns lanes
+  stay NULL on this surface). The count half
+  (leptris_element_attribute_count) was already attached.
+
 ## [1.9.352.0] - 2026-10-14
 
 ### Fixed — engine sync (libleptris 1.9.352)
