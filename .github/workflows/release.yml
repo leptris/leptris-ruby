@@ -7,6 +7,13 @@ on:
         description: 'Version to release (e.g. 1.1.1). Leave empty to use current VERSION.'
         type: string
         required: false
+  # Auto-release: a version bump landing on main (the engine-sync
+  # ride PR merge) IS the release decision — ship it. The bump job
+  # skips (version already on main); build + publish check out
+  # main's head via the existing `|| github.ref` fallbacks.
+  push:
+    branches: [main]
+    paths: ['lib/leptris/version.rb']
 
 # Duplicate dispatches of the same release version must not run
 # concurrently: two parallel publishes race on the bump/tag push and
