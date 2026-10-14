@@ -1,3 +1,19 @@
+## [1.9.352.0] - 2026-10-14
+
+### Fixed — engine sync (libleptris 1.9.352)
+
+- **Instance type refs resolve across namespaces (#440 drawing
+  follow-up; libleptris 1.9.352, PR leptris/leptris#1687)**:
+  validating a WordprocessingML document with an inline image
+  reported six "type not found in the schema" errors — every
+  failing particle is typed by an a:-prefixed reference into the
+  drawingml main namespace (wp:extent -> a:CT_PositiveSize2D), and
+  the strict (ns, name) lookup answered with the ELEMENT's
+  namespace. Instance-side lookups now walk the reference ladder
+  (element ns -> unstamped -> name-only); #1665's element-namespace
+  priority and all compile-side strictness stay intact. Pinned at
+  the Ruby surface in xsd_chain_shapes_spec.rb.
+
 ## [1.9.351.0] - 2026-10-14
 
 ### Fixed — engine sync (libleptris 1.9.350/1.9.351)

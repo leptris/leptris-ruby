@@ -95,6 +95,72 @@ RSpec.describe "XSD chain-compile shapes (#440)" do
     expect(schema.validate_errors(bad)).not_to be_empty
   end
 
+  it "resolves cross-namespace type references on instance elements" do
+    # libleptris 1.9.352 (#1687): OOXML types every wp:/pic: particle
+    # with a:-prefixed main-namespace types; the strict (ns, name)
+    # lookup answered "type not found in the schema" for all six
+    # drawing particles. Instance-side refs walk the ladder:
+    # (element ns, name) -> unstamped -> name-only.
+    write("main.xsd", <<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                 xmlns="urn:a" targetNamespace="urn:a">
+        <xs:complexType name="CT_PositiveSize2D">
+          <xs:attribute name="cx" type="xs:unsignedLong" use="required"/>
+          <xs:attribute name="cy" type="xs:unsignedLong" use="required"/>
+        </xs:complexType>
+        <xs:complexType name="CT_NonVisualDrawingProps">
+          <xs:attribute name="id" type="xs:unsignedInt" use="required"/>
+          <xs:attribute name="name" type="xs:string" use="required"/>
+        </xs:complexType>
+        <xs:complexType name="CT_ShapeProperties"/>
+      </xs:schema>
+    XSD
+    write("wp.xsd", <<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                 xmlns="urn:wp" targetNamespace="urn:wp"
+                 xmlns:a="urn:a">
+        <xs:import namespace="urn:a" schemaLocation="main.xsd"/>
+        <xs:complexType name="CT_Inline">
+          <xs:sequence>
+            <xs:element name="extent" type="a:CT_PositiveSize2D"/>
+            <xs:element name="docPr" type="a:CT_NonVisualDrawingProps"/>
+            <xs:element name="spPr" type="a:CT_ShapeProperties"
+                        minOccurs="0"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:element name="inline" type="CT_Inline"/>
+      </xs:schema>
+    XSD
+    write("doc.xsd", <<~XSD)
+      <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                 xmlns="urn:doc" targetNamespace="urn:doc"
+                 xmlns:x="urn:wp">
+        <xs:import namespace="urn:wp" schemaLocation="wp.xsd"/>
+        <xs:complexType name="CT_Doc">
+          <xs:sequence>
+            <xs:element ref="x:inline"/>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:element name="doc" type="CT_Doc"/>
+      </xs:schema>
+    XSD
+
+    schema = Leptris::XML::XSD.compile_file(File.join(@dir, "doc.xsd"))
+    doc = Leptris::XML.parse(
+      '<d:doc xmlns:d="urn:doc" xmlns:x="urn:wp">' \
+      '<x:inline><x:extent cx="990600" cy="792480"/>' \
+      '<x:docPr id="1" name="pic"/><x:spPr/></x:inline></d:doc>'
+    )
+    expect(schema.validate_errors(doc)).to eq([])
+    # strictness survives: the lexical check rides the foreign-ns type
+    bad = Leptris::XML.parse(
+      '<d:doc xmlns:d="urn:doc" xmlns:x="urn:wp">' \
+      '<x:inline><x:extent cx="nope" cy="792480"/>' \
+      '<x:docPr id="1" name="pic"/></x:inline></d:doc>'
+    )
+    expect(schema.validate_errors(bad)).not_to be_empty
+  end
+
   it "resolves attribute types in the declaring namespace" do
     write("w.xsd", <<~XSD)
       <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
