@@ -355,9 +355,14 @@ static VALUE nn_content(VALUE self)
 static VALUE nf_fast_attribute2(VALUE self, VALUE addr, VALUE name)
 {
     const char *s;
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+
     (void)self;
-    s = f_attr((void *)(uintptr_t)NUM2ULL(addr),
-               RSTRING_PTR(StringValue(name)));
+    /* leptris#1712: non-element handles must not reach the attr
+     * chain (same dangling-overlay shape as nn_attributes). */
+    if (f_node_type(node) != WS_NODE_ELEMENT)
+        return Qnil;
+    s = f_attr(node, RSTRING_PTR(StringValue(name)));
     return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
@@ -376,6 +381,10 @@ static VALUE nn_attribute(VALUE self, VALUE name)
         name = rb_obj_as_string(name);
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     doc = n->document;
+    /* leptris#1712: non-element handles must not reach the attr
+     * chain (same dangling-overlay shape as nn_attributes). */
+    if (f_node_type(n->ptr) != WS_NODE_ELEMENT)
+        return Qnil;
     /* Single-slot memo first: the last-queried name by VALUE
      * (callers may mint a fresh String per call) against the same
      * version. Then the hash memo for other repeat names; both
@@ -1413,6 +1422,14 @@ static VALUE nn_attributes(VALUE self)
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     hash = rb_hash_new();
+    /* leptris#1712: duck-typed consumers pass non-element handles
+     * (svg_conform's remediation walks text nodes with an
+     * element? probe that answers on #name). The element attr
+     * overlay sits 4 bytes past a 32-byte text struct — the next
+     * node's type word — so an unchecked decode hands C a dangling
+     * attr == node + 1 and the first string read segfaults. */
+    if (f_node_type(n->ptr) != WS_NODE_ELEMENT)
+        return hash;
     attr = f_attr_first(n->ptr);
     while (attr) {
         const char *name = f_attr_name(attr);
@@ -1939,10 +1956,14 @@ static VALUE nf_bulk_attr_faces(VALUE self, VALUE addr, VALUE element)
     void *node = (void *)(uintptr_t)NUM2ULL(addr);
     VALUE faces = rb_hash_new();
     VALUE values = rb_hash_new();
-    void *attr = f_attr_first(node);
+    void *attr;
 
     (void)self;
+    /* leptris#1712: same non-element guard as nn_attributes. */
+    if (f_node_type(node) != WS_NODE_ELEMENT)
+        return rb_assoc_new(faces, values);
     resolve_binding_classes();
+    attr = f_attr_first(node);
     while (attr) {
         const char *name = f_attr_name(attr);
         const char *value = f_attr_value(node, attr);
@@ -2981,8 +3002,13 @@ static VALUE nf_element_text(VALUE self, VALUE addr)
 static VALUE nf_attribute(VALUE self, VALUE addr, VALUE name)
 {
     const char *s;
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+
     (void)self;
-    s = f_attr((void *)(uintptr_t)NUM2ULL(addr), StringValueCStr(name));
+    /* leptris#1712: same non-element guard as nn_attributes. */
+    if (f_node_type(node) != WS_NODE_ELEMENT)
+        return Qnil;
+    s = f_attr(node, StringValueCStr(name));
     return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
