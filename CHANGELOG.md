@@ -1,3 +1,23 @@
+## [1.9.355.0] - 2026-10-14
+
+### Fixed — engine sync (libleptris 1.9.355)
+
+- **RelaxNG combine across multi-hop include chains
+  (leptris/leptris#1703, libleptris PR #1705)**: nested
+  `<define combine=...>` inside `<include>` now MERGES per spec
+  §4.2 instead of replacing — multi-hop chains keep every
+  interleave branch and choice union (the relaton-ieee `<ics>`
+  cardinality and the BIPM locality enumeration validate to Jing
+  parity; unblocks the last 2 of relaton's 40 Jing-swap flavors).
+- **Strict-path tag-mismatch diagnostics (leptris/leptris#1700,
+  libleptris PR #1702)**: mismatched closing tags raise
+  "Opening and ending tag mismatch: expected </x>, got </y>" with
+  line:column, instead of "malformed input" at a byte offset.
+- **XSD conformance slice 2 (libleptris PR #1698)**: src-include.1
+  (included targetNamespace must equal the includer's or be absent)
+  and the xsi-namespace reservation; engine conformance floor
+  803/1056 against the libxml2 oracle.
+
 ## [1.9.353.0] - 2026-10-14
 
 ### Added — engine sync (libleptris 1.9.353)
