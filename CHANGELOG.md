@@ -1,3 +1,18 @@
+## [1.9.356.0] - 2026-10-14
+
+### Fixed — engine sync (libleptris 1.9.356)
+
+- **Native attribute faces type-guarded (leptris/leptris#1712,
+  PR #453)**: duck-typed consumers (svg_conform's
+  NamespaceRemediation) pass text nodes to `#attributes`; the
+  unchecked decode handed C a dangling `attr == node + 1` and the
+  first string read segfaulted on svg corpora with adjacent
+  `<text>` nodes. Non-element handles now answer the empty
+  contract (`{}` / `nil`) across `nn_attributes`, `nn_attribute`,
+  `nf_fast_attribute2`, `nf_attribute`, and `nf_bulk_attr_faces`.
+  The engine-side public-boundary guard rides libleptris
+  1.9.356 (leptris/leptris PR #1713).
+
 ## [1.9.355.0] - 2026-10-14
 
 ### Fixed — engine sync (libleptris 1.9.355)
