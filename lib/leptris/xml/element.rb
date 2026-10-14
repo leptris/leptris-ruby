@@ -284,6 +284,62 @@ class Leptris::XML::Element < Leptris::XML::Node
     result
   end
 
+  # ALL bound attributes as { name => value } in ONE FFI crossing
+  # (libleptris 1.9.353, leptris#1689) — the element sibling of
+  # PlanValue#attributes_snapshot: two-phase capacity/retry, names
+  # + values lanes; the ns lanes stay NULL and prefixed attributes
+  # ride the names lane spelled as the element spells them. UTF-8
+  # encoded like the per-name reader.
+  def attributes_snapshot
+    ensure_alive!
+    ptr = c_ptr
+    n = Leptris::XML::FFI.leptris_element_attribute_count(ptr)
+    return {}.freeze if n.zero?
+
+    need = Leptris::XML::FFI.leptris_element_attributes_snapshot(
+      ptr, nil, 0, nil, nil, 0, nil, nil, 0, nil, nil, 0, nil
+    )
+    return {}.freeze if need.zero?
+
+    size_t = ::FFI::MemoryPointer.new(:size_t, 2).total / 2
+    cap = need
+    loop do
+      names = ::FFI::MemoryPointer.new(:char, cap)
+      values = ::FFI::MemoryPointer.new(:char, cap)
+      name_offsets = ::FFI::MemoryPointer.new(:size_t, n + 1)
+      value_offsets = ::FFI::MemoryPointer.new(:size_t, n + 1)
+      rc = Leptris::XML::FFI.leptris_element_attributes_snapshot(
+        ptr, names, cap, name_offsets, values, cap,
+        value_offsets, nil, 0, nil, nil, 0, nil
+      )
+      break build_attributes_snapshot(
+        names, name_offsets, values, value_offsets, n, size_t
+      ) if rc.zero?
+
+      # The sizing call reports the exact capacity, so (size_t)-1
+      # here means the element mutated between calls — retry at the
+      # doubled guess.
+      raise "attributes snapshot failed" if rc != SIZE_MAX
+
+      cap *= 2
+    end
+  end
+
+  def build_attributes_snapshot(names, name_offsets, values,
+                                value_offsets, n, size_t)
+    result = {}
+    n.times do |i|
+      noff = name_offsets.get_uint64(i * size_t)
+      voff = value_offsets.get_uint64(i * size_t)
+      # Raw pointer reads come back ASCII-8BIT; match the per-name
+      # reader's UTF8_STRING contract.
+      result[names.get_string(noff).force_encoding(Encoding::UTF_8)] =
+        values.get_string(voff).force_encoding(Encoding::UTF_8)
+    end
+    result
+  end
+  private :build_attributes_snapshot
+
   # Read-only attribute listing as [name, value] pairs — no Attr
   # objects. Names are interned frozen strings (shared across
   # documents; dup before mutating), values fresh UTF-8 strings.
