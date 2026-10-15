@@ -1458,6 +1458,30 @@ static VALUE nn_byte_offset(VALUE self)
 
 /* The owning binding Document (moxml #213: adapters route
  * native.document exactly like Node#document). */
+/* leptris-ruby#460: the last contract face that was Ruby-only.
+ * Element set-text / text set-content with the same freed and
+ * readonly gates as set_binding_text, defined on the C class so
+ * subclasses inherit it at native speed. The version bump (via
+ * document_advance_version) invalidates the content memo. */
+static VALUE nn_content_set(VALUE self, VALUE content)
+{
+    struct native_node *n;
+    int st;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    if (NIL_P(rb_ivar_get(n->document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(n->document, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    document_advance_version(n->document);
+    st = f_node_type(n->ptr) == NT_ELEMENT
+             ? f_elem_set_text(n->ptr, StringValueCStr(content))
+             : f_text_set_content(n->ptr, StringValueCStr(content));
+    check_status_c(st);
+    return content;
+}
+
 static VALUE nn_document(VALUE self)
 {
     struct native_node *n;
@@ -3125,6 +3149,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_method(c_native_node, "byte_offset", nn_byte_offset, 0);
     rb_define_method(c_native_node, "name", nn_name, 0);
     rb_define_method(c_native_node, "content", nn_content, 0);
+    rb_define_method(c_native_node, "content=", nn_content_set, 1);
     rb_define_method(c_native_node, "attribute", nn_attribute, 1);
     rb_define_alias(c_native_node, "[]", "attribute");
     /* Unshadowed aliases for consumers whose contract modules shadow

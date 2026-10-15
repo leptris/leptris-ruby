@@ -501,3 +501,44 @@ RSpec.describe "NativeNode#content per kind (leptris-ruby#344)" do
     expect(contents).to eq(["t", " my comment ", "cd", "data here"])
   end
 end
+
+RSpec.describe "NativeNode#content= (leptris-ruby#460)" do
+  it "sets element text natively and invalidates the content memo" do
+    doc = Leptris::XML::Document.parse(%q{<r><e>old</e></r>})
+    e = doc.native_node.element_children.first
+    expect(e.content).to eq("old")
+    e.content = "fresh"
+    expect(e.content).to eq("fresh")
+    expect(doc.root.content).to eq("fresh")
+  end
+
+  it "sets text-node content natively" do
+    doc = Leptris::XML::Document.parse(%q{<r>hello</r>})
+    text = doc.native_node.children.first
+    expect(text.node_type).to eq(:text)
+    text.content = "bye"
+    expect(doc.root.content).to eq("bye")
+  end
+
+  it "raises ReadOnlyError on a readonly document" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.readonly!
+    expect { doc.native_node.content = "x" }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+
+  it "raises UseAfterFreeError after document free" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    node = doc.native_node
+    doc.free
+    expect { node.content = "x" }
+      .to raise_error(Leptris::XML::UseAfterFreeError)
+  end
+
+  it "round-trips through the Ruby binding view" do
+    doc = Leptris::XML::Document.parse(%q{<r/>})
+    doc.native_node.content = "via-native"
+    expect(doc.root.content).to eq("via-native")
+    expect(doc.root.to_xml).to eq("<r>via-native</r>")
+  end
+end
