@@ -70,3 +70,28 @@ RSpec.describe "NodeSet#remove / NodeSet#to_xml / Element#replace markup" do
     end
   end
 end
+
+RSpec.describe "Element#replace with a DocumentFragment (ruby#457 follow-up)" do
+  it "splices the fragment's CHILDREN per DOM Core, not the fragment node" do
+    doc = Leptris::XML.parse("<r><image/></r>")
+    img = doc.root.element_children.first
+    img.replace(doc.fragment('<svg id="s1"/>'))
+    expect(doc.root.element_children.map(&:name)).to eq(["svg"])
+    expect(doc.root.to_xml).to eq('<r><svg id="s1"/></r>')
+  end
+
+  it "splices multi-node fragments in order" do
+    doc = Leptris::XML.parse("<r><image/></r>")
+    img = doc.root.element_children.first
+    img.replace(doc.fragment("<a/><b/>"))
+    expect(doc.root.element_children.map(&:name)).to eq(["a", "b"])
+  end
+
+  it "returns a NodeSet for multi-node fragments (the #457 contract)" do
+    doc = Leptris::XML.parse("<r><image/></r>")
+    img = doc.root.element_children.first
+    installed = img.replace(doc.fragment("<a/><b/>"))
+    expect(installed).to be_a(Leptris::XML::NodeSet)
+    expect(installed.map(&:name)).to eq(["a", "b"])
+  end
+end
