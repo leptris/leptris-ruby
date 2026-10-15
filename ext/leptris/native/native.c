@@ -157,6 +157,19 @@ static node_xpath_fn f_node_xpath;
 static elem_copy_fn f_elem_copy;
 static parse_str_fn f_parse_str;
 static parse_frag_fn f_parse_frag;
+/* LeptrisParseOptions mirror (frozen layout since 1.9.0: flags,
+ * strict_mode, max_depth, recover — the FFI ParseOptionsStruct
+ * shape). Only recover is ever set: the recover-default parse
+ * (ruby#465) routes through the ex face on the C side. */
+struct leptris_parse_opts_mirror {
+    int flags;
+    int strict_mode;
+    int max_depth;
+    int recover;
+};
+typedef void *(*parse_str_ex_fn)(const char *, size_t,
+                                 struct leptris_parse_opts_mirror *, void *);
+static parse_str_ex_fn f_parse_str_ex;
 static last_err_fn f_last_err;
 static status_str_fn f_status_str;
 static set_root_fn f_set_root;
@@ -311,6 +324,7 @@ static void resolve_symbols(const char *lib_path)
     f_node_xpath = (node_xpath_fn)lib_sym(h, "leptris_node_get_xpath");
     f_elem_copy = (elem_copy_fn)lib_sym(h, "leptris_element_copy");
     f_parse_str = (parse_str_fn)lib_sym(h, "leptris_parse_string");
+    f_parse_str_ex = (parse_str_ex_fn)lib_sym(h, "leptris_parse_string_ex");
     f_parse_frag = (parse_frag_fn)lib_sym(h, "leptris_parse_fragment");
     f_last_err = (last_err_fn)lib_sym(h, "leptris_last_error");
     f_status_str = (status_str_fn)lib_sym(h, "leptris_status_string");
@@ -333,7 +347,7 @@ static void resolve_symbols(const char *lib_path)
         !f_text_set_content || !f_node_unlink ||
         !f_node_traverse || !f_node_visit || !f_free_str ||
         !f_node_xpath || !f_elem_copy || !f_parse_str ||
-        !f_parse_frag || !f_last_err || !f_status_str ||
+        !f_parse_frag || !f_parse_str_ex || !f_last_err || !f_status_str ||
         !f_doc_free || !f_sax_parse || !f_sax_create || !f_sax_feed ||
         !f_sax_pfree || !f_sax_set_flags ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
@@ -2904,14 +2918,28 @@ static void check_status_c(int st)
 /* Document.parse default path in one dispatch (TODO.perf/35):
  * leptris_parse_string + wrapper + handle. Qnil = parse failure
  * (the caller raises with the same message shape). */
-static VALUE nf_parse_binding_document(VALUE self, VALUE xml)
+static VALUE nf_parse_binding_document(int argc, VALUE *argv, VALUE self)
 {
     void *doc;
+    VALUE xml, recover;
 
     (void)self;
+    rb_scan_args(argc, argv, "11", &xml, &recover);
     resolve_binding_classes();
-    doc = f_parse_str(RSTRING_PTR(StringValue(xml)),
-                      (size_t)RSTRING_LEN(StringValue(xml)), NULL);
+    xml = StringValue(xml);
+    if (RTEST(recover) && f_parse_str_ex) {
+        /* Recover lane (ruby#465): a best-effort tree plus the
+         * engine's parse diagnostics — never NULL for malformed
+         * input, so the caller answers a document, not a raise. */
+        struct leptris_parse_opts_mirror opts;
+        memset(&opts, 0, sizeof(opts));
+        opts.recover = 1;
+        doc = f_parse_str_ex(RSTRING_PTR(xml),
+                             (size_t)RSTRING_LEN(xml), &opts, NULL);
+    } else {
+        doc = f_parse_str(RSTRING_PTR(xml),
+                          (size_t)RSTRING_LEN(xml), NULL);
+    }
     return doc ? build_binding_document(doc) : Qnil;
 }
 
@@ -3559,7 +3587,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_module_function(m_native, "set_binding_root",
                               nf_set_binding_root, 2);
     rb_define_module_function(m_native, "parse_binding_document",
-                              nf_parse_binding_document, 1);
+                              nf_parse_binding_document, -1);
     rb_define_module_function(m_native, "parse_fragment_addr",
                               nf_parse_fragment_addr, 2);
     rb_define_module_function(m_native, "append_markup",

@@ -10,8 +10,13 @@ RSpec.describe Leptris::XML::Document do
       expect(doc).to respond_to(:root)
     end
 
-    it "raises ParseError on malformed input" do
-      expect { described_class.parse("<unclosed>") }.to raise_error(Leptris::XML::ParseError)
+    it "raises ParseError on malformed input under strict" do
+      expect { described_class.parse("<unclosed>", strict: true) }
+        .to raise_error(Leptris::XML::ParseError)
+    end
+
+    it "recovers malformed input by default (ruby#465)" do
+      expect(described_class.parse("<unclosed>").errors).not_to be_empty
     end
 
     it "accepts an IO object (responds to :read)" do
@@ -353,7 +358,7 @@ RSpec.describe "error introspection" do
   end
 
   it "includes library detail in parse errors when available" do
-    expect { Leptris::XML.parse("<unclosed>") }
+    expect { Leptris::XML.parse("<unclosed>", strict: true) }
       .to raise_error(Leptris::XML::ParseError, /leptris_parse_string failed/)
   end
 end

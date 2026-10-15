@@ -105,8 +105,8 @@ RSpec.describe "libleptris 1.8.0 / 1.9.0 surface" do
   end
 
   describe "recover parsing (1.9.0, #547)" do
-    it "raises ParseError without recover" do
-      expect { Leptris::XML.parse("<broken") }
+    it "raises ParseError under strict (the default now recovers, ruby#465)" do
+      expect { Leptris::XML.parse("<broken", strict: true) }
         .to raise_error(Leptris::XML::ParseError)
     end
 

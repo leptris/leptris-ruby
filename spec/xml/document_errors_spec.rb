@@ -23,3 +23,17 @@ RSpec.describe "Document#errors (ruby#465)" do
       .to raise_error(Leptris::XML::ParseError)
   end
 end
+
+RSpec.describe "recover-by-default (leptris-ruby#478 / moxml parity)" do
+  it "parse() recovers malformed input like nokogiri, exposing doc.errors" do
+    doc = Leptris::XML.parse("<a><b></a>")
+    expect(doc.root.name).to eq("a")
+    expect(doc.errors).not_to be_empty
+  end
+
+  it "clean documents parse identically under the default" do
+    doc = Leptris::XML.parse("<r><a x='1'>t</a></r>")
+    expect(doc.root.to_xml).to eq("<r><a x=\"1\">t</a></r>")
+    expect(doc.errors).to be_empty
+  end
+end

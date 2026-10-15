@@ -123,7 +123,7 @@ class Leptris::XML::Builder
     return @sink if markup.empty?
     case @sink
     when Leptris::XML::Document
-      parsed = Leptris::XML::Document.parse(markup)
+      parsed = Leptris::XML::Document.parse(markup, strict: true)
       root = parsed.root
       if root.nil?
         raise Leptris::XML::Error,

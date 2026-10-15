@@ -43,7 +43,9 @@ module Leptris
 
     # Nokogiri-style top-level entry points (Nokogiri::XML(...) /
     # Nokogiri::XML.parse). Delegates to Document.parse.
-    def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
+    def self.parse(xml_or_io, options: nil, readonly: false,
+                   recover: true, strict: false)
+      recover = false if strict
       Document.parse(xml_or_io, options: options, readonly: readonly,
                      recover: recover)
     end

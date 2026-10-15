@@ -140,7 +140,13 @@ class Leptris::XML::Document
       depth: 0 }
   end
 
-  def self.parse(xml_or_io, options: nil, readonly: false, recover: false)
+  # Nokogiri parity (ruby#465): parse() RECOVERS malformed input by
+  # default — a best-effort tree plus doc.errors, never a raise.
+  # Pass `strict: true` (or rescue ParseError) for the historical
+  # raise-on-malformed behavior.
+  def self.parse(xml_or_io, options: nil, readonly: false,
+                 recover: true, strict: false)
+    recover = false if strict
     xml = xml_or_io.is_a?(String) ? xml_or_io : xml_or_io.read
     if xml.empty?
       raise Leptris::XML::ParseError, "empty input"
@@ -152,7 +158,11 @@ class Leptris::XML::Document
       # TODO.perf/35: parse + wrapper + lifetime handle in one C
       # dispatch; failure raises through the shared path below.
       if defined?(Leptris::XML::NATIVE_FAST)
-        doc = Leptris::XML::Native.parse_binding_document(xml)
+        doc = if recover
+                Leptris::XML::Native.parse_binding_document(xml, true)
+              else
+                Leptris::XML::Native.parse_binding_document(xml)
+              end
         raise Leptris::XML::ParseError,
               "leptris_parse_string failed: " +
               Leptris::XML::FFI.leptris_last_error.to_s if doc.nil?
@@ -168,10 +178,10 @@ class Leptris::XML::Document
     end
     if options.nil?
       options = Leptris::XML::ParseOptions.new(recover: recover)
-    elsif recover && !options.recover?
-      options = options | Leptris::XML::ParseOptions.new(recover: true)
     elsif !options.is_a?(Leptris::XML::ParseOptions)
       raise ArgumentError, "options must be a Leptris::XML::ParseOptions"
+    elsif recover && !options.recover?
+      options = options | Leptris::XML::ParseOptions.new(recover: true)
     end
     # The status out-param is nullable; the thread-local last error
     # carries failure detail, and skipping the per-parse MemoryPointer
