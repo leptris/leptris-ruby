@@ -166,9 +166,16 @@ module Leptris::XML::Searchable
   # then call the at_* fast paths directly — no NodeSet container,
   # no result handle, one fewer dispatch than search().first.
   def at(*args)
-    paths = args.first.is_a?(Array) ? args.first : [args.first]
-    if paths.map(&:to_s).all? { |p| looks_like_xpath?(p) }
-      at_xpath(*paths)
+    # Nokogiri parity (ruby#473): at(*args) is at_xpath(*args) for
+    # XPath-shaped paths — the trailing namespace-bindings hash (and
+    # any other at_xpath arguments) must RIDE ALONG, not be dropped
+    # (a dropped hash made namespaced lookups silently nil).
+    if args.first.is_a?(Array)
+      # The nokogiri array-of-paths form: unwrap the array, keep the
+      # trailing arguments (bindings hash) riding along.
+      at_xpath(*args.first, *args[1..])
+    elsif looks_like_xpath?(args.first.to_s)
+      at_xpath(*args)
     else
       at_css(*args)
     end

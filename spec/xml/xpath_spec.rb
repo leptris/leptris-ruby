@@ -446,3 +446,33 @@ RSpec.describe "XPath version selection (leptris-ruby#183, mirroring leptris-py#
       .to raise_error(ArgumentError, /XPath-only/)
   end
 end
+
+RSpec.describe "Searchable#at with namespace bindings (ruby#473)" do
+  let(:xml) do
+    <<~XML
+      <svgmap xmlns="http://www.example.org/doc">
+        <figure><m:svg xmlns:m="http://www.w3.org/2000/svg"/></figure>
+      </svgmap>
+    XML
+  end
+
+  # The svgmap element: xpath("//svgmap") is nil here — an unprefixed
+  # test against a DEFAULT-namespaced element matches nothing
+  # (XPath 1.0 §2.3, the same on nokogiri).
+  let(:svgmap) { Leptris::XML.parse(xml).root }
+
+  it "delegates the bindings hash to at_xpath" do
+    expect(svgmap.at(".//m:svg", "m" => "http://www.w3.org/2000/svg")&.name)
+      .to eq("svg")
+  end
+
+  it "keeps the array-of-paths form working" do
+    expect(svgmap.at([".//m:svg"], "m" => "http://www.w3.org/2000/svg")&.name)
+      .to eq("svg")
+  end
+
+  it "keeps the css shape working" do
+    doc = Leptris::XML.parse('<r><a class="x">t</a></r>')
+    expect(doc.at("a.x")&.name).to eq("a")
+  end
+end
