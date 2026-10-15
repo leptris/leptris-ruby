@@ -55,7 +55,14 @@ class Leptris::XML::Declaration
   # The declaration rides Document#children (ruby#459), and generic
   # child serializers call to_xml on whatever children exist
   # (leptris#1732 — moxml's round trip). Same wire bytes as to_s.
-  alias_method :to_xml, :to_s
+  # The serializer's kwargs ride along (moxml passes indent:/
+  # encoding:/no_decl:); under no_decl: the answer is EMPTY — the
+  # document-level preamble owns the emission and the child must
+  # not duplicate it (ruby#477).
+  def to_xml(no_decl: false, **_kwargs)
+    return "" if no_decl
+    to_s
+  end
 
   def inspect
     "#<#{self.class.name} version=#{version.inspect} " \

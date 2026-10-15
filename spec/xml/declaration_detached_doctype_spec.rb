@@ -71,6 +71,29 @@ RSpec.describe "Declaration node face + detached DOCTYPE (ruby#459)" do
         .to eq('<?xml version="1.0" encoding="UTF-8"?>')
     end
 
+    it "to_xml accepts the serializer kwargs (leptris-ruby#477)" do
+      decl = doc.declaration
+      expect(decl.to_xml(indent: 2))
+        .to eq('<?xml version="1.0" encoding="UTF-8"?>')
+      expect(decl.to_xml(encoding: "UTF-8", no_decl: false))
+        .to eq('<?xml version="1.0" encoding="UTF-8"?>')
+    end
+
+    it "to_xml answers empty under no_decl: — the preamble owns it (ruby#477)" do
+      expect(doc.declaration.to_xml(no_decl: true)).to eq("")
+    end
+
+    it "survives moxml's repeatable children reads (ruby#477)" do
+      doc2 = Leptris::XML.parse(
+        '<?xml version="1.0" encoding="UTF-8"?><documents/>')
+      2.times do
+        doc2.children.each { |c| c.to_xml(indent: 2, no_decl: true) }
+      end
+      expect(doc2.children.first.to_xml(no_decl: true)).to eq("")
+      expect(doc2.children.first.to_xml)
+        .to eq('<?xml version="1.0" encoding="UTF-8"?>')
+    end
+
     it "every document child answers to_xml (leptris#1732)" do
       doc2 = Leptris::XML.parse(
         '<?xml version="1.0" encoding="UTF-8"?><documents/>')
