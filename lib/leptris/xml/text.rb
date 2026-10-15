@@ -40,4 +40,8 @@ class Leptris::XML::Text < Leptris::XML::Node
   def to_s
     Leptris::XML::Serialization.escape_text(content)
   end
+
+  # leptris-ruby#464: nokogiri's Node#to_xml exists on every kind —
+  # text serializes escaped.
+  alias_method :to_xml, :to_s
 end

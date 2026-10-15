@@ -35,4 +35,7 @@ class Leptris::XML::CDATA < Leptris::XML::Text
   def to_s
     "<![CDATA[#{content}]]>"
   end
+
+  # leptris-ruby#464: CDATA serialization face.
+  alias_method :to_xml, :to_s
 end
