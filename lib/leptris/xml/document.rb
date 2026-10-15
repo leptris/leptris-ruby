@@ -770,6 +770,24 @@ class Leptris::XML::Document
     Leptris::XML::DocType.new(dt, self)
   end
 
+  # Recovered-parse diagnostics (leptris-ruby#465): nokogiri parity
+  # for the recover lane — the engine's parse diagnostics as
+  # SyntaxError entries, empty for a clean parse. The engine
+  # reader carries message + kind; position stays nil until the C
+  # face exposes the diag line/column.
+  def errors
+    count = Leptris::XML::FFI.leptris_document_parse_diag_count(c_ptr)
+    return [] if count.zero?
+    count.times.map do |i|
+      msg_buf = ::FFI::MemoryPointer.new(:char, 512)
+      kind_buf = ::FFI::MemoryPointer.new(:int)
+      ok = Leptris::XML::FFI.leptris_document_parse_diag(
+        c_ptr, i, kind_buf, msg_buf, 512)
+      next nil if ok.zero?
+      Leptris::XML::SyntaxError.new(msg_buf.read_string.force_encoding(Encoding::UTF_8))
+    end.compact
+  end
+
   # Un-set the XML declaration (libleptris 1.9.204, upstream
   # #1229): the document stops being declaration-bearing and
   # serialization emits none — exactly as if the input had none.

@@ -115,15 +115,23 @@ returned object is a `Leptris::XML::Document`.
 
 Malformed input raises `Leptris::XML::ParseError`. Parse with
 `recover: true` to get libxml2's `XML_PARSE_RECOVER` semantics
-instead — an empty document back, with the failure recorded on the
-thread-global last error:
+instead — a best-effort partial tree back, with the recovered
+diagnostics on `doc.errors` (leptris-ruby#465):
 
 [source,ruby]
 ----
-doc = Leptris::XML.parse("<broken", recover: true)
-doc.root                                # => nil
-Leptris::XML::FFI.leptris_last_error    # => "..."
+doc = Leptris::XML.parse("<a><b></a>", recover: true)
+doc.root.name                           # => "a"
+doc.errors.first.message                # => "..."
 ----
+
+**Nokogiri compatibility note (leptris-ruby#465):** nokogiri
+recovers by DEFAULT — `Nokogiri::XML("<a><b></a>")` never raises and
+exposes `doc.errors`. leptris keeps the stricter default (malformed
+input raises; the failure detail is on the raised ParseError) — the
+same information, delivered as an exception instead of silent
+recovery. Migrating consumers that relied on nokogiri's recover-by-
+default should pass `recover: true` or rescue `Leptris::XML::ParseError`.
 
 == HTML parsing
 

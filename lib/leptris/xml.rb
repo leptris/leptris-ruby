@@ -104,6 +104,19 @@ module Leptris
 
     class Error < StandardError; end
     class ParseError < Error; end
+    # Recovered-parse diagnostics (leptris-ruby#465): nokogiri's
+    # SyntaxError shape — a message plus optional position — served
+    # by Document#errors.
+    class SyntaxError < Error
+      attr_reader :message, :line, :column
+
+      def initialize(message, line: nil, column: nil)
+        @message = message
+        @line = line
+        @column = column
+        super(message)
+      end
+    end
     class ReadOnlyError < Error; end
     class XPathError < Error; end
     class UseAfterFreeError < Error; end
