@@ -39,6 +39,7 @@ typedef int (*xp_node_kind_fn)(void *, int);
 typedef const char *(*xp_node_name_fn)(void *, int);
 typedef const char *(*xp_node_value_fn)(void *, int);
 typedef size_t (*serialize_into_fn)(void *, char *, size_t, void *, void *);
+typedef char *(*serialize_ext_sized_fn)(void *, const void *, const void *, size_t);
 typedef int (*ns_count_fn)(void *);
 typedef void *(*attr_first_fn)(void *);
 typedef void *(*attr_next_fn)(void *);
@@ -75,7 +76,8 @@ static xp_nodes_ex_fn f_xp_nodes_ex;
 static xp_node_kind_fn f_xp_node_kind;
 static xp_node_name_fn f_xp_node_name;
 static xp_node_value_fn f_xp_node_value;
-static serialize_into_fn f_doc_serialize, f_elem_serialize;
+static serialize_ext_sized_fn f_doc_serialize_xml;
+static serialize_into_fn f_elem_serialize;
 static ns_count_fn f_elem_ns_count;
 static attr_first_fn f_attr_first;
 static attr_next_fn f_attr_next;
@@ -259,7 +261,8 @@ static void resolve_symbols(const char *lib_path)
     f_xp_node_kind = (xp_node_kind_fn)lib_sym(h, "leptris_xpath_result_node_kind");
     f_xp_node_name = (xp_node_name_fn)lib_sym(h, "leptris_xpath_result_node_name");
     f_xp_node_value = (xp_node_value_fn)lib_sym(h, "leptris_xpath_result_node_value");
-    f_doc_serialize = (serialize_into_fn)lib_sym(h, "leptris_document_serialize_into");
+    f_doc_serialize_xml = (serialize_ext_sized_fn)lib_sym(
+        h, "leptris_document_serialize_ext_sized");
     f_elem_serialize = (serialize_into_fn)lib_sym(h, "leptris_element_serialize_into");
     f_attr_first = (attr_first_fn)lib_sym(h, "leptris_element_first_attribute");
     f_attr_next = (attr_next_fn)lib_sym(h, "leptris_attribute_next");
@@ -338,7 +341,7 @@ static void resolve_symbols(const char *lib_path)
         !f_sax_pfree || !f_sax_set_flags ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
-        !f_doc_serialize || !f_elem_serialize || !f_attr_first ||
+        !f_doc_serialize_xml || !f_elem_serialize || !f_attr_first ||
         !f_elem_ns_count || !f_elem_ns ||
         !f_attr_next || !f_attr_name || !f_attr_value ||
         !f_node_line || !f_node_offset)
@@ -2106,15 +2109,52 @@ static VALUE fast_serialize(serialize_into_fn fn, void *node,
                       : rb_utf8_str_new_cstr("");
 }
 
+/* rb_utf8_str_new_cstr may raise; the engine allocation remains owned
+ * until the ensure callback runs on either return or exception. */
+struct document_xml_result {
+    char *xml;
+};
+
+static VALUE document_xml_string(VALUE arg)
+{
+    struct document_xml_result *result = (void *)(uintptr_t)arg;
+    return rb_utf8_str_new_cstr(result->xml);
+}
+
+static VALUE document_xml_free(VALUE arg)
+{
+    struct document_xml_result *result = (void *)(uintptr_t)arg;
+    f_free_str(result->xml);
+    return Qnil;
+}
+
 static VALUE nf_fast_document_xml(VALUE self, VALUE addr,
                                   VALUE indent, VALUE decl,
                                   VALUE encoding)
 {
+    /* Prefix of LeptrisSerializeExtOptions through html_method.
+     * Pass its size so later engine fields remain at their defaults. */
+    struct {
+        int indent_text;
+        const char *indent_unit;
+        int expand_empty;
+        int html_method;
+    } ext = {0, NULL, 0, -1};
+    struct serialize_opts opts;
+    struct document_xml_result result;
+
     (void)self;
-    return fast_serialize(f_doc_serialize,
-                          (void *)(uintptr_t)NUM2ULL(addr),
-                          NUM2INT(indent), RTEST(decl) ? 1 : 0,
-                          encoding);
+    opts.indent = NUM2INT(indent);
+    opts.xml_declaration = RTEST(decl) ? 1 : 0;
+    opts.encoding = NIL_P(encoding) ? NULL : StringValueCStr(encoding);
+    /* HTML documents default to HTML output in the generic entry.
+     * This XML face forces XML without changing the document's mode. */
+    result.xml = f_doc_serialize_xml((void *)(uintptr_t)NUM2ULL(addr),
+                                    &opts, &ext, sizeof(ext));
+    if (!result.xml)
+        return rb_utf8_str_new_cstr("");
+    return rb_ensure(document_xml_string, (VALUE)(uintptr_t)&result,
+                     document_xml_free, (VALUE)(uintptr_t)&result);
 }
 
 static VALUE nf_fast_element_xml(VALUE self, VALUE addr,
