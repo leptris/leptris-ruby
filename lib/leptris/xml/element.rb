@@ -643,10 +643,20 @@ class Leptris::XML::Element < Leptris::XML::Node
   end
 
   # Replace this element with +new_node+ in the parent's child list.
-  # +new_node+ must belong to the same document. Returns +new_node+.
+  # +new_node+ is a node belonging to the same document, or markup
+  # parsed in this document's context (leptris-ruby#457 — nokogiri
+  # parity; multiple top-level nodes splice in order). Returns the
+  # replacement node, or a NodeSet when the markup produced several.
   def replace(new_node)
     parent = self.parent
     raise Leptris::XML::Error, "cannot replace a node with no parent" unless parent
+    if new_node.is_a?(String)
+      nodes = @document.fragment(new_node).children.to_a
+      raise Leptris::XML::Error, "replacement markup produced no nodes" if nodes.empty?
+      installed = nodes.reverse_each.map { |n| add_next_sibling(n) }.reverse
+      parent.remove_child(self)
+      return installed.size == 1 ? installed.first : Leptris::XML::NodeSet.new(@document, installed)
+    end
     add_next_sibling(new_node)
     parent.remove_child(self)
     new_node

@@ -187,6 +187,28 @@ class Leptris::XML::NodeSet
   end
   alias_method :text, :inner_text
 
+  # Nokogiri parity (leptris-ruby#455): unlink every member from its
+  # tree. Members are materialized first — unlinking mutates the
+  # sibling chain the lazy result would otherwise be walked against.
+  def remove
+    to_a.each(&:unlink)
+    self
+  end
+  alias_method :unlink, :remove
+
+  # Nokogiri parity (leptris-ruby#456): serialize every member in
+  # order and concatenate. Elements and attributes ride #to_xml;
+  # text/comment/PI answer #to_s with the same bytes.
+  def to_xml
+    map do |node|
+      if node.is_a?(Leptris::XML::Element) || node.is_a?(Leptris::XML::Attr)
+        node.to_xml
+      else
+        node.to_s
+      end
+    end.join
+  end
+
   # Union semantics: ONE engine call evaluates the expression
   # against every element member and merges the results into a
   # de-duplicated, document-ordered nodeset (libleptris 1.9.7,
