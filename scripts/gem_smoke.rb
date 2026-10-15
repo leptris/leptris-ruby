@@ -14,10 +14,13 @@ puts "leptris #{Leptris::VERSION} on #{RUBY_PLATFORM} (ruby #{RUBY_VERSION})"
 doc = Leptris::XML.parse("<r id='1'><a x='2'>t1</a><a>t2</a></r>")
 raise "parse: root" unless doc.root.name == "r"
 raise "xpath: children" unless doc.root.xpath("a").size == 2
-raise "attr read" unless doc.at_xpath("a")["x"] == "2"
+# //a from DOCUMENT level: document-node context (libxml2/nokogiri
+# semantics, engine 1.9.358+) — doc.at_xpath("a") would correctly be
+# nil (the document's child is r, not a).
+raise "attr read" unless doc.at_xpath("//a")["x"] == "2"
 
-doc.at_xpath("a").content = "z"
-raise "mutate" unless doc.at_xpath("a").content == "z"
+doc.at_xpath("//a").content = "z"
+raise "mutate" unless doc.at_xpath("//a").content == "z"
 raise "serialize" unless doc.to_xml.include?('<a x="2">z</a>')
 
 rng = Leptris::XML::RelaxNG.parse(
