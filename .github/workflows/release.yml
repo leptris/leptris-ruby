@@ -108,8 +108,27 @@ jobs:
           git push origin "v${NEW_VERSION}" || \
             echo "::warning::tag v${NEW_VERSION} already exists — continuing"
 
-  build:
+  # Snapshot main's HEAD once — every build leg checks out THIS
+  # sha. Without it the slow legs (docker qemu, musl) checkout
+  # github.ref at their own start time and a push landing mid-run
+  # ships half the release from one commit and half from another
+  # (the 1.9.363.0 train: the parity gate caught element.rb skew
+  # between the musl and ruby variants).
+  pin:
     needs: bump
+    if: always() && !cancelled() && !failure()
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.snapshot.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
+      - id: snapshot
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [bump, pin]
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
     # Release builds never run the benchmark suite; nokogiri has no
@@ -136,7 +155,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -285,7 +304,7 @@ jobs:
             lib/libutf8proc.*
 
   build-musl:
-    needs: bump
+    needs: [bump, pin]
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
     env:
@@ -301,7 +320,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
 
       # Musl builds run inside an Alpine container so the vendored
       # library links against musl libc. JS actions cannot run inside
@@ -397,7 +416,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
 
       - uses: docker/setup-qemu-action@v3
 
@@ -450,13 +469,13 @@ jobs:
   build-ruby:
     # Zero-setup TruffleRuby/JRuby (#160): assemble the ruby-platform
     # gem with per-OS vendored binaries gathered from every leg.
-    needs: [ bump, build, build-musl, build-arm32 ]
+    needs: [ bump, pin, build, build-musl, build-arm32 ]
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
 
       - uses: ruby/setup-ruby@master
         with:
@@ -495,13 +514,13 @@ jobs:
           path: pkg/*.gem
 
   publish:
-    needs: [ bump, build, build-musl, build-arm32, build-ruby ]
+    needs: [ bump, pin, build, build-musl, build-arm32, build-ruby ]
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.sha || github.ref }}
+          ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
 
       - uses: ruby/setup-ruby@master
         with:
