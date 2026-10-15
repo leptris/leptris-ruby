@@ -119,6 +119,34 @@ typedef void *(*parse_str_fn)(const char *, size_t, void *);
 typedef void *(*parse_frag_fn)(const char *, size_t, void *, int *);
 typedef const char *(*last_err_fn)(void);
 typedef const char *(*status_str_fn)(int);
+
+/* ==== SAX single transport (leptris-ruby SAX parity round) ====
+ * The engine's SAX handler struct — mirrors
+ * include/leptris/sax/sax.h field order. */
+struct engine_sax_handler {
+    void (*start_document)(void*);
+    void (*end_document)(void*);
+    void (*start_element)(void*, const char*, const char**);
+    void (*end_element)(void*, const char*);
+    void (*characters)(void*, const char*, size_t);
+    void (*comment)(void*, const char*);
+    void (*cdata)(void*, const char*);
+    void (*processing_instruction)(void*, const char*, const char*);
+    void (*start_prefix_mapping)(void*, const char*, const char*);
+    void (*end_prefix_mapping)(void*, const char*);
+    void (*error)(void*, const char*, int, int);
+};
+typedef int (*sax_parse_fn)(const char*, size_t, struct engine_sax_handler*, void*);
+typedef void* (*sax_create_fn)(struct engine_sax_handler*, void*);
+typedef int (*sax_feed_fn)(void*, const char*, size_t, int);
+typedef void (*sax_pfree_fn)(void*);
+typedef void (*sax_flags_fn)(void*, unsigned);
+static sax_parse_fn f_sax_parse;
+static sax_create_fn f_sax_create;
+static sax_feed_fn f_sax_feed;
+static sax_pfree_fn f_sax_pfree;
+static sax_flags_fn f_sax_set_flags;
+
 static set_str_fn f_elem_set_name, f_elem_set_text, f_text_set_content;
 static node_unlink_fn f_node_unlink;
 static traverse_fn f_node_traverse;
@@ -135,6 +163,7 @@ static set_root_fn f_set_root;
 static doc_free_fn f_doc_free;
 
 static VALUE c_native_node;
+static VALUE c_sax_parser;
 /* Ivar reads (TODO.perf/07 tail): the binding Document keeps the
  * C address and the caches in plain ivars, so the hot C faces skip
  * rb_funcall dispatch entirely. */
@@ -280,6 +309,12 @@ static void resolve_symbols(const char *lib_path)
     f_status_str = (status_str_fn)lib_sym(h, "leptris_status_string");
     f_set_root = (set_root_fn)lib_sym(h, "leptris_document_set_root");
     f_doc_free = (doc_free_fn)lib_sym(h, "leptris_document_free");
+    f_sax_parse = (sax_parse_fn)lib_sym(h, "leptris_sax_parse");
+    f_sax_create = (sax_create_fn)lib_sym(h, "leptris_sax_parser_create");
+    f_sax_feed = (sax_feed_fn)lib_sym(h, "leptris_sax_parser_feed");
+    f_sax_pfree = (sax_pfree_fn)lib_sym(h, "leptris_sax_parser_free");
+    f_sax_set_flags =
+        (sax_flags_fn)lib_sym(h, "leptris_sax_parser_set_skip_flags");
     if (!f_elem_name || !f_text_content || !f_attr ||
         !f_children_ex || !f_node_type || !f_next_sibling || !f_parent ||
         !f_element_text || !f_doc_create || !f_elem_create || !f_text_create ||
@@ -292,7 +327,8 @@ static void resolve_symbols(const char *lib_path)
         !f_node_traverse || !f_node_visit || !f_free_str ||
         !f_node_xpath || !f_elem_copy || !f_parse_str ||
         !f_parse_frag || !f_last_err || !f_status_str ||
-        !f_doc_free ||
+        !f_doc_free || !f_sax_parse || !f_sax_create || !f_sax_feed ||
+        !f_sax_pfree || !f_sax_set_flags ||
         !f_elem_prefix || !f_xp_count || !f_xp_nodes_ex ||
         !f_xp_node_kind || !f_xp_node_name || !f_xp_node_value ||
         !f_doc_serialize || !f_elem_serialize || !f_attr_first ||
@@ -3062,6 +3098,275 @@ static VALUE leptris_native_resolve_rb(VALUE self, VALUE lib_path)
 #  define LEPTRIS_INIT_EXPORT
 #endif
 
+/* ==== SAX single transport: C callbacks dispatch to Ruby via
+ * rb_funcall (~100ns/event). Replaces BOTH Ruby-side transports —
+ * the FFI::Function trampolines (~1.3us/event) and the record-
+ * then-drain bulk pass — with one path that is fastest for every
+ * handler shape. Only the kinds the handler overrides are attached
+ * (the engine skips NULL callbacks), preserving the pay-for-what-
+ * you-consume property. */
+
+enum sax_kind_bits {
+    SK_START_DOC = 1u << 0,
+    SK_END_DOC = 1u << 1,
+    SK_START_1ARG = 1u << 2,   /* start_element(name) */
+    SK_START_2ARG = 1u << 3,   /* start_element(name, attrs) */
+    SK_END_ELEM = 1u << 4,
+    SK_CHARS = 1u << 5,
+    SK_COMMENT = 1u << 6,
+    SK_CDATA = 1u << 7,
+    SK_PI = 1u << 8,
+    SK_START_PREFIX = 1u << 9,
+    SK_END_PREFIX = 1u << 10,
+    SK_ERROR = 1u << 11
+};
+
+static ID id_sax_start_document, id_sax_end_document, id_sax_start_element,
+    id_sax_end_element, id_sax_characters, id_sax_comment, id_sax_cdata,
+    id_sax_pi, id_sax_start_prefix, id_sax_end_prefix, id_sax_error;
+
+struct sax_ctx {
+    VALUE handler;
+    unsigned kinds;
+};
+
+static VALUE sax_utf8_str(const char* s)
+{
+    return s ? rb_utf8_str_new_cstr(s) : Qnil;
+}
+
+/* PI data strips leading whitespace — read_pi_data parity. */
+static VALUE sax_pi_data_str(const char* s)
+{
+    if (!s) return Qnil;
+    while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n')
+        s++;
+    return rb_utf8_str_new_cstr(s);
+}
+
+static void sax_cb_start_document(void* ud)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_start_document, 0);
+}
+
+static void sax_cb_end_document(void* ud)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_end_document, 0);
+}
+
+static void sax_cb_start_element(void* ud, const char* name,
+                                 const char** attrs)
+{
+    struct sax_ctx* c = ud;
+    VALUE n = rb_utf8_str_new_cstr(name);
+    if (c->kinds & SK_START_1ARG) {
+        rb_funcall(c->handler, id_sax_start_element, 1, n);
+        return;
+    }
+    VALUE pairs = rb_ary_new();
+    if (attrs) {
+        for (size_t i = 0; attrs[i]; i += 2)
+            rb_ary_push(pairs, rb_assoc_new(
+                rb_utf8_str_new_cstr(attrs[i]),
+                rb_utf8_str_new_cstr(attrs[i + 1])));
+    }
+    rb_funcall(c->handler, id_sax_start_element, 2, n, pairs);
+}
+
+static void sax_cb_end_element(void* ud, const char* name)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_end_element, 1,
+               rb_utf8_str_new_cstr(name));
+}
+
+static void sax_cb_characters(void* ud, const char* text, size_t len)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_characters, 1,
+               rb_utf8_str_new(text, len));
+}
+
+static void sax_cb_comment(void* ud, const char* comment)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_comment, 1,
+               rb_utf8_str_new_cstr(comment));
+}
+
+static void sax_cb_cdata(void* ud, const char* cdata)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_cdata, 1, rb_utf8_str_new_cstr(cdata));
+}
+
+static void sax_cb_pi(void* ud, const char* target, const char* data)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_pi, 2, sax_utf8_str(target),
+               sax_pi_data_str(data));
+}
+
+static void sax_cb_start_prefix(void* ud, const char* prefix,
+                                const char* uri)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_start_prefix, 2, sax_utf8_str(prefix),
+               sax_utf8_str(uri));
+}
+
+static void sax_cb_end_prefix(void* ud, const char* prefix)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_end_prefix, 1, sax_utf8_str(prefix));
+}
+
+static void sax_cb_error(void* ud, const char* msg, int line, int col)
+{
+    struct sax_ctx* c = ud;
+    rb_funcall(c->handler, id_sax_error, 3, rb_utf8_str_new_cstr(msg),
+               INT2NUM(line), INT2NUM(col));
+}
+
+static void sax_handler_fill(struct engine_sax_handler* h,
+                             struct sax_ctx* c)
+{
+    memset(h, 0, sizeof(*h));
+    if (c->kinds & SK_START_DOC)
+        h->start_document = sax_cb_start_document;
+    if (c->kinds & SK_END_DOC)
+        h->end_document = sax_cb_end_document;
+    if (c->kinds & (SK_START_1ARG | SK_START_2ARG))
+        h->start_element = sax_cb_start_element;
+    if (c->kinds & SK_END_ELEM)
+        h->end_element = sax_cb_end_element;
+    if (c->kinds & SK_CHARS)
+        h->characters = sax_cb_characters;
+    if (c->kinds & SK_COMMENT)
+        h->comment = sax_cb_comment;
+    if (c->kinds & SK_CDATA)
+        h->cdata = sax_cb_cdata;
+    if (c->kinds & SK_PI)
+        h->processing_instruction = sax_cb_pi;
+    if (c->kinds & SK_START_PREFIX)
+        h->start_prefix_mapping = sax_cb_start_prefix;
+    if (c->kinds & SK_END_PREFIX)
+        h->end_prefix_mapping = sax_cb_end_prefix;
+    if (c->kinds & SK_ERROR)
+        h->error = sax_cb_error;
+}
+
+static VALUE nf_sax_parse(VALUE self, VALUE handler, VALUE kinds,
+                          VALUE string)
+{
+    struct engine_sax_handler h;
+    struct sax_ctx c;
+    int rc;
+    (void)self;
+    c.handler = handler;
+    c.kinds = NUM2UINT(kinds);
+    sax_handler_fill(&h, &c);
+    rc = f_sax_parse(RSTRING_PTR(string), RSTRING_LEN(string), &h, &c);
+    return INT2NUM(rc);
+}
+
+/* Streaming parser wrapper: the handler VALUE must stay live for
+ * the parser's lifetime, so the ctx rides a TypedData with mark. */
+struct sax_parser_obj {
+    void* parser;
+    struct engine_sax_handler h;
+    struct sax_ctx c;
+    int skip_flags;
+    int flags_applied;
+};
+
+static void sax_parser_mark(void* p)
+{
+    struct sax_parser_obj* o = p;
+    rb_gc_mark(o->c.handler);
+}
+
+static void sax_parser_free(void* p)
+{
+    struct sax_parser_obj* o = p;
+    if (o->parser)
+        f_sax_pfree(o->parser);
+    xfree(o);
+}
+
+static size_t sax_parser_size(const void* p)
+{
+    return sizeof(struct sax_parser_obj);
+}
+
+static const rb_data_type_t sax_parser_type = {
+    "Leptris/XML/Native/SaxParser",
+    {sax_parser_mark, sax_parser_free, sax_parser_size},
+    0, 0, RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+static VALUE nf_sax_parser_create(VALUE self, VALUE handler, VALUE kinds)
+{
+    struct sax_parser_obj* o;
+    VALUE obj;
+    (void)self;
+    o = ALLOC(struct sax_parser_obj);
+    o->c.handler = handler;
+    o->c.kinds = NUM2UINT(kinds);
+    o->skip_flags = 0;
+    o->flags_applied = 0;
+    sax_handler_fill(&o->h, &o->c);
+    o->parser = f_sax_create(&o->h, &o->c);
+    if (!o->parser) {
+        xfree(o);
+        return Qnil;
+    }
+    obj = TypedData_Wrap_Struct(c_sax_parser, &sax_parser_type, o);
+    return obj;
+}
+
+static struct sax_parser_obj* sax_parser_unwrap(VALUE obj)
+{
+    struct sax_parser_obj* o;
+    TypedData_Get_Struct(obj, struct sax_parser_obj, &sax_parser_type, o);
+    return o;
+}
+
+static VALUE nf_sax_parser_feed(VALUE self, VALUE obj, VALUE chunk,
+                                VALUE is_final)
+{
+    int rc;
+    (void)self;
+    rc = f_sax_feed(sax_parser_unwrap(obj)->parser, RSTRING_PTR(chunk),
+                    RSTRING_LEN(chunk), RTEST(is_final) ? 1 : 0);
+    return INT2NUM(rc);
+}
+
+static VALUE nf_sax_parser_set_skip_flags(VALUE self, VALUE obj,
+                                          VALUE flags)
+{
+    struct sax_parser_obj* o;
+    (void)self;
+    o = sax_parser_unwrap(obj);
+    o->skip_flags = NUM2UINT(flags);
+    f_sax_set_flags(o->parser, (unsigned)o->skip_flags);
+    return Qnil;
+}
+
+static VALUE nf_sax_parser_free(VALUE self, VALUE obj)
+{
+    struct sax_parser_obj* o;
+    (void)self;
+    o = sax_parser_unwrap(obj);
+    if (o->parser) {
+        f_sax_pfree(o->parser);
+        o->parser = 0;
+    }
+    return Qnil;
+}
+
 LEPTRIS_INIT_EXPORT void Init_native(void)
 {
     VALUE m_leptris, m_xml, m_native;
@@ -3143,6 +3448,28 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     m_native = rb_define_module_under(m_xml, "Native");
     m_native_sentinel = m_native;
     rb_define_module_function(m_native, "fast_name", nf_name, 1);
+    id_sax_start_document = rb_intern("start_document");
+    id_sax_end_document = rb_intern("end_document");
+    id_sax_start_element = rb_intern("start_element");
+    id_sax_end_element = rb_intern("end_element");
+    id_sax_characters = rb_intern("characters");
+    id_sax_comment = rb_intern("comment");
+    id_sax_cdata = rb_intern("cdata_block");
+    id_sax_pi = rb_intern("processing_instruction");
+    id_sax_start_prefix = rb_intern("start_prefix_mapping");
+    id_sax_end_prefix = rb_intern("end_prefix_mapping");
+    id_sax_error = rb_intern("error");
+    c_sax_parser = rb_define_class_under(m_native, "SaxParser",
+                                         rb_cObject);
+    rb_define_module_function(m_native, "sax_parse", nf_sax_parse, 3);
+    rb_define_module_function(m_native, "sax_parser_create",
+                              nf_sax_parser_create, 2);
+    rb_define_module_function(m_native, "sax_parser_feed",
+                              nf_sax_parser_feed, 3);
+    rb_define_module_function(m_native, "sax_parser_set_skip_flags",
+                              nf_sax_parser_set_skip_flags, 2);
+    rb_define_module_function(m_native, "sax_parser_free",
+                              nf_sax_parser_free, 1);
     rb_define_module_function(m_native, "fast_element_text", nf_element_text, 1);
     rb_define_module_function(m_native, "fast_attribute", nf_attribute, 2);
     rb_define_module_function(m_native, "fast_prefix", nf_prefix, 1);
