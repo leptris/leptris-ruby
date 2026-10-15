@@ -180,3 +180,28 @@ RSpec.describe Leptris::XML::SAX::Parser do
     end
   end
 end
+
+RSpec.describe "Leptris::XML::SAX::Parser skip_flags (IO path)" do
+  let(:handler_class) do
+    Class.new(Leptris::XML::SAX::Document) do
+      attr_reader :events
+      def initialize; @events = []; end
+      def start_element(name, attrs = []); @events << [:start_element, name, attrs]; end
+      def error(message, line = 0, column = 0); @events << [:error, message, line, column]; end
+    end
+  end
+
+  it "SKIP_DUP_DETECTION admits duplicate attributes silently" do
+    h = handler_class.new
+    parser = Leptris::XML::SAX::Parser.new(h)
+    parser.skip_flags = Leptris::XML::ParseOptions::SKIP_DUP_DETECTION
+    parser.parse(StringIO.new(%q{<r a="1" a="2"/>}))
+    expect(h.events).to eq([[:start_element, "r", [["a", "1"], ["a", "2"]]]])
+  end
+
+  it "without flags duplicate attributes still error" do
+    h = handler_class.new
+    Leptris::XML::SAX::Parser.new(h).parse(StringIO.new(%q{<r a="1" a="2"/>}))
+    expect(h.events.any? { |e| e[0] == :error && e[1] == "Attribute a redefined" }).to be(true)
+  end
+end

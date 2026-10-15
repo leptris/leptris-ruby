@@ -71,8 +71,13 @@ class Leptris::XML::SAX::Parser
         @document, dispatched_kinds, string)
       return self
     end
-    if bulk_dispatch?
-      parse_memory_bulk(string)
+    if native_fast?
+      rc = Leptris::XML::Native.sax_parse(
+        @document, native_kinds_mask, string)
+      if rc != 0
+        raise Leptris::XML::ParseError,
+          "leptris_sax_parse failed (rc=#{rc})"
+      end
     else
       handler_struct = self.handler_struct
       rc = Leptris::XML::FFI.leptris_sax_parse(
@@ -85,48 +90,78 @@ class Leptris::XML::SAX::Parser
     self
   end
 
-  # Bulk transport for many-override handlers: record the whole
-  # document C-side (~12ms per 250k events), then dispatch through
-  # the recorder's drain — 250k ffi callback trampolines cost
-  # ~150ms, so this wins outright for handlers that consume most of
-  # the event stream (and beats Nokogiri's C extension on the same
-  # shape). The delivered call shapes are IDENTICAL to the callback
-  # transport (pairs arrays, arity dispatch, UTF-8, PI-data
-  # normalization) — the transports are interchangeable to the
-  # handler.
-  #
-  # Transport choice, from the round-XXVI crossover measurements:
-  # ONE overridden hot kind pays less through the callbacks (the
-  # engine skips C-side emission for unattached kinds entirely:
-  # text-only 23ms vs 43ms), while two or more hot kinds win through
-  # the recorder (start+chars 138 -> 99ms, start+end+chars 167 ->
-  # 122ms vs Nokogiri's 142ms). The weights are document-shape
-  # priors — text-heavy documents with tagged structure.
-  HOT_KIND_WEIGHTS = {
-    characters: 0.6, start_element: 0.2, end_element: 0.2,
-  }.freeze
-  private_constant :HOT_KIND_WEIGHTS
-  DISPATCH_WEIGHT_THRESHOLD = 0.8
-  private_constant :DISPATCH_WEIGHT_THRESHOLD
-
-  def parse_memory_bulk(string)
-    recorder = Leptris::XML::SAX::Recorder.open
+  def parse_io(io)
+    unless @streaming
+      parse_memory(io.read)
+      return self
+    end
+    if native_fast?
+      parser = Leptris::XML::Native.sax_parser_create(
+        @document, native_kinds_mask)
+      if parser.nil?
+        raise Leptris::XML::Error, "leptris_sax_parser_create failed"
+      end
+      begin
+        Leptris::XML::Native.sax_parser_set_skip_flags(
+          parser, @skip_flags || 0)
+        while (chunk = io.read(CHUNK_SIZE))
+          rc = Leptris::XML::Native.sax_parser_feed(parser, chunk, false)
+          if rc != 0
+            raise Leptris::XML::ParseError,
+              "leptris_sax_parser_feed failed (rc=#{rc})"
+          end
+        end
+        rc = Leptris::XML::Native.sax_parser_feed(parser, "", true)
+        if rc != 0
+          raise Leptris::XML::ParseError,
+            "leptris_sax_parser_feed (final) failed (rc=#{rc})"
+        end
+      ensure
+        Leptris::XML::Native.sax_parser_free(parser)
+      end
+      return self
+    end
+    handler_struct = self.handler_struct
+    parser_ptr = Leptris::XML::FFI.leptris_sax_parser_create(
+      handler_struct.pointer, nil)
+    if parser_ptr.null?
+      raise Leptris::XML::Error, "leptris_sax_parser_create failed"
+    end
+    if @skip_flags
+      Leptris::XML::FFI.leptris_sax_parser_set_skip_flags(
+        parser_ptr, @skip_flags)
+    end
     begin
-      rc = recorder.feed(string, final: true)
-      recorder.dispatch(@document, dispatched_kinds)
+      while (chunk = io.read(CHUNK_SIZE))
+        rc = Leptris::XML::FFI.leptris_sax_parser_feed(
+          parser_ptr, chunk, chunk.bytesize, 0)
+        if rc != 0
+          raise Leptris::XML::ParseError, "leptris_sax_parser_feed failed (rc=#{rc})"
+        end
+      end
+      # Final flush
+      rc = Leptris::XML::FFI.leptris_sax_parser_feed(parser_ptr, "", 0, 1)
       if rc != 0
-        raise Leptris::XML::ParseError,
-          "leptris_sax_parse failed (rc=#{rc})"
+        raise Leptris::XML::ParseError, "leptris_sax_parser_feed (final) failed (rc=#{rc})"
       end
     ensure
-      recorder.free
+      Leptris::XML::FFI.leptris_sax_parser_free(parser_ptr)
     end
     self
   end
 
-  # The handler's overridden-kind map — the same decisions
-  # build_handler_struct makes, in dispatch form. Memoized with the
-  # handler struct; document= invalidates both.
+  def parse_file(path)
+    if @streaming
+      File.open(path, "r") { |f| parse_io(f) }
+    else
+      parse_memory(File.read(path))
+    end
+  end
+
+  # The handler's overridden-kind map — memoized with the handler
+  # struct; document= invalidates both. The native transport derives
+  # its kind bitmask from it; the FFI fallback builds its callback
+  # struct from the same decisions.
   def dispatched_kinds
     @dispatched_kinds ||= begin
       kinds = {}
@@ -156,53 +191,42 @@ class Leptris::XML::SAX::Parser
     end
   end
 
-  def bulk_dispatch?
-    dispatched_kinds.keys.sum do |kind|
-      HOT_KIND_WEIGHTS.fetch(kind, 0.0)
-    end >= DISPATCH_WEIGHT_THRESHOLD
-  end
-
-  def parse_io(io)
-    unless @streaming
-      parse_memory(io.read)
-      return self
-    end
-    handler_struct = self.handler_struct
-    parser_ptr = Leptris::XML::FFI.leptris_sax_parser_create(
-      handler_struct.pointer, nil)
-    if parser_ptr.null?
-      raise Leptris::XML::Error, "leptris_sax_parser_create failed"
-      Leptris::XML::FFI.leptris_sax_parser_set_skip_flags(
-        parser_ptr, @skip_flags || 0)
-    end
-    begin
-      while (chunk = io.read(CHUNK_SIZE))
-        rc = Leptris::XML::FFI.leptris_sax_parser_feed(
-          parser_ptr, chunk, chunk.bytesize, 0)
-        if rc != 0
-          raise Leptris::XML::ParseError, "leptris_sax_parser_feed failed (rc=#{rc})"
-        end
-      end
-      # Final flush
-      rc = Leptris::XML::FFI.leptris_sax_parser_feed(parser_ptr, "", 0, 1)
-      if rc != 0
-        raise Leptris::XML::ParseError, "leptris_sax_parser_feed (final) failed (rc=#{rc})"
-      end
-    ensure
-      Leptris::XML::FFI.leptris_sax_parser_free(parser_ptr)
-    end
-    self
-  end
-
-  def parse_file(path)
-    if @streaming
-      File.open(path, "r") { |f| parse_io(f) }
-    else
-      parse_memory(File.read(path))
-    end
-  end
-
   private
+
+  def native_fast?
+    defined?(Leptris::XML::NATIVE_FAST)
+  end
+
+  # The C transport's kind bitmask — the same decisions
+  # dispatched_kinds makes, in bit form. start_element's arity picks
+  # the 1-arg or 2-arg dispatch; only overridden kinds attach (the
+  # engine skips NULL callbacks, so cost scales with declared
+  # interest, not with the document's event mix).
+  NATIVE_KIND_BITS = {
+    start_document: 1 << 0,
+    end_document: 1 << 1,
+    end_element: 1 << 4,
+    characters: 1 << 5,
+    comment: 1 << 6,
+    cdata: 1 << 7,
+    pi: 1 << 8,
+    start_prefix: 1 << 9,
+    end_prefix: 1 << 10,
+    error: 1 << 11,
+  }.freeze
+  private_constant :NATIVE_KIND_BITS
+
+  def native_kinds_mask
+    mask = 0
+    dispatched_kinds.each do |kind, mode|
+      if kind == :start_element
+        mask |= (mode == :one_arg ? (1 << 2) : (1 << 3))
+      else
+        mask |= NATIVE_KIND_BITS.fetch(kind, 0)
+      end
+    end
+    mask
+  end
 
   # Build a LeptrisSAXHandler struct populated with FFI::Function callbacks
   # that dispatch to the Ruby handler. Only the callbacks the handler
