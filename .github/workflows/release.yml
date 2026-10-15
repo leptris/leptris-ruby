@@ -15,14 +15,19 @@ on:
     branches: [main]
     paths: ['lib/leptris/version.rb']
 
-# Duplicate dispatches of the same release version must not run
-# concurrently: two parallel publishes race on the bump/tag push and
-# the artifact assembly (hit in practice during the 1.9.19x train).
-# The publish loop is idempotent, so cancelling a superseded run is
-# always safe.
+# ONE release at a time, GLOBALLY — the metanorma/ci rubygems-release
+# discipline (lutaml-model's release.yml): a single 'release' group so
+# a dispatch and a push-triggered run serialize against each other
+# (interpolated groups would let them race in parallel), and
+# cancel-in-progress: false so a duplicate QUEUES behind an in-flight
+# publish instead of killing it — half-published gems are worse than a
+# queued release. Bit us on the 1.9.359 train: a duplicate dispatch
+# cancelled the original run mid-release, stranding the publication
+# (RubyGems stayed on 1.9.356 through v1.9.357-359). The publish loop
+# is idempotent, so a queued duplicate is always safe.
 concurrency:
-  group: 'release-${{ inputs.next_version || github.ref }}'
-  cancel-in-progress: true
+  group: release
+  cancel-in-progress: false
 
 # contents: write is needed for pushing the version-bump commit + tag.
 # id-token: write is required for RubyGems.org Trusted Publishing (OIDC).
