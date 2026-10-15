@@ -14,4 +14,7 @@ class Leptris::XML::EntityReference < Leptris::XML::Node
   def to_s
     "&#{name};"
   end
+
+  # leptris-ruby#464: entity-reference serialization face.
+  alias_method :to_xml, :to_s
 end

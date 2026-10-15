@@ -35,4 +35,7 @@ class Leptris::XML::Comment < Leptris::XML::Node
   def to_s
     "<!--#{content}-->"
   end
+
+  # leptris-ruby#464: comment serialization face.
+  alias_method :to_xml, :to_s
 end

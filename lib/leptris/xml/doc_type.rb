@@ -80,4 +80,7 @@ class Leptris::XML::DocType
   def inspect
     "#<#{self.class.name} name=#{name.inspect} public=#{public_id.inspect} system=#{system_id.inspect}>"
   end
+
+  # leptris-ruby#464: DOCTYPE serialization face.
+  alias_method :to_xml, :to_s
 end
