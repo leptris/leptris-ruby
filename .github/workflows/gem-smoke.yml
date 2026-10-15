@@ -25,6 +25,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # 3.1/3.2 first-class: the shipped per-minor bundles are
+          # ABI-gated per minor (ruby#476 — 1.9.356-362 shipped a
+          # 3.1-incompatible bundle that the smoke never exercised).
+          - os: ubuntu-latest
+            ruby-version: '3.1'
+          - os: ubuntu-latest
+            ruby-version: '3.2'
+          - os: macos-latest
+            ruby-version: '3.1'
           - os: ubuntu-latest
             ruby-version: '3.3'
           - os: ubuntu-24.04-arm
