@@ -28,6 +28,15 @@ module Leptris::XML::Serialization
   # Public within the library: Element#to_xml and Document#to_xml
   # pass the hoisted bound methods straight through.
 
+  # Document XML output must override an HTML document's default
+  # serialization method. Element serialization already defaults to XML.
+  XML_METHOD_EXT = begin
+    ext = Leptris::XML::FFI::SerializeExtStruct.new
+    ext[:html_method] = -1
+    ext
+  end
+  private_constant :XML_METHOD_EXT
+
   # +ffi_function+ is a bound _serialize_into function. The buffer
   # cycle lives at the FFI seam (FFI.serialize_into_string); this
   # module owns only options selection and construction.
@@ -52,6 +61,11 @@ module Leptris::XML::Serialization
           indent: indent, no_decl: no_decl, encoding: encoding)
         opts
       end
+    if ffi_function == DOCUMENT_SERIALIZE_INTO
+      return Leptris::XML::FFI.read_owned_string(
+        Leptris::XML::FFI.leptris_document_serialize_ext_sized(
+          c_ptr, opts.pointer, XML_METHOD_EXT.pointer, XML_METHOD_EXT.size))
+    end
     Leptris::XML::FFI.serialize_into_string(ffi_function, c_ptr, opts.pointer)
   end
 
@@ -140,6 +154,7 @@ module Leptris::XML::Serialization
   INDENT_TEXT_EXT = begin
     ext = Leptris::XML::FFI::SerializeExtStruct.new
     ext[:indent_text] = 1
+    ext[:html_method] = -1
     ext
   end
   private_constant :INDENT_TEXT_EXT
@@ -167,6 +182,7 @@ module Leptris::XML::Serialization
     unit_anchor = ::FFI::MemoryPointer.from_string(
       indent.positive? ? unit.to_s * indent : unit.to_s)
     ext[:indent_unit] = unit_anchor
+    ext[:html_method] = -1
     str_ptr = Leptris::XML::FFI.leptris_document_serialize_ext_sized(
       c_ptr, opts.pointer, ext.pointer, ext.size)
     Leptris::XML::FFI.read_owned_string(str_ptr)
