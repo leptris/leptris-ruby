@@ -106,6 +106,18 @@ if RUBY_PLATFORM =~ /darwin/
   [$LDFLAGS, $DLDFLAGS].each do |var|
     var << lookup unless var.include?("dynamic_lookup")
   end
+  # ruby#476: newer ld64 defaults BUNDLES to two-level namespace —
+  # with -undefined dynamic_lookup a two-level bind records the
+  # symbol as expected from the MAIN EXECUTABLE ("main-executable"),
+  # and interpreters that don't re-export every ruby symbol from
+  # their binary abort at first call ("dyld missing symbol called",
+  # hit at Init_native's first import). -flat_namespace is the
+  # classic C-extension pattern: dynamic_lookup symbols search all
+  # loaded images at call time and resolve from libruby.
+  flat = " -Wl,-flat_namespace"
+  [$LDFLAGS, $DLDFLAGS].each do |var|
+    var << flat unless var.include?("flat_namespace")
+  end
   # setup-ruby builds carry the RUNNER's absolute libruby path in
   # LIBRUBYARG_SHARED — recorded as an LC_LOAD_DYLIB in the
   # bundle, unresolvable on user machines. A Ruby extension
