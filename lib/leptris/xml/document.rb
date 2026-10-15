@@ -511,6 +511,34 @@ class Leptris::XML::Document
     Leptris::XML::DocumentFragment.parse(markup, self)
   end
 
+
+  # XInclude with the 1.9.357 resolver policy (#1694), through
+  # leptris_xinclude_process_opts: base_url seeds the xml:base chain,
+  # catalog_path maps URIs via an XML Catalog, and no_network (the
+  # default) refuses remote schemes with a resource error so
+  # xi:fallback applies. The Ruby resolver hook is not exposed yet —
+  # the C resolver pointer stays NULL (file loader only).
+  def process_xinclude(base_url: nil, catalog_path: nil,
+                       no_network: true)
+    opts = Leptris::XML::FFI::XIncludeOpts.new
+    opts[:resolver] = ::FFI::Pointer::NULL
+    opts[:resolver_user] = ::FFI::Pointer::NULL
+    if catalog_path
+      cp = ::FFI::MemoryPointer.from_string(catalog_path.to_s)
+      opts[:catalog_path] = cp
+    else
+      opts[:catalog_path] = ::FFI::Pointer::NULL
+    end
+    opts[:no_network] = no_network ? 1 : 0
+    Leptris::XML::FFI.check_status(
+      Leptris::XML::FFI.leptris_xinclude_process_opts(
+        c_ptr, base_url, opts))
+    @version += 1
+    self
+  ensure
+    cp&.free
+  end
+
   def dup
     raw = Leptris::XML::FFI.leptris_document_copy(c_ptr)
     raise Leptris::XML::Error, "leptris_document_copy failed" if raw.null?

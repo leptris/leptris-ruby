@@ -692,6 +692,21 @@ attach_function :leptris_parse_string,
       attach_function :leptris_get_max_depth, [], :int
       attach_function :leptris_xinclude_process,
         [:leptris_document, :string], :leptris_status
+
+      # Per-call XInclude options (1.9.357, #1694): resolver hook +
+      # user data, optional XML Catalog file, no_network posture
+      # (default 1 — remote schemes refuse with a resource error).
+      # All fields are borrowed for the call; NULL opts = defaults.
+      class XIncludeOpts < ::FFI::Struct
+        layout \
+          :resolver, :pointer,
+          :resolver_user, :pointer,
+          :catalog_path, :pointer,
+          :no_network, :int
+      end
+
+      attach_function :leptris_xinclude_process_opts,
+        [:leptris_document, :string, :pointer], :leptris_status
       attach_function :leptris_xinclude_is_include_element,
         [:leptris_element], :int
       attach_function :leptris_xinclude_is_fallback_element,
