@@ -3598,16 +3598,16 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_fast_element_xml, 4);
 }
 
-#ifdef _WIN32
 /* MRI derives a C extension's init symbol from the require
- * feature's basename cut at the first dot. The Windows per-minor
- * DLLs are therefore named dot-free (native_3_3.so etc.), and
- * each needs its exact init name exported. All are defined here
- * unconditionally: a DLL only ever loads under the Ruby minor it
- * was built against (PE binds its build Ruby's runtime DLL). */
+ * feature's basename cut at the first dot. The per-minor artifacts
+ * are therefore named dot-free (native_3_3.so / native_3_1.bundle
+ * etc.), and each needs its exact init name exported. Defined
+ * unconditionally on every platform since ruby#476: the darwin/
+ * Linux per-minor bundles (native_<minor>) resolve these too —
+ * an artifact only ever loads under the Ruby minor it was built
+ * against. */
 LEPTRIS_INIT_EXPORT void Init_native_3_1(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_3_2(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { Init_native(); }
-#endif
