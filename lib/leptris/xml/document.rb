@@ -354,7 +354,10 @@ class Leptris::XML::Document
   def children
     base = document_child_nodes
     return base if declaration.nil?
-    list = base.to_a
+    # .dup: NodeSet#to_a hands back the LIVE memoized array — unshifting
+    # into it would inject the Declaration into the underlying child
+    # list and poison every later children call (leptris#1732 class).
+    list = base.to_a.dup
     list.unshift(declaration)
     Leptris::XML::NodeSet.new(self, list)
   end

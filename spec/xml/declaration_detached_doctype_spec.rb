@@ -65,6 +65,18 @@ RSpec.describe "Declaration node face + detached DOCTYPE (ruby#459)" do
       expect(doc.declaration.to_s)
         .to eq('<?xml version="1.0" encoding="UTF-8"?>')
     end
+
+    it "answers to_xml — every child kind must (leptris#1732)" do
+      expect(doc.declaration.to_xml)
+        .to eq('<?xml version="1.0" encoding="UTF-8"?>')
+    end
+
+    it "every document child answers to_xml (leptris#1732)" do
+      doc2 = Leptris::XML.parse(
+        '<?xml version="1.0" encoding="UTF-8"?><documents/>')
+      expect(doc2.children.map(&:class).uniq.size).to be >= 2
+      doc2.children.each(&:to_xml)
+    end
   end
 
   describe "Detached DOCTYPE (ask 2)" do
