@@ -247,6 +247,15 @@ jobs:
       - run: ruby ext/build_native_per_minor.rb
         if: runner.os != 'Windows'
         shell: bash
+      # Restore the JOB ruby + its bundle before rake gem:native —
+      # the per-minor loop's last setup-ruby (3.4) left the job
+      # without a bundler install (the 1.9.363.0 train: every
+      # darwin/Linux leg died on Bundler::GemNotFound).
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: ${{ matrix.ruby-version || '3.3' }}
+          bundler-cache: true
       - name: Verify every supported minor has a native bundle
         if: runner.os != 'Windows'
         shell: bash
