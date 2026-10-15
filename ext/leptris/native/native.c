@@ -3605,6 +3605,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
  * each needs its exact init name exported. All are defined here
  * unconditionally: a DLL only ever loads under the Ruby minor it
  * was built against (PE binds its build Ruby's runtime DLL). */
+LEPTRIS_INIT_EXPORT void Init_native_3_1(void) { Init_native(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_2(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { Init_native(); }
 LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { Init_native(); }

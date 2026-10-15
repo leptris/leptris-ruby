@@ -208,6 +208,56 @@ jobs:
           ruby-version: ${{ matrix.ruby-version || '3.3' }}
           bundler-cache: true
 
+      # Per-minor native bundles on darwin/Linux (ruby#476): the
+      # ext's compiled-in RString layout changed in Ruby 3.2, so a
+      # single CI-built bundle segfaults under 3.1 (garbage pointer
+      # + length into the engine's text counter). One bundle per
+      # supported minor ships — the #207/#227 Windows contract,
+      # generalized. Windows builds its own per-minor DLLs in the
+      # block above; these legs cover the non-PE platforms.
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: '3.1'
+          bundler-cache: false
+      - run: ruby ext/build_native_per_minor.rb
+        if: runner.os != 'Windows'
+        shell: bash
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+      - run: ruby ext/build_native_per_minor.rb
+        if: runner.os != 'Windows'
+        shell: bash
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+      - run: ruby ext/build_native_per_minor.rb
+        if: runner.os != 'Windows'
+        shell: bash
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: '3.4'
+          bundler-cache: false
+      - run: ruby ext/build_native_per_minor.rb
+        if: runner.os != 'Windows'
+        shell: bash
+      - name: Verify every supported minor has a native bundle
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ext=darwin && case "${{ runner.os }}" in macOS) ext=bundle;; Linux) ext=so;; *) ext=so;; esac
+          for m in 3_1 3_2 3_3 3_4; do
+            f="lib/leptris/xml/native_${m}.${ext}"
+            [ -f "$f" ] || { echo "ERROR: missing $f"; exit 1; }
+          done
+          echo "All four per-minor native bundles present"
+
       - run: bundle exec rake gem:native:${{ matrix.platform }}
         shell: bash
 

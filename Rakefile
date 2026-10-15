@@ -337,6 +337,18 @@ task :compile do
       cp(bundle, "#{dest}.new")
       mv("#{dest}.new", dest)
       sign_darwin_binaries(dest)
+      # Per-minor twin (ruby#476): the loader prefers
+      # native_<minor>.{bundle,so}; dev builds run same-minor, so
+      # the copy is byte-identical and keeps `rake compile` +
+      # `rake spec` working without a full release matrix.
+      unless Gem.win_platform?
+        minor = RUBY_VERSION[/\A\d+\.\d+/].tr('.', '_')
+        ext = RUBY_PLATFORM.include?('darwin') ? '.bundle' : '.so'
+        twin = "lib/leptris/xml/native_#{minor}#{ext}"
+        cp(dest, "#{twin}.new")
+        mv("#{twin}.new", twin)
+        sign_darwin_binaries(twin)
+      end
       puts "Vendored native layer (#{File.basename(bundle)}) into lib/leptris/xml/"
     end
   end

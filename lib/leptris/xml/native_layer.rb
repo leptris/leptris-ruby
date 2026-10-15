@@ -27,13 +27,29 @@ begin
   if Gem.win_platform?
     require "leptris/xml/native_#{RUBY_VERSION[/\A\d+\.\d+/].tr('.', '_')}"
   else
+    # Per-minor bundle FIRST (ruby#476): the ext's compiled-in
+    # RString layout changed in 3.2 — a bundle built by a newer
+    # minor reads garbage pointers/lengths under 3.1 (the parse
+    # segfaulted inside the engine's (correctly bounded) text
+    # counter). Platform gems ship one bundle per minor, MRI
+    # derives Init_native_<minor> from the basename cut at the
+    # first dot, and a missing variant falls through to FFI below
+    # — a WRONG-ABI load must never be attempted.
+    minor = RUBY_VERSION[/\A\d+\.\d+/].tr('.', '_')
+    ext = RUBY_PLATFORM.include?('darwin') ? '.bundle' : '.so'
+    per_minor = File.expand_path("native_#{minor}#{ext}", __dir__)
+    # No unversioned fallback on purpose: a bundle built by any
+    # other minor is a wrong-ABI load (the 3.1 segfault class).
+    # Absent variant -> LoadError -> leptris.rb falls back to the
+    # FFI surface with a warning.
+    raise LoadError,
+          "leptris: no native_#{minor} bundle in this install " \
+          "(per-minor native layer; ruby-platform gems compile " \
+          "at install)" unless File.exist?(per_minor)
     # #1623: the bundle beside this file must carry a valid
     # signature before dyld maps it — pre-verify and re-stamp.
-    Leptris.resign_bundle_if_needed(
-      File.expand_path(
-        "native#{RUBY_PLATFORM.include?('darwin') ? '.bundle' : '.so'}",
-        __dir__))
-    require "leptris/xml/native"
+    Leptris.resign_bundle_if_needed(per_minor)
+    require "leptris/xml/native_#{minor}"
   end
 rescue LoadError => e
   raise LoadError, <<~MSG
