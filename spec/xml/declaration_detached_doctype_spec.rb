@@ -71,11 +71,22 @@ RSpec.describe "Declaration node face + detached DOCTYPE (ruby#459)" do
         .to eq('<?xml version="1.0" encoding="UTF-8"?>')
     end
 
+    it "answers to_xml with the serializer's keyword options (leptris#1732)" do
+      # moxml's DocumentParts#serialize_document calls child.to_xml with
+      # indent:/encoding:/no_decl: — a bare alias to the 0-arity to_s
+      # raises ArgumentError, and ignoring no_decl would duplicate the
+      # declaration (the document serializer emits it itself).
+      expect(doc.declaration.to_xml(indent: 0, encoding: "UTF-8"))
+        .to eq('<?xml version="1.0" encoding="UTF-8"?>')
+      expect(doc.declaration.to_xml(no_decl: true)).to be_empty
+    end
+
     it "every document child answers to_xml (leptris#1732)" do
       doc2 = Leptris::XML.parse(
         '<?xml version="1.0" encoding="UTF-8"?><documents/>')
       expect(doc2.children.map(&:class).uniq.size).to be >= 2
-      doc2.children.each(&:to_xml)
+      opts = { indent: 0, no_decl: true, encoding: "UTF-8", expand_empty: false }
+      doc2.children.each { |child| child.to_xml(**opts) }
     end
   end
 
