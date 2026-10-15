@@ -293,7 +293,9 @@ RSpec.describe "root-level leaf splice (#1539)" do
     doc = Leptris::XML::Document.parse(%(<r/>))
     scratch = Leptris::XML::Document.parse(
       %(<?xml version="1.0"?><!--note--><s/>))
-    leaf = scratch.children.first
+    # children lists the declaration node first when the document
+    # carries one (leptris-ruby#459) — pick the comment explicitly.
+    leaf = scratch.children.find { |child| child.is_a?(Leptris::XML::Comment) }
     expect(leaf).to be_a(Leptris::XML::Comment)
     installed = doc.root.add_child(leaf)
     expect(installed.comment?).to eq(true)

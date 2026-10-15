@@ -348,7 +348,18 @@ class Leptris::XML::Document
   # the chain lacks it, so parsed and built documents read the
   # same. Prolog/epilog placement uses node_compare against the
   # root.
+  # The declaration (leptris-ruby#459) rides in FRONT of the C child
+  # chain — it is document state, not a chain node, so the C-facing
+  # child logic below never sees it.
   def children
+    base = document_child_nodes
+    return base if declaration.nil?
+    list = base.to_a
+    list.unshift(declaration)
+    Leptris::XML::NodeSet.new(self, list)
+  end
+
+  def document_child_nodes
     doc_node = node
     return Leptris::XML::NodeSet.new(self, []) if doc_node.nil?
     kids = doc_node.children.to_a
@@ -507,9 +518,17 @@ class Leptris::XML::Document
   def doctype
     ptr = Leptris::XML::FFI.leptris_document_internal_subset(c_ptr)
     return nil if ptr.null?
-    Leptris::XML::DocType.new(ptr, self)
+    wrap_doctype(ptr)
   end
   alias_method :internal_subset, :doctype
+
+  # One DocType wrapper per C node per document (leptris-ruby#459):
+  # the attach routes and the readers hand back the SAME Ruby object
+  # the consumer created or received before.
+  def wrap_doctype(ptr)
+    @doctype_wrappers ||= {}
+    @doctype_wrappers[ptr.address] ||= Leptris::XML::DocType.new(ptr, self)
+  end
 
   # indent_text selects the ext-serializer knob (libleptris 1.9.22):
   # a STRING is the indent unit with Nokogiri's semantics — the unit
@@ -759,6 +778,16 @@ class Leptris::XML::Document
     value
   end
 
+  # The declaration as a NODE (leptris-ruby#459 ask 1): reads and
+  # writes route to the document state; remove/unlink clears it.
+  # nil when the document carries no declaration. One value object
+  # per document — repeated reads return the same instance.
+  def declaration
+    return @declaration_node if @declaration_node
+    return nil if xml_version.nil?
+    @declaration_node = Leptris::XML::Declaration.new(self)
+  end
+
   # Programmatic DOCTYPE (libleptris 1.9.176 / #212): create and
   # set the document's DOCTYPE (root name + optional PUBLIC/SYSTEM
   # ids); serializes in document position. Returns the DocType.
@@ -767,7 +796,31 @@ class Leptris::XML::Document
       c_ptr, name.to_s, public_id, system_id)
     raise Leptris::XML::Error, "leptris_document_set_doctype failed" if dt.null?
     @version += 1
-    Leptris::XML::DocType.new(dt, self)
+    wrap_doctype(dt)
+  end
+
+  # Detached DOCTYPE token (leptris-ruby#459 ask 2): create now,
+  # inspect while unattached, attach later via add_child. Nothing is
+  # written to the document until the attach.
+  def new_doctype(name, public_id: nil, system_id: nil)
+    Leptris::XML::DocType.new_detached(self, name.to_s, public_id, system_id)
+  end
+
+  # Attach a detached DOCTYPE token (the two-phase facade contract):
+  # routes through the engine's set_doctype and adopts the caller's
+  # wrapper, so #doctype hands back the same node identity.
+  def add_child(node)
+    unless node.is_a?(Leptris::XML::DocType) && !node.attached?
+      raise ArgumentError,
+            "Document#add_child attaches a detached DocType, got #{node.class}"
+    end
+    dt = Leptris::XML::FFI.leptris_document_set_doctype(
+      c_ptr, node.name, node.public_id, node.system_id)
+    raise Leptris::XML::Error, "leptris_document_set_doctype failed" if dt.null?
+    @version += 1
+    node.attach!(dt)
+    (@doctype_wrappers ||= {})[dt.address] = node
+    node
   end
 
   # Un-set the XML declaration (libleptris 1.9.204, upstream
@@ -778,6 +831,7 @@ class Leptris::XML::Document
   def clear_declaration
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_document_clear_declaration(c_ptr))
+    @declaration_node = nil
     @version += 1
     self
   end

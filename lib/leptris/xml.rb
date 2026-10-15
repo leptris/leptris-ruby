@@ -16,6 +16,7 @@ module Leptris
     autoload :DocumentFragment, "leptris/xml/document_fragment"
     autoload :Builder, "leptris/xml/builder"
     autoload :DocType, "leptris/xml/doc_type"
+    autoload :Declaration, "leptris/xml/declaration"
     autoload :NodeSet, "leptris/xml/node_set"
     autoload :Searchable, "leptris/xml/searchable"
     autoload :ParseOptions, "leptris/xml/parse_options"
