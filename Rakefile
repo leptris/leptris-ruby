@@ -575,14 +575,18 @@ platforms.each do |platform|
     spec.files += Dir.glob("vendor-src/**/*")
     spec.files += %w[ext/leptris/native/extconf.rb
                      ext/leptris/native/native.c]
-    if platform.include?("mingw")
-      # #207/#227: per-Ruby-minor DLLs (PE must bind its Ruby).
-      # DOT-FREE names — MRI derives the init symbol from the
-      # basename cut at the first dot (native_3_3.so ->
-      # Init_native_3_3; the dotted form made Ruby look for
-      # "Init_native-3", which cannot exist).
-      spec.files += Dir.glob("lib/leptris/xml/native_*.so")
-    else
+    # #207/#227 + ruby#476: per-Ruby-minor bundles on EVERY
+    # platform (the ext's compiled-in RString layout changed in
+    # 3.2 — one CI-built bundle segfaults 3.1). DOT-FREE names —
+    # MRI derives the init symbol from the basename cut at the
+    # first dot (native_3_3.so -> Init_native_3_3; the dotted form
+    # made Ruby look for "Init_native-3", which cannot exist).
+    spec.files += Dir.glob("lib/leptris/xml/native_*.so")
+    spec.files += Dir.glob("lib/leptris/xml/native_*.bundle")
+    if !platform.include?("mingw")
+      # The unversioned bundle rides for toolchains that only run
+      # rake compile's single build (native_layer prefers the
+      # per-minor variant and never loads a wrong-ABI file).
       spec.files += Dir.glob("lib/leptris/xml/native.{bundle,so,dll}")
     end
     task = Gem::PackageTask.new(spec)
