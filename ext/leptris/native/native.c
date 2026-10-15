@@ -173,6 +173,13 @@ static ID id_iv_nn_content, id_iv_nn_content_ver;
 static ID id_iv_nn_attrs, id_iv_nn_attrs_ver;
 static ID id_child_klasses;
 static VALUE c_use_after_free_error;
+/* ruby#476: rb_cObject / rb_e* are DATA symbols — under the newer
+ * macOS linker's chained fixups a -undefined dynamic_lookup DATA
+ * import binds at LOAD and fails ("Symbol not found: _rb_cObject")
+ * on interpreters whose main executable does not re-export them
+ * (mise builds). Function imports bind lazily and always resolve,
+ * so these four resolve at INIT via rb_path2class into statics. */
+static VALUE c_object, c_arg_error, c_type_error, c_runtime_error;
 
 static VALUE native_cache_of(VALUE document);
 static void resolve_binding_classes(void);
@@ -236,7 +243,7 @@ static void resolve_symbols(const char *lib_path)
 {
     void *h = lib_open(lib_path);
     if (!h)
-        rb_raise(rb_eRuntimeError, "cannot load library %s", lib_path);
+        rb_raise(c_runtime_error, "cannot load library %s", lib_path);
     f_elem_name = (elem_name_fn)lib_sym(h, "leptris_element_name");
     f_text_content = (text_content_fn)lib_sym(h, "leptris_text_node_get_content");
     f_attr = (attr_fn)lib_sym(h, "leptris_element_attribute");
@@ -335,7 +342,7 @@ static void resolve_symbols(const char *lib_path)
         !f_elem_ns_count || !f_elem_ns ||
         !f_attr_next || !f_attr_name || !f_attr_value ||
         !f_node_line || !f_node_offset)
-        rb_raise(rb_eRuntimeError, "libleptris symbols missing");
+        rb_raise(c_runtime_error, "libleptris symbols missing");
 }
 
 static VALUE nn_name(VALUE self)
@@ -487,7 +494,7 @@ static VALUE nn_install_child_klasses(VALUE self, VALUE map)
     Check_Type(map, T_ARRAY);
     len = RARRAY_LEN(map);
     if (len > 5)
-        rb_raise(rb_eArgError,
+        rb_raise(c_arg_error,
                  "child klasses: Array of classes/nil indexed by "
                  "node kind (element, text, comment, cdata, pi)");
     for (i = 0; i < len; i++) {
@@ -495,7 +502,7 @@ static VALUE nn_install_child_klasses(VALUE self, VALUE map)
         if (!NIL_P(k) &&
             !(RB_TYPE_P(k, T_CLASS) &&
               RTEST(rb_class_inherited_p(k, c_native_node))))
-            rb_raise(rb_eTypeError,
+            rb_raise(c_type_error,
                      "child klasses entries must be nil or a "
                      "Leptris::XML::NativeNode subclass");
     }
@@ -685,7 +692,7 @@ static void *doc_ptr_of(VALUE document)
 {
     VALUE addr = rb_ivar_get(document, id_iv_c_address);
     if (NIL_P(addr))
-        rb_raise(rb_eRuntimeError, "document has been freed");
+        rb_raise(c_runtime_error, "document has been freed");
     return (void *)(uintptr_t)NUM2ULL(addr);
 }
 
@@ -730,7 +737,7 @@ static VALUE nf_register_doc_klasses(VALUE self, VALUE document, VALUE map)
     Check_Type(map, T_ARRAY);
     len = RARRAY_LEN(map);
     if (len > 5)
-        rb_raise(rb_eArgError,
+        rb_raise(c_arg_error,
                  "wrapper klasses: Array of classes/nil indexed by "
                  "node kind (element, text, comment, cdata, pi)");
     for (i = 0; i < len; i++) {
@@ -738,7 +745,7 @@ static VALUE nf_register_doc_klasses(VALUE self, VALUE document, VALUE map)
         if (!NIL_P(k) &&
             !(RB_TYPE_P(k, T_CLASS) &&
               RTEST(rb_class_inherited_p(k, c_native_node))))
-            rb_raise(rb_eTypeError,
+            rb_raise(c_type_error,
                      "wrapper klasses entries must be nil or a "
                      "Leptris::XML::NativeNode subclass");
     }
@@ -1378,7 +1385,7 @@ static VALUE nf_insert_binding_child(VALUE self, VALUE document,
     case 2:  st = f_insert_after(anchor, child);  break;
     case 3:  st = f_insert_before(anchor, child); break;
     default:
-        rb_raise(rb_eArgError, "invalid insert mode %d", m);
+        rb_raise(c_arg_error, "invalid insert mode %d", m);
         return Qnil;
     }
     check_status_c(st);
@@ -1393,7 +1400,7 @@ static VALUE nn_create_element(VALUE klass, VALUE document, VALUE name)
     (void)klass;
     ptr = f_elem_create(doc_ptr_of(document), StringValueCStr(name));
     if (!ptr)
-        rb_raise(rb_eRuntimeError, "leptris_element_create failed");
+        rb_raise(c_runtime_error, "leptris_element_create failed");
     return wrap_new(document, ptr);
 }
 
@@ -1403,7 +1410,7 @@ static VALUE nn_create_text(VALUE klass, VALUE document, VALUE content)
     (void)klass;
     ptr = f_text_create(doc_ptr_of(document), StringValueCStr(content));
     if (!ptr)
-        rb_raise(rb_eRuntimeError, "leptris_text_node_create failed");
+        rb_raise(c_runtime_error, "leptris_text_node_create failed");
     return wrap_new(document, ptr);
 }
 
@@ -1416,7 +1423,7 @@ static VALUE nn_create_child(VALUE self, VALUE name)
     document_advance_version(n->document);
     ptr = f_create_child(n->ptr, StringValueCStr(name));
     if (!ptr)
-        rb_raise(rb_eRuntimeError, "leptris_element_create_child failed");
+        rb_raise(c_runtime_error, "leptris_element_create_child failed");
     out = wrap_new(n->document, ptr);
     return out;
 }
@@ -1430,7 +1437,7 @@ static VALUE nn_append_child(VALUE self, VALUE child)
     document_advance_version(n->document);
     rc = f_append_child(n->ptr, c->ptr);
     if (rc != 0)
-        rb_raise(rb_eRuntimeError, "leptris_element_append_child failed (%d)", rc);
+        rb_raise(c_runtime_error, "leptris_element_append_child failed (%d)", rc);
     return child;
 }
 
@@ -1443,7 +1450,7 @@ static VALUE nn_set_root(VALUE klass, VALUE document, VALUE element)
     document_advance_version(document);
     rc = f_set_root(doc_ptr_of(document), n->ptr);
     if (rc != 0)
-        rb_raise(rb_eRuntimeError, "leptris_document_set_root failed (%d)", rc);
+        rb_raise(c_runtime_error, "leptris_document_set_root failed (%d)", rc);
     return element;
 }
 
@@ -3401,9 +3408,16 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
      * entry mutates only under the engine's document path. */
     rb_ext_ractor_safe(true);
 
+    /* BEFORE any class definition — NativeNode/DocHandle/SaxParser
+     * define against c_object. */
+    c_object = rb_path2class("Object");
+    c_arg_error = rb_path2class("ArgumentError");
+    c_type_error = rb_path2class("TypeError");
+    c_runtime_error = rb_path2class("RuntimeError");
+
     m_leptris = rb_define_module("Leptris");
     m_xml = rb_define_module_under(m_leptris, "XML");
-    c_native_node = rb_define_class_under(m_xml, "NativeNode", rb_cObject);
+    c_native_node = rb_define_class_under(m_xml, "NativeNode", c_object);
     rb_undef_alloc_func(c_native_node);
 
     id_iv_name = rb_intern("@name");
@@ -3485,7 +3499,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     id_sax_end_prefix = rb_intern("end_prefix_mapping");
     id_sax_error = rb_intern("error");
     c_sax_parser = rb_define_class_under(m_native, "SaxParser",
-                                         rb_cObject);
+                                         c_object);
     rb_define_module_function(m_native, "sax_parse", nf_sax_parse, 3);
     rb_define_module_function(m_native, "sax_parser_create",
                               nf_sax_parser_create, 2);
@@ -3579,7 +3593,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_doc_handle_mark_absorbed, 1);
     rb_define_module_function(m_native, "create_binding_document",
                               nf_create_binding_document, 0);
-    c_doc_handle = rb_define_class_under(m_xml, "DocHandle", rb_cObject);
+    c_doc_handle = rb_define_class_under(m_xml, "DocHandle", c_object);
     rb_undef_alloc_func(c_doc_handle);
     rb_define_module_function(m_native, "bulk_attributes", nf_bulk_attributes, 1);
     rb_define_module_function(m_native, "bulk_attr_faces",
