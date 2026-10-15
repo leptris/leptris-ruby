@@ -650,6 +650,16 @@ class Leptris::XML::Element < Leptris::XML::Node
   def replace(new_node)
     parent = self.parent
     raise Leptris::XML::Error, "cannot replace a node with no parent" unless parent
+    if new_node.is_a?(Leptris::XML::DocumentFragment)
+      # DOM Core insert semantics: the fragment itself never enters
+      # the tree — its children splice in (the #document-fragment
+      # pseudo-node would leak into serialization/XPath/C14N).
+      nodes = new_node.children.to_a
+      raise Leptris::XML::Error, "replacement fragment produced no nodes" if nodes.empty?
+      installed = nodes.reverse_each.map { |n| add_next_sibling(n) }.reverse
+      parent.remove_child(self)
+      return installed.size == 1 ? installed.first : Leptris::XML::NodeSet.new(@document, installed)
+    end
     if new_node.is_a?(String)
       nodes = @document.fragment(new_node).children.to_a
       raise Leptris::XML::Error, "replacement markup produced no nodes" if nodes.empty?
