@@ -69,3 +69,28 @@ RSpec.describe "node-surface parity (1.9.177, #212)" do
       .to eq(%q{<doc xmlns="urn:d"><e>x</e></doc>})
   end
 end
+
+RSpec.describe "Element#name lexical QName (ruby#474)" do
+  it "keeps the prefix in the lexical name, like nokogiri" do
+    doc = Leptris::XML.parse('<m:svg id="s1"/>')
+    expect(doc.root.name).to eq("m:svg")
+  end
+
+  it "round-trips the lexical QName through serialization" do
+    doc = Leptris::XML.parse('<m:svg id="s1"/>')
+    expect(doc.root.to_xml).to eq('<m:svg id="s1"/>')
+  end
+
+  it "plain elements keep the bare local name" do
+    doc = Leptris::XML.parse('<r><a/></r>')
+    expect(doc.root.name).to eq("r")
+    expect(doc.root.children.first.name).to eq("a")
+  end
+
+  it "declared prefixes keep the local-only spelling (the #161 split)" do
+    doc = Leptris::XML.parse('<r xmlns:m="urn:m"><m:a/></r>')
+    child = doc.root.children.first
+    expect(child.name).to eq("a")
+    expect(child.qualified_name).to eq("m:a")
+  end
+end

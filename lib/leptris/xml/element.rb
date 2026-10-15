@@ -15,10 +15,22 @@ class Leptris::XML::Element < Leptris::XML::Node
   def name
     return @name if @name
     ensure_alive!
-    @name = if @addr_reads_fast
+    local = if @addr_reads_fast
               Leptris::XML::Native.fast_name(@c_address)
             else
               Leptris::XML::FFI.leptris_element_name(c_ptr)
+            end
+    # ruby#474: an UNDECLARED prefix (the recover path — the element
+    # is in no namespace but carries a lexical prefix) keeps the
+    # lexical QName, matching nokogiri, so a fragment spliced into a
+    # host document that declares the prefix lands in its namespace.
+    # DECLARED prefixes keep the local-only spelling — the #161
+    # split (qualified_name carries the lexical form).
+    pfx = prefix
+    @name = if pfx && !pfx.empty? && namespace.nil?
+              "#{pfx}:#{local}"
+            else
+              local
             end
   end
   alias_method :node_name, :name
