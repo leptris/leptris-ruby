@@ -157,4 +157,12 @@ if Gem.win_platform?
   win_def = " #{def_path.tr('/', '\\\\')}"
   $DLDFLAGS << win_def unless $DLDFLAGS.include?("native_exports.def")
 end
-create_makefile("leptris/xml/native")
+# Name the artifact per Ruby minor EVERYWHERE (#476): the loader
+# requires native_<minor> and deliberately has NO unversioned
+# fallback (loading a bundle built by another minor is the 3.1
+# wrong-ABI segfault class), so a source install must produce the
+# per-minor name itself. mkmf derives Init_native_<minor> from the
+# same basename — exported by native.c and pinned in the Windows
+# .def above.
+minor_us = RUBY_VERSION[/\A\d+\.\d+/].tr(".", "_")
+create_makefile("leptris/xml/native_#{minor_us}")
