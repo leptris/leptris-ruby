@@ -111,13 +111,21 @@ module Leptris
     # SyntaxError shape — a message plus optional position — served
     # by Document#errors.
     class SyntaxError < Error
-      attr_reader :message, :line, :column
+      attr_reader :message, :line, :column, :severity
 
-      def initialize(message, line: nil, column: nil)
+      # severity: :fatal (the strict lane raises on this class) or
+      # :recoverable (leptris-ruby#1749) — raise-on-fatal /
+      # recover-on-recoverable without string matching.
+      def initialize(message, line: nil, column: nil, severity: :recoverable)
         @message = message
         @line = line
         @column = column
+        @severity = severity
         super(message)
+      end
+
+      def fatal?
+        @severity == :fatal
       end
     end
     class ReadOnlyError < Error; end

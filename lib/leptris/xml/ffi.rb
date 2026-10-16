@@ -1520,6 +1520,13 @@ attach_function :leptris_parse_string,
         [:leptris_document], :leptris_status
       attach_function :leptris_document_remove_doctype,
         [:leptris_document], :leptris_status
+      # LeptrisDiagKind (engine types.h, append-only): the values the
+      # DOM parse channel records. Document#errors maps these to
+      # SyntaxError severity (#1749) — FATAL kinds are the classes the
+      # strict lane raises on; everything else reads :recoverable.
+      DIAG_KIND_UNCLOSED_ELEMENT = 11
+      DIAG_KIND_UNESCAPED_LT = 12 # engine >= 1.9.364 (#1748/#1749)
+
       attach_function :leptris_document_parse_diag_count,
         [:leptris_document], :size_t
       attach_function :leptris_document_parse_diag,

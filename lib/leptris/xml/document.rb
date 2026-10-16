@@ -864,6 +864,16 @@ class Leptris::XML::Document
     node
   end
 
+  # #1749: engine diag kind -> SyntaxError severity. FATAL = the
+  # classes the strict lane raises on (element still open at EOF;
+  # unescaped '<' in text, engine >= 1.9.364); the recover-class
+  # records (stray close dropped/implicit close, duplicate attribute,
+  # ...) and any future kind read :recoverable.
+  DIAG_SEVERITY = {
+    Leptris::XML::FFI::DIAG_KIND_UNCLOSED_ELEMENT => :fatal,
+    Leptris::XML::FFI::DIAG_KIND_UNESCAPED_LT => :fatal
+  }.freeze
+
   # Recovered-parse diagnostics (leptris-ruby#465): nokogiri parity
   # for the recover lane — the engine's parse diagnostics as
   # SyntaxError entries, empty for a clean parse. The engine
@@ -878,7 +888,9 @@ class Leptris::XML::Document
       ok = Leptris::XML::FFI.leptris_document_parse_diag(
         c_ptr, i, kind_buf, msg_buf, 512)
       next nil if ok.zero?
-      Leptris::XML::SyntaxError.new(msg_buf.read_string.force_encoding(Encoding::UTF_8))
+      Leptris::XML::SyntaxError.new(
+        msg_buf.read_string.force_encoding(Encoding::UTF_8),
+        severity: DIAG_SEVERITY.fetch(kind_buf.read_int, :recoverable))
     end.compact
   end
 

@@ -61,3 +61,27 @@ RSpec.describe "recover-by-default keeps the bare-< text shape (leptris#1748)" d
     expect(doc.errors).not_to be_empty
   end
 end
+
+RSpec.describe "diagnostic severity (leptris#1749)" do
+  it "reads truncated input as fatal" do
+    doc = Leptris::XML.parse("<root><item>")
+    expect(doc.errors).not_to be_empty
+    expect(doc.errors.map(&:fatal?)).to eq([true, true])
+    expect(doc.errors.first.severity).to eq(:fatal)
+  end
+
+  it "reads structural recoveries as recoverable" do
+    doc = Leptris::XML.parse("<root><a>x</b></root>")
+    expect(doc.errors).not_to be_empty
+    expect(doc.errors.map(&:fatal?)).to all(be(false))
+    expect(doc.errors.first.severity).to eq(:recoverable)
+  end
+
+  it "reads the unescaped-< recovery as fatal (engine 1.9.364+)" do
+    doc = Leptris::XML.parse(
+      "<root><script>if (a < b) { c(); }</script></root>"
+    )
+    expect(doc.errors).not_to be_empty
+    expect(doc.errors.first.severity).to eq(:fatal)
+  end
+end
