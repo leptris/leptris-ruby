@@ -37,3 +37,27 @@ RSpec.describe "recover-by-default (leptris-ruby#478 / moxml parity)" do
     expect(doc.errors).to be_empty
   end
 end
+
+RSpec.describe "recover-by-default keeps the bare-< text shape (leptris#1748)" do
+  it "keeps the tree and records the recovery" do
+    doc = Leptris::XML.parse(
+      "<root><script>if (a < b) { c(); }</script></root>"
+    )
+    expect(doc.root&.name).to eq("root")
+    expect(doc.errors).not_to be_empty
+    script = doc.root.element_children.first
+    expect(script.name).to eq("script")
+    expect(script.text).to eq("if (a < b) { c(); }")
+  end
+
+  it "keeps the DOCTYPE-prefixed HTML shape end to end" do
+    doc = Leptris::XML.parse(
+      '<!DOCTYPE html><html><head><meta charset="utf-8">' \
+      "<title>t</title></head><body><p>hello<br>world" \
+      '<img src="x.png"><ul><li>one<li>two</ul>' \
+      "<script>if (a < b) { c(); }</script></body></html>"
+    )
+    expect(doc.root&.name).to eq("html")
+    expect(doc.errors).not_to be_empty
+  end
+end
