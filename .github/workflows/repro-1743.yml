@@ -1,0 +1,137 @@
+name: repro-1743
+
+# leptris#1743: the native ordered plan lane runs away (28+ CPU-min /
+# 14 GB RSS, no completion) on ISO_13849-1 STS in the lutaml-model
+# downstream-performance cell — ubuntu CI, native layer engaged. The
+# same parse completes in ~1.7-6s on darwin and through FFI, so the
+# divergence is environment-specific. This harness replicates the
+# failing cell shape exactly (ubuntu, setup-ruby 3.4, ruby-platform
+# leptris compiling the engine at install, per-minor native layer
+# engaged) with a watchdog and a gdb all-thread capture on hang.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sts-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+
+      - name: Install gdb for hang-time stack capture
+        run: sudo apt-get update && sudo apt-get install -y gdb
+
+      - name: Fetch lutaml-model + sts-ruby
+        run: |
+          git clone --depth 1 https://github.com/lutaml/lutaml-model /tmp/lm
+          git clone --depth 1 https://github.com/metanorma/sts-ruby /tmp/sts
+
+      - name: Wire lutaml-model by path, pin leptris 1.9.362.1
+        run: |
+          cd /tmp/sts
+          rm -f Gemfile.lock
+          ruby -e '
+            lines = File.readlines("Gemfile")
+            out = []; skip = false
+            lines.each do |l|
+              if l =~ /gem\s+["\x27]lutaml-model["\x27]/
+                skip = true; next
+              end
+              if skip && l =~ /^\s+\w+:/; next; end
+              skip = false; out << l
+            end
+            out << %(gem "lutaml-model", path: "/tmp/lm"\n)
+            out << %(gem "leptris", "1.9.362.1"\n)
+            File.write("Gemfile", out.join)
+          '
+          mkdir -p .bundle
+          echo 'BUNDLE_BUILD__RUBY___LL: "--with-cflags=-std=gnu17"' > .bundle/config
+          bundle install --jobs 4 2>&1 | tee /tmp/bundle.log
+          grep -E "Installing leptris|Building native extensions" /tmp/bundle.log | tail -3
+
+      - name: Prove the native layer engaged (the repro is void otherwise)
+        run: |
+          cd /tmp/sts
+          bundle exec ruby -e '
+            require "leptris"
+            puts "leptris #{Leptris::VERSION}"
+            require "leptris/xml/native_layer"
+            puts "native ENGAGED"
+          ' 2>&1 | tee /tmp/native.log
+          grep -q "native ENGAGED" /tmp/native.log || {
+            echo "::error::native layer did not engage — this run measured the FFI shape, not #1743"
+            exit 1
+          }
+
+      - name: Run the exact cell parse with a watchdog
+        run: |
+          cd /tmp/sts
+          cat > /tmp/watchdog_run.rb <<'RB'
+          require "timeout"
+          require "benchmark"
+
+          xml = File.read("/tmp/sts/spec/fixtures/ISO_13849-1_2008-12_en_TBX.xml")
+          puts "bytes=#{xml.bytesize}"
+
+          require "sts"
+          require "lutaml/model"
+          begin
+            Lutaml::Model::Config.instance.xml_plan_fast_path = true
+          rescue StandardError => e
+            warn "plan fast path flag: #{e.message}"
+          end
+
+          t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          begin
+            Timeout.timeout(150) do
+              Sts::NisoSts::Standard.from_xml(xml)
+            end
+            puts "COMPLETED in %.2fs" % (Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0)
+          rescue Timeout::Error
+            puts "RUNAWAY after 150s — capturing all-thread stacks of #{Process.pid}"
+            system("sudo gdb -q -p #{Process.pid} -batch " \
+                   "-ex 'set pagination off' " \
+                   "-ex 'thread apply all bt' > /tmp/stacks.txt 2>&1")
+            puts File.read("/tmp/stacks.txt").lines[0, 240].join
+            exit 2
+          end
+          RB
+          bundle exec ruby /tmp/watchdog_run.rb 2>&1 | tee /tmp/run.log
+
+      - name: Control — the same parse with the ordered lane off
+        if: always()
+        run: |
+          cd /tmp/sts
+          bundle exec ruby -e '
+            require "timeout"
+            require "sts"
+            require "lutaml/model"
+            Lutaml::Model::Config.instance.xml_plan_fast_path = true rescue nil
+            xml = File.read("/tmp/sts/spec/fixtures/ISO_13849-1_2008-12_en_TBX.xml")
+            t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            Timeout.timeout(120) do
+              Sts::NisoSts::Standard.from_xml(xml, ordered: false)
+            rescue ArgumentError
+              Sts::NisoSts::Standard.from_xml(xml)
+            end
+            puts "ordered-off control COMPLETED in %.2fs" %
+              (Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0)
+          ' 2>&1 | tee /tmp/control.log || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repro-1743
+          path: |
+            /tmp/run.log
+            /tmp/control.log
+            /tmp/native.log
+            /tmp/bundle.log
+            /tmp/stacks.txt
