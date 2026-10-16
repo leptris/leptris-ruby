@@ -17,6 +17,27 @@ The C DOM is the single source of truth — Ruby objects are thin FFI
 handles over the C pointers, so every Ruby method maps to one FFI call.
 No tree hydration, no parallel Ruby-side model.
 
+== Versioning: {engine-semver}.{binding-patch}
+
+Gem versions are **`{libleptris-semver}.{binding-patch}`** — the lockstep
+scheme. The first three components name the EXACT libleptris engine
+release the gem vendors; the fourth is the binding's own patch number
+for that engine.
+
+* engine `v1.9.361` + first binding release → `1.9.361.0`
+* binding-only fix on the same engine → `1.9.361.1`
+* engine `v1.9.362` ride → `1.9.362.0`
+
+The triple is a contract: `~> 1.9.361` pins both the engine behavior
+and the binding surface. **Never** publish a version whose first three
+components are not an existing engine release, never let the binding
+line run ahead of the engine line, and every engine release must get
+its binding ride (`.0`, or `.1` when the ride itself carries binding
+fixes). Releases go through the release workflow with an explicit
+`next_version` — the workflow owns the bump; version numbers are
+computed from the engine tag being ridden, never from
+"previous gem + 1".
+
 == Installation
 
 Add to your Gemfile:
