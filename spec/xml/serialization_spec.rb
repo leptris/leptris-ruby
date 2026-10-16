@@ -56,10 +56,20 @@ RSpec.describe "Document#to_xml on HTML documents" do
     previous_mode = Leptris::XML::FFI.leptris_get_strict_mode
     begin
       Leptris::XML::FFI.leptris_set_strict_mode(1)
-      Leptris::XML.parse(xml)
+      Leptris::XML.parse(xml, recover: false)
     ensure
       Leptris::XML::FFI.leptris_set_strict_mode(previous_mode)
     end
+  end
+
+  it "rejects malformed XML when parsing defaults to recovery" do
+    previous_mode = Leptris::XML::FFI.leptris_get_strict_mode
+    allow(Leptris::XML).to receive(:parse).and_wrap_original do |parse, xml, **options|
+      parse.call(xml, **{ recover: true }.merge(options))
+    end
+    expect { parse_xml_strict("<root><unclosed></root>") }
+      .to raise_error(Leptris::XML::ParseError)
+    expect(Leptris::XML::FFI.leptris_get_strict_mode).to eq(previous_mode)
   end
 
   let(:source) do
