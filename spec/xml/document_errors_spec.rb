@@ -18,8 +18,8 @@ RSpec.describe "Document#errors (ruby#465)" do
     expect(doc.errors.first.message).not_to be_empty
   end
 
-  it "is empty on a default (strict) parse failure path — raising stays" do
-    expect { Leptris::XML.parse("<a><b></a>") }
+  it "errors face is irrelevant on the strict opt-in — raising stays" do
+    expect { Leptris::XML.parse("<a><b></a>", strict: true) }
       .to raise_error(Leptris::XML::ParseError)
   end
 end
