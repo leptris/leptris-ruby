@@ -47,7 +47,7 @@ jobs:
               skip = false; out << l
             end
             out << %(gem "lutaml-model", path: "/tmp/lm"\n)
-            out << %(gem "leptris", "1.9.362.1"\n)
+            out << %(gem "leptris", "1.9.363.1"\n)
             File.write("Gemfile", out.join)
           '
           mkdir -p .bundle
