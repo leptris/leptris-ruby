@@ -292,13 +292,14 @@ task :compile do
     Dir.chdir(ext_dir) do
       sh "ruby extconf.rb"
       if RUBY_PLATFORM =~ /darwin/
-        # Link the bundle ourselves: setup-ruby's custom rubies
-        # make mkmf link libruby by absolute runner path no matter
-        # which RbConfig entries are cleared, and any libruby
-        # LC_LOAD_DYLIB is unresolvable on user machines. Compile
-        # via the Makefile, link with pure -undefined
-        # dynamic_lookup (Ruby symbols resolve from the loading
-        # interpreter) and a conservative deployment target.
+        # Link the bundle ourselves: mkmf snapshots LIBRUBYARG from
+        # RbConfig at require time, so setup-ruby's shared-libruby
+        # rubies record their absolute hostedtoolcache path in the
+        # bundle (shipped broken through 1.9.36x, #1739) and no
+        # post-require clearing can stop it. Compile via the
+        # Makefile, link with pure -undefined dynamic_lookup (Ruby
+        # symbols resolve from the loading interpreter) and a
+        # conservative deployment target.
         sh "make native.o"
         sh "cc -dynamic -bundle -undefined dynamic_lookup " \
            "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
@@ -312,10 +313,11 @@ task :compile do
         # their symbols via -rdynamic, like any extension .so).
         sh "make native.o"
         sh "#{RbConfig::CONFIG['CC']} -shared -fPIC -o native.so native.o"
-        # Guard the contract in the build log.
-        sh "if strings native.so | grep -q libruby; then " \
-           "echo 'ERROR: native.so links libruby (#207)'; exit 1; fi"
       end
+      # Guard the linkage contract at the build chokepoint (#1739):
+      # no libruby reference, allowlisted load commands on darwin.
+      sh "#{RbConfig.ruby} ../../check_bundle_linkage.rb " \
+         "#{RUBY_PLATFORM =~ /darwin/ ? 'native.bundle' : 'native.so'}"
     end
     bundle = Dir.glob("#{ext_dir}/native.{bundle,so,dll}").first
     if bundle.nil?
@@ -424,11 +426,19 @@ namespace :audit do
   # leptris_version() equals the gem's engine pin (a half-bumped
   # lockstep state can no longer package). Negative proof lives
   # in spec/audit_codesign_spec.rb.
-  desc "Fail on unsigned/tampered macOS artifacts or engine-version drift"
+  desc "Fail on unsigned/tampered macOS artifacts, engine-version drift, or libruby-linked native layers"
   task :artifacts do
+    # Linkage contract over EVERY shipped native layer, per-minor
+    # twins included (#1739) — every platform: the 1.9.36x trains
+    # packaged runner-absolute libruby loads in native_3_2/3_4
+    # artifacts that audit:symbols/audit:artifacts never opened.
+    bundles = Dir.glob("lib/leptris/xml/native*.{bundle,so}")
+    bundles.each do |b|
+      sh "#{RbConfig.ruby} ext/check_bundle_linkage.rb #{b}"
+    end
     unless RUBY_PLATFORM =~ /darwin/
-      puts "audit:artifacts: skipped off-darwin (codesign gates " \
-           "the macOS packaging legs)"
+      puts "audit:artifacts: #{bundles.size} native layers linkage-clean; " \
+           "codesign gates skip off-darwin"
       next
     end
     abort "audit:artifacts: codesign unavailable" \
@@ -451,8 +461,8 @@ namespace :audit do
       abort "audit:artifacts: engine-version drift — vendored " \
             "#{vendored.inspect} != pin #{pinned.inspect}"
     end
-    puts "audit:artifacts: #{libs.size} macOS artifacts verify " \
-         "strictly and engine-synced (#{pinned})"
+    puts "audit:artifacts: #{libs.size} macOS artifacts + #{bundles.size} native " \
+         "layers verify strictly, linkage-clean and engine-synced (#{pinned})"
   end
 
   # Packaging doctrine (#271): every BUILT gem carries the engine

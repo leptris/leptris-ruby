@@ -34,10 +34,33 @@ Dir.chdir(ext_dir) do
   # a failed earlier attempt ship silent wrong-ABI builds).
   FileUtils.rm_f(Dir.glob("#{ext_dir}/native.{o,so,bundle}"))
   system(RbConfig.ruby, "extconf.rb") or abort "extconf failed under #{RUBY_VERSION}"
-  success = system("make")
-  abort "make failed under #{RUBY_VERSION}" unless success
+  # Link WITHOUT libruby (#1739): mkmf's Makefile rule records the
+  # building ruby's libruby — for setup-ruby builds by absolute
+  # hostedtoolcache path — in every LC_LOAD_DYLIB / DT_NEEDED, which
+  # dlopen-fails on any other machine. Compile via the Makefile,
+  # link exactly like rake compile's native branch: pure
+  # dynamic_lookup, rb_* resolve from the loading interpreter.
+  system("make native.o") or abort "make native.o failed under #{RUBY_VERSION}"
+  cc = RbConfig::CONFIG["CC"]
+  link =
+    if ext == ".bundle"
+      "#{cc} -dynamic -bundle -undefined dynamic_lookup " \
+        "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
+        "-o native.bundle native.o"
+    else
+      "#{cc} -shared -fPIC -o native.so native.o"
+    end
+  system(link) or abort "native link failed under #{RUBY_VERSION}: #{link}"
   built = Dir.glob("native.{so,bundle}").first
   abort "native bundle not produced under #{RUBY_VERSION}" unless built
+
+  # Linkage gate: no libruby reference, and (darwin) only
+  # allowlisted load commands — enforced HERE so a violated bundle
+  # never reaches packaging (the 1.9.36x trains shipped exactly
+  # this shape, #1739).
+  system(RbConfig.ruby, File.join(root, "ext", "check_bundle_linkage.rb"),
+         File.expand_path(built)) or
+    abort "linkage gate failed under #{RUBY_VERSION}"
 
   # Functional gate: dlopen the built bundle and resolve the
   # MINOR-SUFFIXED init symbol — only a real lookup proves

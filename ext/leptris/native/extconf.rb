@@ -28,6 +28,19 @@ unless %w[ruby truffleruby].include?(RUBY_ENGINE)
        "installing without the compiled native layer"
   exit 0
 end
+# Never link libruby: a Ruby extension resolves rb_* symbols from
+# the LOADING interpreter, and mkmf records the building ruby's
+# libruby (for setup-ruby, an absolute hostedtoolcache path) into
+# the bundle otherwise — dlopen-failing on every other machine
+# (#1739). mkmf snapshots $LIBRUBYARG* from RbConfig at require
+# time, so this MUST precede `require "mkmf"`; a later clearing is
+# a silent no-op (exactly how the 1.9.36x trains shipped broken).
+if RUBY_PLATFORM =~ /darwin/
+  %w[LIBRUBYARG LIBRUBYARG_SHARED LIBRUBYARG_STATIC].each do |key|
+    RbConfig::CONFIG[key] = ""
+    RbConfig::MAKEFILE_CONFIG[key] = ""
+  end
+end
 require "mkmf"
 
 # A prebuilt libleptris in lib/ (dev checkout after rake compile,
@@ -118,18 +131,13 @@ if RUBY_PLATFORM =~ /darwin/
   [$LDFLAGS, $DLDFLAGS].each do |var|
     var << flat unless var.include?("flat_namespace")
   end
-  # setup-ruby builds carry the RUNNER's absolute libruby path in
-  # LIBRUBYARG_SHARED — recorded as an LC_LOAD_DYLIB in the
-  # bundle, unresolvable on user machines. A Ruby extension
-  # resolves Ruby symbols from the loading interpreter; never
-  # link libruby.
-  # BOTH maps: mkmf's Makefile interpolates from MAKEFILE_CONFIG,
-  # not CONFIG — clearing only CONFIG is a silent no-op (caught via
-  # the build-log otool on the runner).
-  RbConfig::CONFIG["LIBRUBYARG_SHARED"] = ""
-  RbConfig::CONFIG["LIBRUBYARG_STATIC"] = ""
-  RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_SHARED"] = ""
-  RbConfig::MAKEFILE_CONFIG["LIBRUBYARG_STATIC"] = ""
+  # Belt for the require-time snapshot: RbConfig was cleared BEFORE
+  # `require "mkmf"` (top of file), and the module globals mkmf
+  # captured then are zeroed here too — a Ruby extension resolves
+  # Ruby symbols from the loading interpreter; never link libruby.
+  $LIBRUBYARG = ""
+  $LIBRUBYARG_SHARED = ""
+  $LIBRUBYARG_STATIC = ""
 end
 if Gem.win_platform?
   # Windows names the artifact per Ruby minor, DOT-FREE (#227
