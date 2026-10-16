@@ -536,7 +536,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
-        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
       end
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
@@ -552,7 +552,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
-      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
@@ -569,7 +569,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
-        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+        Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
       end
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
@@ -585,7 +585,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     end
     ensure_writable!
     unless Leptris::XML::Element.skip_adoption_lift?(node)
-      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces)
+      Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
     end
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
@@ -994,6 +994,25 @@ class Leptris::XML::Element < Leptris::XML::Node
     if @document
       @namespaces = scopes
       @namespaces_version = @document.version
+    end
+    scopes
+  end
+
+  # The in-scope map at a SIBLING position: an element's own
+  # declarations bind its descendants, never its siblings, so an
+  # inserted sibling resolves through the ancestor chain only
+  # (ruby#480 — pruning a replacement's own xmlns against self's
+  # map left the replacement in no namespace once replace()
+  # removed self).
+  def namespaces_for_sibling
+    scopes = {}
+    node = unstamped_parent
+    while node.is_a?(Leptris::XML::Element)
+      node.namespace_definitions.each do |ns|
+        key = ns.prefix ? "xmlns:#{ns.prefix}" : "xmlns"
+        scopes[key] ||= ns.href
+      end
+      node = node.unstamped_parent
     end
     scopes
   end

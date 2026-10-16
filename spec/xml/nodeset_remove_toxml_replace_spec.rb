@@ -95,3 +95,41 @@ RSpec.describe "Element#replace with a DocumentFragment (ruby#457 follow-up)" do
     expect(installed.map(&:name)).to eq(["a", "b"])
   end
 end
+
+RSpec.describe "replace keeps the replacement's namespace when the replaced element self-declares (ruby#480)" do
+  MARKUP = '<svg xmlns="http://www.w3.org/2000/svg" ' \
+           'xmlns:xlink="http://www.w3.org/1999/xlink" id="s2">' \
+           '<a xlink:href="#x"><rect/></a></svg>'.freeze
+
+  it "keeps the replacement's default xmlns through replace(markup)" do
+    doc = Leptris::XML.parse(
+      '<fig><svg xmlns="http://www.w3.org/2000/svg" id="s"><a xlink:href="#y"/></svg></fig>'
+    )
+    img = doc.at_xpath("//*[local-name()='svg']")
+    img.replace(MARKUP)
+    new_svg = doc.at_xpath("//*[local-name()='svg']")
+    expect(new_svg.namespace&.href).to eq("http://www.w3.org/2000/svg")
+    expect(doc.at_xpath("//fig").to_xml).to include("svg")
+    expect(doc.at_xpath("//fig").to_xml).to include('xmlns="http://www.w3.org/2000/svg"')
+  end
+
+  it "keeps the declaration when the scopes differ (shadowing still wins)" do
+    doc = Leptris::XML.parse(
+      '<fig><svg xmlns="urn:old" id="s"/></fig>'
+    )
+    doc.at_xpath("//*[local-name()='svg']").replace(MARKUP)
+    new_svg = doc.at_xpath("//*[local-name()='svg']")
+    expect(new_svg.namespace&.href).to eq("http://www.w3.org/2000/svg")
+  end
+
+  it "keeps a sibling insertion's own default xmlns (no replace at all)" do
+    doc = Leptris::XML.parse(
+      '<fig><svg xmlns="http://www.w3.org/2000/svg" id="s"/></fig>'
+    )
+    old = doc.at_xpath("//*[local-name()='svg']")
+    old.add_next_sibling(doc.fragment(MARKUP).children.first)
+    sibs = doc.at_xpath("//fig").element_children
+    expect(sibs.map { |e| e.namespace&.href })
+      .to all(eq("http://www.w3.org/2000/svg"))
+  end
+end
