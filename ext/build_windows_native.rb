@@ -29,14 +29,17 @@ Dir.chdir(ext_dir) do
   # because make reused a stale native.obj from a failed earlier
   # attempt (the log shows "creating Makefile -> linking" with no
   # compile). Force a clean compile on every invocation.
-  FileUtils.rm_f(Dir.glob("#{ext_dir}/native.{o,obj,so,dll}"))
-  FileUtils.rm_f("#{ext_dir}/leptris/xml/native.so")
+  # The globs cover both spellings of the mkmf target: the
+  # unversioned name and the per-minor name extconf now creates
+  # the Makefile for (#476 source-install parity).
+  FileUtils.rm_f(Dir.glob("#{ext_dir}/native*.{o,obj,so,dll}"))
+  FileUtils.rm_f(Dir.glob("#{ext_dir}/leptris/xml/native*.so"))
   system(RbConfig.ruby, "extconf.rb") or abort "extconf failed under #{RUBY_VERSION}"
   # mkmf's link binds the CURRENT Ruby's runtime DLL — exactly
   # what the versioned naming is for.
   success = system("make")
   abort "make failed under #{RUBY_VERSION}" unless success
-  so = Dir.glob("native.{so,dll}").first
+  so = Dir.glob("native*.so").first
   abort "native bundle not produced under #{RUBY_VERSION}" unless so
   # Functional export gate: dlopen the built DLL and resolve the
   # MINOR-SUFFIXED init symbol. A PE DLL can carry the symbol in its
