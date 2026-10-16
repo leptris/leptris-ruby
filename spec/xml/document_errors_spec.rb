@@ -85,3 +85,17 @@ RSpec.describe "diagnostic severity (leptris#1749)" do
     expect(doc.errors.first.severity).to eq(:fatal)
   end
 end
+
+RSpec.describe "html4 drops the XML-declaration prolog (leptris#1748)" do
+  it "never doubles the declaration and never emits ???" do
+    doc = Leptris::HTML.parse(
+      %(<?xml version="1.0" encoding="UTF-8"?>\n) +
+      '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>' \
+      "</head><body><p>x</p></body></html>"
+    )
+    out = doc.to_xml
+    expect(out.scan("<?xml").size).to eq(1)
+    expect(out).not_to include("??")
+    expect(out).to include("<html")
+  end
+end
