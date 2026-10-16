@@ -40,4 +40,16 @@ RSpec.describe "Document#process_xinclude (resolver policy)" do
     expect { doc2.process_xinclude }.not_to raise_error
     expect(doc2.root.children.find { |c| c.name == "xi:include" }).to be_nil
   end
+
+  it "splices ELEMENT fallbacks on refusal (engine 1.9.361, #1734)" do
+    doc2 = Leptris::XML.parse(<<~XML)
+      <r xmlns:xi="http://www.w3.org/2001/XInclude">
+        <xi:include href="https://example.org/nope.xml">
+          <xi:fallback><offline reason="refused"/></xi:fallback>
+        </xi:include>
+      </r>
+    XML
+    doc2.process_xinclude
+    expect(doc2.root.children.find { |c| c.name == "offline" }).not_to be_nil
+  end
 end
