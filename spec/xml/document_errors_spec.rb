@@ -99,3 +99,20 @@ RSpec.describe "html4 drops the XML-declaration prolog (leptris#1748)" do
     expect(out).to include("<html")
   end
 end
+
+RSpec.describe "foreign mixed-content leaf append (leptris#1755)" do
+  it "appends exactly the argument node — no sibling run, no fake OOM" do
+    frag = Leptris::XML::Document.parse("<f>lead<item>t</item>tail</f>")
+    target = Leptris::XML::Document.parse("<doc/>")
+
+    text = frag.root.children.first
+    expect(text).to be_a(Leptris::XML::Text)
+
+    target.root.add_child(text)
+    expect(target.root.to_xml).to eq("<doc>lead</doc>")
+
+    item = frag.root.children.find { |n| n.is_a?(Leptris::XML::Element) }
+    target.root.add_child(item)
+    expect(target.root.to_xml).to eq("<doc>lead<item>t</item></doc>")
+  end
+end
