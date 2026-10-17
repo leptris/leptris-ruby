@@ -126,7 +126,7 @@ class Leptris::XML::Descriptor
         "descriptor ABI v#{abi} != binding v#{Leptris::XML::FFI::PLAN_ABI_VERSION}"
     end
     plans = []
-    root_index = flatten_plan(tree, plans)
+    root_index = flatten_plan(tree, plans, {})
     spec, plans_pointer, anchors = pack_plans(plans)
     spec[:abi_version] = abi
     spec[:plan_count] = plans.size
@@ -143,13 +143,32 @@ class Leptris::XML::Descriptor
   # Flattens the nested hash tree into the engine's flat plans
   # array (child rows reference plans by index). Returns the root
   # plan's index — always 0 for a single root.
-  def self.flatten_plan(tree, plans)
-    tree = tree.dup
-    plans << tree
+  #
+  # Identity-memoized (leptris#1743): lutaml-model's PlanCompiler
+  # (0.8.107+) feeds recursive content models as a DAG — the SAME
+  # plan Hash reachable from many parents. Without the memo each
+  # shared subtree re-flattened once per path (2^depth visits: the
+  # STS runaway — 28+ CPU-min, 14 GB RSS) and the duplicated index
+  # graph even mis-walked. Memoize on the ARGUMENT's identity
+  # (object_id, read before the dup) so each unique plan object is
+  # flattened once and shared rows reference one index.
+  def self.flatten_plan(tree, plans, memo = {})
+    key = tree.object_id
+    hit = memo[key]
+    return hit if hit
+
+    raise Leptris::XML::Error,
+          "plan tree contains a cycle at #{tree[:name].inspect} — "           "the plan graph must be a DAG" if hit == false
+
+    memo[key] = false # in-progress; a finished entry is an Integer index
+    duped = tree.dup
+    plans << duped
     tree_index = plans.size - 1
-    tree[:children] = (tree[:children] || []).map do |row|
+    memo[key] = tree_index
+    duped[:children] = (duped[:children] || []).map do |row|
       if row[:kind] == :nested
-        row.merge(child_plan_index: flatten_plan(row.fetch(:plan), plans))
+        row.merge(child_plan_index: flatten_plan(row.fetch(:plan), plans,
+                                                 memo))
       else
         row
       end

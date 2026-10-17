@@ -718,3 +718,59 @@ RSpec.describe "Descriptor#to_document (1.9.341, #426)" do
     }.to raise_error(Leptris::XML::Error)
   end
 end
+
+RSpec.describe "Descriptor.build on diamond-shared plan trees (leptris#1743)" do
+  # lutaml-model's PlanCompiler (0.8.107+) feeds recursive content
+  # models as a DAG: the SAME plan Hash object is reachable from many
+  # parents. flatten_plan re-flattened the shared subtree once per
+  # path — 2^depth visits, the STS runaway (28+ CPU-min, 14GB RSS).
+  def diamond_plan(depth)
+    plan = { name: "leaf", attributes: [], children: [] }
+    depth.times do
+      plan = { name: "n", attributes: [], children: [
+        { name: "a", kind: :nested, type_tag: 1, plan: plan },
+        { name: "b", kind: :nested, type_tag: 1, plan: plan },
+      ] }
+    end
+    plan
+  end
+
+  it "stays linear in the number of unique plan objects" do
+    root = diamond_plan(20) # 2^20 visits without the memo
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    descriptor = Leptris::XML::Descriptor.build(root)
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    expect(elapsed).to be < 2.0
+    expect(descriptor).to be_a(Leptris::XML::Descriptor)
+  end
+
+  # The REAL lutaml-model shape for recursive content models: a
+  # plan CYCLE (entry -> sub -> entry) that is also a diamond
+  # (entry reachable from the root and from sub). The engine walk
+  # follows the document tree, so every re-entry of the shared
+  # plans must materialize.
+  def cyclic_plan
+    sub = { name: "sub", attributes: [], children: [] }
+    entry = { name: "entry", attributes: [], children: [
+      { name: "t", kind: :scalar, type_tag: 1 },
+      { name: "sub", kind: :nested, type_tag: 2, plan: sub },
+    ] }
+    sub[:children] = [
+      { name: "entry", kind: :nested, type_tag: 3, plan: entry },
+    ]
+    entry
+  end
+
+  it "walks the recursive cycle through every re-entry" do
+    doc = Leptris::XML::Document.parse(
+      "<entry><t>1</t><sub><entry><t>2</t></entry></sub></entry>")
+    descriptor = Leptris::XML::Descriptor.build(cyclic_plan)
+    tree = descriptor.walk(doc.root).to_ruby
+    expect(tree[:children]).to eq([
+      1,
+      { kind: :element, name: "sub", type_tag: 2, attributes: {},
+        children: [{ kind: :element, name: "entry", type_tag: 3,
+                     attributes: {}, children: [2] }] },
+    ])
+  end
+end
