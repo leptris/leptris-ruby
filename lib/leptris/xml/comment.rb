@@ -38,4 +38,11 @@ class Leptris::XML::Comment < Leptris::XML::Node
 
   # leptris-ruby#464: comment serialization face.
   alias_method :to_xml, :to_s
+
+  # HTML serialization (moxml#389 follow-up): Fragment#to_html
+  # maps fragment children through to_html — a surviving in-body
+  # comment met the missing face and raised NoMethodError.
+  # Identical spelling in both modes (HTML comments carry no
+  # self-closing or void forms).
+  alias_method :to_html, :to_s
 end
