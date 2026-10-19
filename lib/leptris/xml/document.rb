@@ -888,9 +888,21 @@ class Leptris::XML::Document
       ok = Leptris::XML::FFI.leptris_document_parse_diag(
         c_ptr, i, kind_buf, msg_buf, 512)
       next nil if ok.zero?
+      # leptris-ruby#1771: the machine-readable code + position
+      # (the §13.2.5 token name for HTML parse lints).
+      code_buf = ::FFI::MemoryPointer.new(:char, 128)
+      line_buf = ::FFI::MemoryPointer.new(:int)
+      col_buf = ::FFI::MemoryPointer.new(:int)
+      Leptris::XML::FFI.leptris_document_parse_diag_code(
+        c_ptr, i, code_buf, 128, line_buf, col_buf)
+      code = code_buf.read_string
+      code = nil if code.empty?
       Leptris::XML::SyntaxError.new(
         msg_buf.read_string.force_encoding(Encoding::UTF_8),
-        severity: DIAG_SEVERITY.fetch(kind_buf.read_int, :recoverable))
+        severity: DIAG_SEVERITY.fetch(kind_buf.read_int, :recoverable),
+        line: line_buf.read_int.zero? ? nil : line_buf.read_int,
+        column: col_buf.read_int.zero? ? nil : col_buf.read_int,
+        code: code)
     end.compact
   end
 

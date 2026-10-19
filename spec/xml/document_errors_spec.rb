@@ -116,3 +116,30 @@ RSpec.describe "foreign mixed-content leaf append (leptris#1755)" do
     expect(target.root.to_xml).to eq("<doc>lead<item>t</item></doc>")
   end
 end
+
+RSpec.describe "HTML parse-error lint surface (leptris-ruby#1771)" do
+  it "records the §13.2.5 token stream with codes and positions" do
+    doc = Leptris::XML.parse_html(
+      '<p>one</p>' + "\n" + '<a id="1" id="2">x</a>',
+      mode: :whatwg, collect_errors: true)
+    errs = doc.errors
+    expect(errs).not_to be_empty
+    dup = errs.find { |e| e.code == "duplicate-attribute" }
+    expect(dup).not_to be_nil
+    expect(dup.line).to eq(2)
+    expect(dup.severity).to eq(:recoverable)
+  end
+
+  it "records eof-in-tag for an unterminated start tag" do
+    doc = Leptris::XML.parse_html('<p>text<a href="',
+                                 mode: :whatwg, collect_errors: true)
+    errs = doc.errors
+    expect(errs.map(&:code)).to include("eof-in-tag")
+  end
+
+  it "stays empty without the option" do
+    doc = Leptris::XML.parse_html('<a id="1" id="2">x</a>',
+                                  mode: :whatwg)
+    expect(doc.errors).to be_empty
+  end
+end

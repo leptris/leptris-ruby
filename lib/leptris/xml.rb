@@ -83,17 +83,27 @@ module Leptris
     # (script/style/noscript/template/... lift) and foster
     # parenting (1.9.105) — html5lib corpus 294/1555 vs Nokogiri's
     # 372; the shapes genuinely differ by spec.
-    def self.parse_html(html, mode: :html4)
+    def self.parse_html(html, mode: :html4, collect_errors: false)
       html = html.to_s
-      entry =
-        case mode
-        when :html4 then Leptris::XML::FFI.method(:leptris_parse_html4_string)
-        when :whatwg then Leptris::XML::FFI.method(:leptris_parse_html_string)
-        else
-          raise ArgumentError,
-            "mode must be :html4 or :whatwg, got #{mode.inspect}"
-        end
-      raw = entry.call(html, html.bytesize, nil)
+      # leptris-ruby#1771: collect_errors records the §13.2.5
+      # parse-error token stream as document errors (code + line +
+      # column); the WHATWG engine only (the html4 compat lane
+      # keeps the libxml2 posture).
+      if collect_errors && mode == :whatwg
+        flags = 64 # LEPTRIS_PARSE_COLLECT_HTML_ERRORS
+        raw = Leptris::XML::FFI.leptris_parse_html_string_flags(
+          html, html.bytesize, flags, nil)
+      else
+        entry =
+          case mode
+          when :html4 then Leptris::XML::FFI.method(:leptris_parse_html4_string)
+          when :whatwg then Leptris::XML::FFI.method(:leptris_parse_html_string)
+          else
+            raise ArgumentError,
+              "mode must be :html4 or :whatwg, got #{mode.inspect}"
+          end
+        raw = entry.call(html, html.bytesize, nil)
+      end
       if raw.null?
         raise Leptris::XML::ParseError,
           "HTML parse failed: #{Leptris::XML::FFI.leptris_last_error}"
@@ -111,16 +121,21 @@ module Leptris
     # SyntaxError shape — a message plus optional position — served
     # by Document#errors.
     class SyntaxError < Error
-      attr_reader :message, :line, :column, :severity
+      attr_reader :message, :line, :column, :severity, :code
 
       # severity: :fatal (the strict lane raises on this class) or
       # :recoverable (leptris-ruby#1749) — raise-on-fatal /
       # recover-on-recoverable without string matching.
-      def initialize(message, line: nil, column: nil, severity: :recoverable)
+      # code: the machine-readable token (leptris-ruby#1771 — the
+      # §13.2.5 parse-error name for HTML lints, e.g.
+      # "unexpected-tag-in-body"); nil when the diag has no code.
+      def initialize(message, line: nil, column: nil, severity: :recoverable,
+                     code: nil)
         @message = message
         @line = line
         @column = column
         @severity = severity
+        @code = code
         super(message)
       end
 
