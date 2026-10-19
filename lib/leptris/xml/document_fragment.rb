@@ -27,6 +27,15 @@ class Leptris::XML::DocumentFragment
   end
 
   def self.parse(xml, document)
+    # leptris#1781: the second argument is the HOST document (the
+    # fragment borrows its lifetime). A nil or wrong-typed argument
+    # used to surface from the native face as "document has been
+    # freed" — misread as a GC/lifecycle bug. Name the contract.
+    unless document.is_a?(Leptris::XML::Document)
+      raise ArgumentError,
+        "second argument must be the host Leptris::XML::Document " \
+        "(got #{document.inspect})"
+    end
     # TODO.perf/34: the C face answers the fragment address with
     # no status MemoryPointer and no Pointer mint; failures fall
     # back to the FFI pair for the exact error.
@@ -59,5 +68,34 @@ class Leptris::XML::DocumentFragment
 
   def name
     "#document-fragment"
+  end
+
+  # The serialization face (leptris#1781): a fragment serializes as
+  # its children, concatenated — the synthetic "#document-fragment"
+  # wrapper never emits (Nokogiri's contract). One C pass over the
+  # child chain — the same pass Element#inner_html uses; the FFI
+  # fallback walks the children per node.
+  def to_html
+    ensure_host_alive!
+    return Leptris::XML::Native.fast_inner_xml(@c_address) if
+      defined?(Leptris::XML::NATIVE_FAST)
+    children.map(&:to_html).join
+  end
+
+  def to_xml(*, **)
+    to_html
+  end
+
+  def to_s
+    to_html
+  end
+
+  private
+
+  def ensure_host_alive!
+    # the document's own convention (UseAfterFreeError) — the
+    # fragment borrows the host's lifetime
+    raise Leptris::XML::UseAfterFreeError, "document has been freed" if
+      @document.freed?
   end
 end
