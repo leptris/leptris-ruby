@@ -3558,6 +3558,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_method(c_native_node, "create_child", nn_create_child, 1);
     rb_define_method(c_native_node, "append_child", nn_append_child, 1);
     rb_define_method(c_native_node, "add_child", nn_append_child, 1);
+    rb_define_alias(c_native_node, "add_child_native", "add_child");
     rb_define_method(c_native_node, "address", nn_address, 0);
     rb_define_method(c_native_node, "document", nn_document, 0);
     rb_define_method(c_native_node, "attributes", nn_attributes, 0);

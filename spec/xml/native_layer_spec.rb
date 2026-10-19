@@ -621,3 +621,23 @@ RSpec.describe "Leptris::XML::NativeNode unshadowed children_read face (moxml wa
     expect(root.method(:children_read).owner).to eq(Leptris::XML::NativeNode)
   end
 end
+
+RSpec.describe "Leptris::XML::NativeNode unshadowed add_child_native face (moxml build path)" do
+  let(:doc) { Leptris::XML::Document.parse(%q{<r><a>t1</a></r>}) }
+  let(:root) { doc.native_node }
+
+  it "exposes add_child_native as a plain-dispatch method" do
+    expect(root).to respond_to(:add_child_native)
+  end
+
+  it "appends the child and returns it" do
+    child = Leptris::XML::NativeNode.create_element(doc, "b")
+    out = root.add_child_native(child)
+    expect(out.name).to eq("b")
+    expect(root.children_read.to_a.map(&:name)).to eq(%w[a b])
+  end
+
+  it "rides the method cache (owner is the native class)" do
+    expect(root.method(:add_child_native).owner).to eq(Leptris::XML::NativeNode)
+  end
+end
