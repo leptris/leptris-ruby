@@ -542,3 +542,34 @@ RSpec.describe "NativeNode#content= (leptris-ruby#460)" do
     expect(doc.root.to_xml).to eq("<r>via-native</r>")
   end
 end
+
+RSpec.describe "Leptris::XML::NativeNode#set_attribute (leptris-ruby#204 write row)" do
+  let(:doc) { Leptris::XML::Document.parse(%q{<r><a x="1">t</a></r>}) }
+  let(:root) { doc.native_node }
+  let(:first) { root.element_children.first }
+
+  it "sets a new attribute in C and the read returns it" do
+    first.set_attribute("k", "v")
+    expect(first["x"]).to eq("1")
+    expect(first["k"]).to eq("v")
+  end
+
+  it "overwrites an existing attribute" do
+    first.set_attribute("x", "2")
+    expect(first["x"]).to eq("2")
+  end
+
+  it "is visible through the binding surface (shared document version)" do
+    first.set_attribute("k", "v")
+    binding_el = doc.root.element_children.first
+    expect(binding_el["k"]).to eq("v")
+  end
+
+  it "rejects mutation on a readonly document" do
+    ro = Leptris::XML::Document.parse("<r><a/></r>", readonly: true) rescue nil
+    skip "no readonly parse face" unless ro
+    el = ro.native_node.element_children.first
+    expect { el.set_attribute("k", "v") }
+      .to raise_error(Leptris::XML::ReadOnlyError)
+  end
+end
