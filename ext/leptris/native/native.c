@@ -3564,6 +3564,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
      * method-cache cost instead of UnboundMethod#bind_call. */
     rb_define_alias(c_native_node, "attr_read", "attribute");
     rb_define_alias(c_native_node, "text_read", "content");
+    rb_define_alias(c_native_node, "name_read", "name");
     rb_define_method(c_native_node, "children", nn_children, 0);
     rb_define_method(c_native_node, "element_children", nn_element_children, 0);
     rb_define_method(c_native_node, "next_sibling", nn_next_sibling, 0);
