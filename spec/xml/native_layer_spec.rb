@@ -573,3 +573,27 @@ RSpec.describe "Leptris::XML::NativeNode#set_attribute (leptris-ruby#204 write r
       .to raise_error(Leptris::XML::ReadOnlyError)
   end
 end
+
+RSpec.describe "Leptris::XML::NativeNode unshadowed name_read face (moxml#460 adoption)" do
+  let(:doc) do
+    Leptris::XML::Document.parse(
+      %q{<r xmlns:ns="urn:u"><a x="1">t1</a><ns:p/></r>})
+  end
+  let(:root) { doc.native_node }
+
+  it "exposes name_read as a plain-dispatch method" do
+    expect(root.element_children.first).to respond_to(:name_read)
+  end
+
+  it "answers the same name face as name" do
+    a, p = root.element_children.to_a
+    expect(a.name_read).to eq("a")
+    expect(a.name_read).to eq(a.name)
+    expect(p.name_read).to eq(p.name)
+  end
+
+  it "rides the method cache at plain-dispatch cost (no bind_call)" do
+    a = root.element_children.first
+    expect(a.method(:name_read).owner).to eq(Leptris::XML::NativeNode)
+  end
+end
