@@ -92,3 +92,33 @@ RSpec.describe "Document wrapper-klass registration (#340)",
     expect(seen).to equal(built)
   end
 end
+
+RSpec.describe "Document wrapper-klass registration: the unattached create factories (moxml build path)",
+               if: defined?(Leptris::XML::NativeNode) do
+  let(:el_klass) { Class.new(Leptris::XML::NativeNode) }
+  let(:tx_klass) { Class.new(Leptris::XML::NativeNode) }
+  let(:doc) do
+    d = Leptris::XML::Document.create
+    d.register_wrapper_klasses([el_klass, tx_klass, nil, nil, nil])
+    d
+  end
+
+  it "mints the registered element klass from native_create_element" do
+    built = doc.native_create_element("x")
+    expect(built).to be_instance_of(el_klass)
+    expect(built.name).to eq("x")
+  end
+
+  it "mints the registered text klass from native_create_text" do
+    built = doc.native_create_text("hi")
+    expect(built).to be_instance_of(tx_klass)
+    expect(built.content).to eq("hi")
+  end
+
+  it "keeps unregistered documents on the binding wrapper class" do
+    plain = Leptris::XML::Document.create
+    built = plain.native_create_element("y")
+    expect(built.instance_of?(el_klass)).to be(false)
+    expect(built.name).to eq("y")
+  end
+end

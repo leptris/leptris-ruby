@@ -1414,20 +1414,30 @@ static VALUE nf_insert_binding_child(VALUE self, VALUE document,
 static VALUE nn_create_element(VALUE klass, VALUE document, VALUE name)
 {
     void *ptr;
+    VALUE mk = doc_klass_for_kind(document, 0);
     (void)klass;
     ptr = f_elem_create(doc_ptr_of(document), StringValueCStr(name));
     if (!ptr)
         rb_raise(c_runtime_error, "leptris_element_create failed");
+    /* #340: registered documents mint their element klass here too —
+     * the unattached create factories are the build path (moxml's
+     * create_element per record); plain NativeNode here forced the
+     * consumer into wrapper-mode bridging for the whole document. */
+    if (!NIL_P(mk))
+        return mint_consumer_node(mk, document, ptr);
     return wrap_new(document, ptr);
 }
 
 static VALUE nn_create_text(VALUE klass, VALUE document, VALUE content)
 {
     void *ptr;
+    VALUE mk = doc_klass_for_kind(document, 1);
     (void)klass;
     ptr = f_text_create(doc_ptr_of(document), StringValueCStr(content));
     if (!ptr)
         rb_raise(c_runtime_error, "leptris_text_node_create failed");
+    if (!NIL_P(mk))
+        return mint_consumer_node(mk, document, ptr);
     return wrap_new(document, ptr);
 }
 
