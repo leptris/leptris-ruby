@@ -1445,6 +1445,25 @@ static VALUE nn_create_child(VALUE self, VALUE name)
     return out;
 }
 
+/* The #204 write row: gates + version bump + engine set in ONE C
+ * frame on the TypedData self — the caller skips the binding
+ * wrapper's Ruby arg plumbing (nf_set_binding_attribute's
+ * discipline, parameterized by subclass). */
+static VALUE nn_set_attribute(VALUE self, VALUE name, VALUE value)
+{
+    struct native_node *n;
+    int st;
+
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    document_advance_version(n->document);
+    st = f_set_attr(n->ptr, RSTRING_PTR(StringValue(name)),
+                    StringValueCStr(value));
+    if (st != 0)
+        rb_raise(c_runtime_error,
+                 "leptris_element_set_attribute failed (%d)", st);
+    return value;
+}
+
 static VALUE nn_append_child(VALUE self, VALUE child)
 {
     struct native_node *n, *c;
@@ -3537,6 +3556,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_method(c_native_node, "name", nn_name, 0);
     rb_define_method(c_native_node, "content", nn_content, 0);
     rb_define_method(c_native_node, "content=", nn_content_set, 1);
+    rb_define_method(c_native_node, "set_attribute", nn_set_attribute, 2);
     rb_define_method(c_native_node, "attribute", nn_attribute, 1);
     rb_define_alias(c_native_node, "[]", "attribute");
     /* Unshadowed aliases for consumers whose contract modules shadow
