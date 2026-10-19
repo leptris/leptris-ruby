@@ -555,6 +555,11 @@ module Leptris
       # the parse; only an entirely empty result is an error.
       attach_function :leptris_parse_html_string,
         [:string, :size_t, :pointer], :leptris_document
+      # leptris-ruby#1771: the WHATWG engine with per-call options
+      # (LEPTRIS_PARSE_COLLECT_HTML_ERRORS records the parse-error
+      # token stream on the document).
+      attach_function :leptris_parse_html_string_flags,
+        [:string, :size_t, :size_t, :pointer], :leptris_document
       # HTML4/libxml2-compatibility mode (1.9.104, #659): the same
       # tolerant tokenizer and Nokogiri document shape, except
       # leading script/style stay in <body> (libxml2's shape —
@@ -1531,6 +1536,11 @@ attach_function :leptris_parse_string,
         [:leptris_document], :size_t
       attach_function :leptris_document_parse_diag,
         [:leptris_document, :size_t, :pointer, :pointer, :size_t], :int
+      # leptris-ruby#1771: the diag's machine-readable code + line +
+      # column (the §13.2.5 parse-error token name for HTML lints).
+      attach_function :leptris_document_parse_diag_code,
+        [:leptris_document, :size_t, :pointer, :size_t, :pointer,
+         :pointer], :int
       attach_function :leptris_dtd_parse,
         [:string, :size_t], :leptris_dtd
       attach_function :leptris_dtd_free, [:leptris_dtd], :void
