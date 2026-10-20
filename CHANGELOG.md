@@ -1,3 +1,13 @@
+## [1.9.379.0] - 2026-10-21
+
+### Fixed — engine sync (libleptris 1.9.379)
+
+- **Source builds under GCC 14 (leptris/leptris#1806)**: the
+  template-foster diagnostic passed a cast node where the accessor
+  takes a `LeptrisNodeRef`; GCC 14 treats incompatible pointer
+  types as an error, so `rake compile` from source failed. The
+  cast is gone. Prebuilt gems are unaffected in behavior.
+
 ## [1.9.378.0] - 2026-10-21
 
 ### Fixed — engine sync (libleptris 1.9.378)
