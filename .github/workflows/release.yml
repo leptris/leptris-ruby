@@ -148,7 +148,13 @@ jobs:
           - os: windows-11-arm
             platform: aarch64-mingw-ucrt
             ruby-version: '3.4'
-          - os: macos-latest
+          # leptris-ruby#506: macos-latest is a FLOATING image — an
+          # Apple image update changes Xcode/clang between release
+          # builds, and codegen shifts masquerade as ride regressions
+          # (the 368.1 vs 369.1 darwin dylibs differed by 924k bytes
+          # of code motion on identical source). Pin the image; the
+          # pinned image pins the toolchain for the release lifetime.
+          - os: macos-15
             platform: arm64-darwin
           - os: macos-15-intel
             platform: x86_64-darwin
