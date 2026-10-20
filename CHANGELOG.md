@@ -1,3 +1,21 @@
+## [1.9.378.0] - 2026-10-21
+
+### Fixed — engine sync (libleptris 1.9.378)
+
+- **Node-set XPath after sibling insertion (leptris-ruby#519,
+  leptris/leptris#1802)**: the lazy element index was invalidated
+  by `add_child` but not by the sibling/prepend splice paths, so
+  `xpath("//name")` after `add_next_sibling` answered from the
+  pre-insert tree until an unrelated child insert rebuilt it.
+  `insert_before`, `insert_after` and `prepend_child` now
+  invalidate the document index.
+
+### Changed — engine sync
+
+- **WHATWG HTML verdict parity complete (leptris/leptris#1803)**:
+  1555/1555 corpus documents now report parse errors exactly when
+  html5lib does, with tree parity unchanged at 1555/1555.
+
 ## [1.9.356.0] - 2026-10-14
 
 ### Fixed — engine sync (libleptris 1.9.356)
