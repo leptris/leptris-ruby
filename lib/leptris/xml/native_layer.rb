@@ -109,6 +109,21 @@ class Leptris::XML::Document
     Leptris::XML::Native.register_doc_klasses(self, map)
   end
 
+  # leptris-ruby#529: the whole XPath node-set result as an Array of
+  # NativeNodes in ONE C call — the iterate-every-row lane's bulk
+  # face. Rows mint through the registered wrapper klasses (#340)
+  # with native-cache identity; synthetic attribute/sequence rows
+  # keep the ResultAttr/ResultText wrappers the eager path minted.
+  # Takes the raw result pointer eval_ptrs returned and CONSUMES it
+  # (nodesets free the handle in C); a non-nodeset result answers
+  # nil and leaves the pointer with the caller — route it through
+  # Searchable.wrap_xpath_result for the scalar faces.
+  def xpath_result_rows_bulk(result_ptr)
+    Leptris::XML::Native.xpath_result_rows_bulk(
+      self, result_ptr.respond_to?(:address) ? result_ptr.address
+                                             : result_ptr)
+  end
+
   # Builder factories that return NativeNodes (#149): one C call
   # and a TypedData wrap — no FFI::Pointer, no wrap_fresh path.
   # (context, adapter) pre-writes the consumer's contract ivars in
