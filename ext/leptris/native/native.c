@@ -1925,6 +1925,89 @@ static VALUE nf_at_xpath_first(VALUE self, VALUE document,
     return node;
 }
 
+/* ---- Bulk XPath rows as registered NativeNodes (#529) ----------
+ * The consumer's iterate-every-row lane pays ONE FFI crossing and
+ * one Ruby wrapper mint PER result row. This face materializes the
+ * whole nodeset in a single call: every real tree node mints
+ * through the document's registered wrapper klasses (#340) and the
+ * native identity cache — the same mint the walk and create faces
+ * use, cache-checked so one address is one Ruby object — so rows
+ * arrive already carrying the consumer's contract, with no
+ * Ruby-visible per-row call. Entries the consumer-klass path can't
+ * represent (synthetic attribute rows, sequence-carrier text,
+ * namespaces, unregistered documents) keep the shared per-entry
+ * binding materializer, exactly what the eager path minted before.
+ * Nodesets free the handle here (TODO.perf/22 eager discipline);
+ * non-nodeset results return Qnil UNFREED — the caller keeps the
+ * scalar path, whose wrap owns the free. */
+static VALUE nf_xpath_result_rows_bulk(VALUE self, VALUE document,
+                                       VALUE result_addr)
+{
+    void *result = (void *)(uintptr_t)NUM2ULL(result_addr);
+    void **buf;
+    int *kinds;
+    size_t scount;
+    long i, n;
+    VALUE cache, out;
+
+    (void)self;
+    resolve_binding_classes();
+    if (f_xp_type(result) != 0) /* XPATH_NODESET only */
+        return Qnil;
+
+    scount = f_xp_count(result);
+    if (scount == 0) {
+        f_xp_free(result);
+        return rb_ary_new2(0);
+    }
+    buf = ruby_xmalloc(scount * sizeof(void *));
+    kinds = ruby_xmalloc(scount * sizeof(int));
+    /* The batch accessor compacts (invalid pointers skip) — n is
+     * the row count AND the index space the name/value accessors
+     * answer on. */
+    scount = f_xp_nodes_ex(result, buf, kinds, scount);
+    n = (long)scount;
+    out = rb_ary_new_capa(n);
+    cache = binding_cache_of(document);
+    for (i = 0; i < n; i++) {
+        void *ptr = buf[i];
+        int tag;
+        VALUE node, key;
+
+        if (ptr == NULL)
+            continue;
+        /* The unified tag space (#477) classifies every entry from
+         * the node word itself: 0..5 real tree kinds — the same
+         * ints the doc-klass map is indexed by — 6/7/8 synthetic
+         * attribute/namespace/text. */
+        tag = (int)f_node_type(ptr);
+        key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+        if (tag >= WS_NODE_ELEMENT && tag <= WS_NODE_DOCTYPE) {
+            VALUE mk = doc_klass_for_kind(document, tag);
+            if (!NIL_P(mk)) {
+                node = rb_hash_aref(native_cache_of(document), key);
+                if (NIL_P(node))
+                    node = mint_consumer_node(mk, document, ptr);
+                rb_ary_push(out, node);
+                continue;
+            }
+        }
+        node = materialize_xp_entry(document, cache, result, ptr,
+                                    kinds[i], (int)i);
+        if (node == m_native_sentinel) {
+            /* Rare kind the entry materializer defers (namespace
+             * rows): mint the plain native twin instead of leaking
+             * the module sentinel into consumer-visible rows. */
+            node = wrap_new(document, ptr);
+        }
+        rb_ary_push(out, node);
+    }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
+    f_xp_free(result);
+    return out;
+}
+
 /* ---- Bulk attribute materialization (TODO.perf/10) ---------------
  * Element#attributes / #keys / #values walk the attribute list
  * one FFI call per row (name + value). One C pass builds the
@@ -3653,6 +3736,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_at_xpath_first, 2);
     rb_define_module_function(m_native, "materialize_xpath",
                               nf_materialize_xpath, 2);
+    rb_define_module_function(m_native, "xpath_result_rows_bulk",
+                              nf_xpath_result_rows_bulk, 2);
     rb_define_module_function(m_native, "set_binding_name",
                               nf_set_binding_name, 3);
     rb_define_module_function(m_native, "set_binding_text",
