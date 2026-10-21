@@ -3599,6 +3599,11 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_alias(c_native_node, "name_read", "name");
     rb_define_method(c_native_node, "children", nn_children, 0);
     rb_define_alias(c_native_node, "children_read", "children");
+    /* Unshadowed write face (the add_child_native pattern): the
+     * registered Identity klasses shadow content= with the
+     * facade; consumers plain-dispatch here for the one-frame
+     * text write. */
+    rb_define_alias(c_native_node, "set_text_native", "content=");
     rb_define_method(c_native_node, "element_children", nn_element_children, 0);
     rb_define_method(c_native_node, "next_sibling", nn_next_sibling, 0);
     rb_define_method(c_native_node, "parent", nn_parent, 0);
