@@ -117,6 +117,14 @@ class Leptris::XML::Element < Leptris::XML::Node
       # Drop any full-face memos from a prior version — otherwise a
       # post-mutation cold [] would stamp the new version onto a
       # stale @attributes hash and attributes would serve it.
+      # ruby#526: only @attributes shares @attributes_version with
+      # @attr_values (both restamped below), so only it needs the
+      # drop; @attribute_nodes/@keys/@values carry their OWN stamps.
+      # Niling those WITHOUT restamping left a nil memo whose stamp
+      # still matched the (unadvanced) document version — the next
+      # attribute_nodes/keys/values call memo-hit the nil and served
+      # it (consumers reading `attribute_nodes || []` saw []).
+      # Dropping a face means dropping both halves.
       ensure_alive!
       v = if @addr_reads_fast
             Leptris::XML::Native.fast_attribute(@c_address, name)
@@ -126,8 +134,11 @@ class Leptris::XML::Element < Leptris::XML::Node
       @attr_values = { name => v }
       @attributes = nil
       @attribute_nodes = nil
+      @attribute_nodes_version = nil
       @keys = nil
+      @keys_version = nil
       @values = nil
+      @values_version = nil
       @attributes_version = @document.version
       return v
     end
@@ -188,10 +199,14 @@ class Leptris::XML::Element < Leptris::XML::Node
     # Versioned attribute memo first (TODO.perf/21): a hit proves
     # presence without the engine round-trip; the memo cannot
     # prove absence for a partial fill, so misses fall through.
+    # ruby#526 sibling: a PARTIAL fill's key proves only "queried"
+    # — the cold [] caches queried-absent names as nil, so a nil
+    # entry without the full face is ambiguous exactly as in #[]'
+    # version-matched read and must fall through to the engine.
     n = name.to_s
     values = @attr_values
     if @document && values && @attributes_version == @document.version &&
-       values.key?(n)
+       values.key?(n) && (!values[n].nil? || @attributes)
       return true
     end
     return true if Leptris::XML::FFI.leptris_element_has_attribute(
