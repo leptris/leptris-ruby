@@ -1,3 +1,20 @@
+## [1.9.379.3] - 2026-10-22
+
+### Fixed
+
+- **attribute_nodes desync after interleaved bare-name writes
+  (leptris/leptris-ruby#526, PR #533)**: a cold bare-name `[]` read
+  nil'd the attribute_nodes/keys/values memos but restamped only the
+  attributes version, so the sibling faces served a stamped nil.
+  Dropped faces now drop their stamps; a `key?` partial-fill hole
+  found by the same 2000-trial sweep is fixed too.
+
+### Added — native layer
+
+- **Bulk XPath materialization (PR #531)**:
+  `xpath_result_rows_bulk` returns the whole node-set as registered
+  NativeNodes in one C crossing.
+
 ## [1.9.379.2] - 2026-10-21
 
 ### Added — native layer
