@@ -111,8 +111,17 @@ class Leptris::XML::Document
 
   # Builder factories that return NativeNodes (#149): one C call
   # and a TypedData wrap — no FFI::Pointer, no wrap_fresh path.
-  def native_create_element(name)
-    Leptris::XML::NativeNode.create_element(self, name.to_s)
+  # (context, adapter) pre-writes the consumer's contract ivars in
+  # C — the mint returns a node that already answers them, and the
+  # consumer's Ruby prime pass disappears from the build path.
+  # Older compiled exts take two args; pass through only when given.
+  def native_create_element(name, mx_context = nil, mx_adapter = nil)
+    if mx_context.nil?
+      Leptris::XML::NativeNode.create_element(self, name.to_s)
+    else
+      Leptris::XML::NativeNode.create_element(self, name.to_s,
+                                              mx_context, mx_adapter)
+    end
   end
 
   def native_create_text(content)

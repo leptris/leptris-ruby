@@ -205,6 +205,7 @@ static VALUE c_leptris_error;
 static VALUE c_b_document, c_b_freed, c_ffi_pointer;
 static ID id_ptr_new, id_freed_new, id_alive;
 static ID id_iv_c_address, id_iv_document, id_iv_parent;
+static ID id_iv_mx_context, id_iv_mx_adapter, id_iv_mx_native;
 static ID id_iv_structure_memoizable, id_iv_native_fast;
 static ID id_iv_pub_document, id_iv_addr_reads_fast, id_iv_node_type;
 static void check_status_c(int st);
@@ -1411,11 +1412,18 @@ static VALUE nf_insert_binding_child(VALUE self, VALUE document,
 
 /* Builder factories (#149): create in C, wrap as NativeNode — no
  * FFI::Pointer, no Ruby wrap_fresh path. */
-static VALUE nn_create_element(VALUE klass, VALUE document, VALUE name)
+static VALUE nn_create_element(int argc, VALUE *argv, VALUE klass)
 {
+    VALUE document, name, mx_context, mx_adapter;
     void *ptr;
-    VALUE mk = doc_klass_for_kind(document, 0);
+    VALUE mk, node;
     (void)klass;
+    /* Optional (context, adapter): when the consumer passes its
+     * contract state, the mint pre-writes the ivars in C and the
+     * consumer's Ruby prime pass disappears from the build path. */
+    rb_scan_args(argc, argv, "22", &document, &name,
+                 &mx_context, &mx_adapter);
+    mk = doc_klass_for_kind(document, 0);
     ptr = f_elem_create(doc_ptr_of(document), StringValueCStr(name));
     if (!ptr)
         rb_raise(c_runtime_error, "leptris_element_create failed");
@@ -1423,8 +1431,18 @@ static VALUE nn_create_element(VALUE klass, VALUE document, VALUE name)
      * the unattached create factories are the build path (moxml's
      * create_element per record); plain NativeNode here forced the
      * consumer into wrapper-mode bridging for the whole document. */
-    if (!NIL_P(mk))
-        return mint_consumer_node(mk, document, ptr);
+    if (!NIL_P(mk)) {
+        node = mint_consumer_node(mk, document, ptr);
+        if (!NIL_P(mx_context)) {
+            /* The identity contract (#508): @native is the node
+             * itself — exactly what the consumer's prime pass wrote.
+             * Writing it here lets that pass disappear. */
+            rb_ivar_set(node, id_iv_mx_native, node);
+            rb_ivar_set(node, id_iv_mx_context, mx_context);
+            rb_ivar_set(node, id_iv_mx_adapter, mx_adapter);
+        }
+        return node;
+    }
     return wrap_new(document, ptr);
 }
 
@@ -3525,6 +3543,9 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     id_iv_binding_cache = rb_intern("@wrapper_cache");
     id_iv_c_address = rb_intern("@c_address");
     id_iv_document = rb_intern("@document");
+    id_iv_mx_context = rb_intern("@context");
+    id_iv_mx_native = rb_intern("@native");
+    id_iv_mx_adapter = rb_intern("@adapter");
     id_iv_parent = rb_intern("@parent");
     id_iv_structure_memoizable = rb_intern("@structure_memoizable");
     id_iv_native_fast = rb_intern("@native_fast");
@@ -3552,7 +3573,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_singleton_method(c_native_node, "from", nn_from, 2);
     rb_define_singleton_method(c_native_node, "install_child_klasses",
                                nn_install_child_klasses, 1);
-    rb_define_singleton_method(c_native_node, "create_element", nn_create_element, 2);
+    rb_define_singleton_method(c_native_node, "create_element", nn_create_element, -1);
     rb_define_singleton_method(c_native_node, "create_text", nn_create_text, 2);
     rb_define_singleton_method(c_native_node, "set_root", nn_set_root, 2);
     rb_define_method(c_native_node, "create_child", nn_create_child, 1);
