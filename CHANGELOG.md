@@ -1,3 +1,12 @@
+## [1.9.379.2] - 2026-10-21
+
+### Added — native layer
+
+- **Unshadowed `set_text_native` alias (the add_child_native
+  pattern, leptris/leptris-ruby#525)**: `content=` on the TypedData
+  self, one C frame per text write; consumers gate by respond_to?
+  and fall back on older exts.
+
 ## [1.9.379.1] - 2026-10-21
 
 ### Added — native layer
