@@ -2527,6 +2527,92 @@ static VALUE nf_snapshot_rows(VALUE self, VALUE document, VALUE addr)
     return out;
 }
 
+/* ---- Columnar preorder walk (leptris-ruby#527) -------------------
+ * The moxml cold walk crossed the boundary once per element
+ * (children_read + name_read per node, ~23% of cold-walk
+ * samples). walk_columnar returns a WHOLE subtree's walk data in
+ * ONE crossing: [names, handles, depths] — three parallel arrays,
+ * preorder, the addressed node at depth 0.
+ *
+ * names: interned (frozen, shared) fstrings for elements, nil for
+ * the child kinds with no name (text/comment/cdata/pi) — the same
+ * discipline as nn_name, so repeat names allocate zero.
+ * handles: NativeNodes (TypedData path) minted through the
+ * doc-klass map (#340) when the document registered wrapper
+ * klasses, else the kind-resolved NativeNode subclasses — every
+ * mint lands in the document's native-cache identity, so handles
+ * here ARE the children_read/visit wrappers and re-walks return
+ * identical objects.
+ * depths: root-relative ints; document/doctype receivers walk
+ * their children at depth 0 (same entry rule as snapshot_rows). */
+static VALUE columnar_node_for(VALUE document, VALUE owner_klass,
+                               void *ptr, int kind)
+{
+    VALUE key = ULL2NUM((uint64_t)(uintptr_t)ptr);
+    VALUE cache = native_cache_of(document);
+    VALUE node = rb_hash_aref(cache, key);
+    struct native_node *n;
+
+    if (!NIL_P(node)) return node;
+    VALUE mk = doc_klass_for_kind(document, kind);
+    if (!NIL_P(mk))
+        return mint_consumer_node(mk, document, ptr);
+    node = nn_allocate(klass_for_kind(owner_klass, kind));
+    TypedData_Get_Struct(node, struct native_node, &nn_type, n);
+    n->ptr = ptr;
+    n->document = document;
+    rb_hash_aset(cache, key, node);
+    return node;
+}
+
+static void walk_columnar_impl(VALUE document, VALUE owner_klass,
+                               void *node, int depth, VALUE names,
+                               VALUE handles, VALUE depths)
+{
+    int kind = f_node_type(node);
+    void *c;
+
+    if (kind == WS_NODE_ELEMENT) {
+        const char *name = f_elem_name(node);
+        rb_ary_push(names, name
+                               ? rb_enc_interned_str(name, strlen(name),
+                                                     rb_utf8_encoding())
+                               : Qnil);
+        rb_ary_push(handles, columnar_node_for(document, owner_klass,
+                                               node, kind));
+        rb_ary_push(depths, INT2NUM(depth));
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            walk_columnar_impl(document, owner_klass, c, depth + 1,
+                               names, handles, depths);
+        }
+    } else if (kind == WS_NODE_TEXT || kind == WS_NODE_COMMENT ||
+               kind == WS_NODE_CDATA || kind == WS_NODE_PI) {
+        rb_ary_push(names, Qnil);
+        rb_ary_push(handles, columnar_node_for(document, owner_klass,
+                                               node, kind));
+        rb_ary_push(depths, INT2NUM(depth));
+    } else if (kind == WS_NODE_DOCTYPE || kind == 9 /* DOCUMENT */) {
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            walk_columnar_impl(document, owner_klass, c, depth,
+                               names, handles, depths);
+        }
+    }
+}
+
+static VALUE nf_walk_columnar(VALUE self, VALUE root)
+{
+    struct native_node *n;
+    VALUE names, handles, depths;
+    (void)self;
+    TypedData_Get_Struct(root, struct native_node, &nn_type, n);
+    names = rb_ary_new();
+    handles = rb_ary_new();
+    depths = rb_ary_new();
+    walk_columnar_impl(n->document, rb_obj_class(root), n->ptr, 0,
+                       names, handles, depths);
+    return rb_ary_new3(3, names, handles, depths);
+}
+
 /* ---- Struct plan executor (moxml "miles faster" round) ------------
  * The consumer's shape compiles to spec: name (interned String) ->
  * [Struct class, attrs Hash (name -> slot Symbol), text slot Symbol
@@ -3782,6 +3868,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
                               nf_snapshot_subtree, 2);
     rb_define_module_function(m_native, "snapshot_rows",
                               nf_snapshot_rows, 2);
+    rb_define_module_function(m_native, "walk_columnar",
+                              nf_walk_columnar, 1);
     rb_define_module_function(m_native, "attribute_pairs",
                               nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
