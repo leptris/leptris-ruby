@@ -1,3 +1,16 @@
+## [1.9.379.1] - 2026-10-21
+
+### Added — native layer
+
+- **The element mint pre-writes the consumer contract in C
+  (leptris/leptris-ruby#523)**: `NativeNode.create_element` takes
+  optional `(context, adapter)` and writes `@native` (the identity
+  contract: the node itself), `@context` and `@adapter` before
+  returning, so moxml's builder hot path skips its Ruby prime pass
+  per created element. The binding-agnostic consumer gates itself
+  by an arity probe; the two-argument call is unchanged for
+  existing callers.
+
 ## [1.9.379.0] - 2026-10-21
 
 ### Fixed — engine sync (libleptris 1.9.379)
