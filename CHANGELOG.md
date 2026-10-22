@@ -10,6 +10,13 @@
   model. Released 1.9.380.0 with the pin still at 1.9.379 (the
   vendored dylib missed the fix); this pin bump is the real ride.
 
+### Fixed — engine ride (1.9.380.2)
+
+- **Bulk XPath priming face rides (leptris/leptris-ruby#537)**:
+  `xpath_result_rows_bulk` gains the mx_context/mx_adapter birth-prime
+  parameters and marks all-native results; 1.9.380.1 shipped before
+  the PR merged, so the face rides in 1.9.380.2.
+
 ## [1.9.379.3] - 2026-10-22
 
 ### Fixed
