@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Fixed — engine ride
+
+- **Ride libleptris 1.9.380**: the xsi:type conformance fix
+  (leptris/leptris#1832, lutaml/moxml#433) — an element carrying
+  `xsi:type` is assessed against the NAMED type (XSD 1.0
+  §2.6.2/§3.3.4), so valid xsi:type-derived instances validate
+  instead of being rejected against the declared type's content
+  model. Released 1.9.380.0 with the pin still at 1.9.379 (the
+  vendored dylib missed the fix); this pin bump is the real ride.
+
 ## [1.9.379.3] - 2026-10-22
 
 ### Fixed
