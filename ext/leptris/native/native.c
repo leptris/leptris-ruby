@@ -2999,18 +2999,41 @@ static void *create_elem_core(void *doc_ptr, void *parent,
     return elem;
 }
 
+/* leptris-ruby#539: the ATTACHED construction faces are
+ * wrapper-visible mutations — they splice a built child under a
+ * parent — so they run the same freed/readonly gates and version
+ * bump as every other write face (bump before the call: a failed
+ * mutation merely discards memos). The raw-address face keeps the
+ * legacy Integer-document contract (moxml's pre-#340 callers pass
+ * doc.c_address): a bare engine address cannot reach the Document
+ * object, so the gate runs only when the caller names it. */
 static VALUE nf_create_element_with_attrs(VALUE self, VALUE document,
                                           VALUE parent_addr, VALUE name,
                                           VALUE attrs)
 {
-    void *doc_ptr = NIL_P(document)
-                        ? NULL
-                        : (void *)(uintptr_t)NUM2ULL(document);
-    void *parent = NIL_P(parent_addr)
-                       ? NULL
-                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
-    void *elem = create_elem_core(doc_ptr, parent,
-                                  StringValueCStr(name), attrs);
+    void *doc_ptr;
+    void *parent;
+    void *elem;
+
+    parent = NIL_P(parent_addr)
+                 ? NULL
+                 : (void *)(uintptr_t)NUM2ULL(parent_addr);
+    if (!NIL_P(document) && !RB_INTEGER_TYPE_P(document)) {
+        if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+            rb_raise(c_use_after_free_error,
+                     "owning document has been freed");
+        /* The bump rides the ATTACH: a free-floating create mutates
+         * no tree (detached-create discipline, no bump). */
+        if (parent)
+            document_advance_version(document);
+        doc_ptr = doc_ptr_of(document);
+    } else {
+        doc_ptr = NIL_P(document)
+                      ? NULL
+                      : (void *)(uintptr_t)NUM2ULL(document);
+    }
+    elem = create_elem_core(doc_ptr, parent,
+                            StringValueCStr(name), attrs);
     return elem ? ULL2NUM((uintptr_t)elem) : Qnil;
 }
 
@@ -3025,15 +3048,29 @@ static VALUE nf_create_element_with_attrs_wrapped(
     VALUE self, VALUE document, VALUE parent_addr, VALUE name,
     VALUE attrs)
 {
-    void *doc_ptr = doc_ptr_of(document);
-    void *parent = NIL_P(parent_addr)
-                       ? NULL
-                       : (void *)(uintptr_t)NUM2ULL(parent_addr);
-    void *elem = create_elem_core(doc_ptr, parent,
-                                  StringValueCStr(name), attrs);
+    void *doc_ptr;
+    void *parent;
+    void *elem;
     VALUE ck, key, node, cache;
 
     (void)self;
+    parent = NIL_P(parent_addr)
+                 ? NULL
+                 : (void *)(uintptr_t)NUM2ULL(parent_addr);
+    if (NIL_P(rb_ivar_get(document, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    /* #539: attached construction bumps the version — the same
+     * discipline as append_binding_child (bump before the call; a
+     * failed mutation merely discards memos) — so version-stamped
+     * memos (C content, walk-reads) retire across the splice.
+     * Free-floating creates (parent_addr 0) mutate no tree and
+     * stay bump-free, like the detached create faces. */
+    if (parent)
+        document_advance_version(document);
+    doc_ptr = doc_ptr_of(document);
+    elem = create_elem_core(doc_ptr, parent,
+                            StringValueCStr(name), attrs);
     if (!elem) return Qnil;
     resolve_binding_classes();
     ck = doc_klass_for_kind(document, 0 /* element */);
