@@ -59,6 +59,19 @@ rescue LoadError => e
   MSG
 end
 
+# Certificate module for the bulk XPath rows face: an Array extended
+# with this carries ONLY born-primed registered-klass identity natives
+# (xpath_result_rows_bulk answered with a consumer context+adapter, so
+# @native is the node itself and @context/@adapter are already set).
+# Consumers with a per-row wrap in their result loop can key a fast
+# path on it (moxml's NodeSet#each); one object per native address
+# remains the binding's native-cache contract (#529) either way.
+module Leptris::XML::BulkIdentityRows
+  def bulk_identity_rows?
+    true
+  end
+end
+
 module Leptris::XML::Native
   # FFI.libleptris_candidates is the single source of truth — the
   # native layer MUST dlsym the exact image the FFI layer loaded,
@@ -118,10 +131,15 @@ class Leptris::XML::Document
   # (nodesets free the handle in C); a non-nodeset result answers
   # nil and leaves the pointer with the caller — route it through
   # Searchable.wrap_xpath_result for the scalar faces.
-  def xpath_result_rows_bulk(result_ptr)
+  # Optional (context, adapter): when the consumer passes its
+  # contract state, every registered-klass row is born primed and an
+  # all-native result extends with BulkIdentityRows — the consumer's
+  # per-row wrap prime disappears from the iterate-every-result lane.
+  def xpath_result_rows_bulk(result_ptr, mx_context = nil, mx_adapter = nil)
     Leptris::XML::Native.xpath_result_rows_bulk(
       self, result_ptr.respond_to?(:address) ? result_ptr.address
-                                             : result_ptr)
+                                             : result_ptr,
+      mx_context, mx_adapter)
   end
 
   # Builder factories that return NativeNodes (#149): one C call

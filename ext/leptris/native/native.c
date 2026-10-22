@@ -203,6 +203,10 @@ static VALUE binding_klass_for(int kind);
 static VALUE c_iteration_scope;
 static VALUE c_leptris_error;
 static VALUE c_b_document, c_b_freed, c_ffi_pointer;
+/* BulkIdentityRows resolves lazily like the binding classes: the
+ * module lives in native_layer.rb, which optional consumers load. */
+static VALUE c_bulk_rows_mark = Qundef;
+static ID id_bulk_rows_mark;
 static ID id_ptr_new, id_freed_new, id_alive;
 static ID id_iv_c_address, id_iv_document, id_iv_parent;
 static ID id_iv_mx_context, id_iv_mx_adapter, id_iv_mx_native;
@@ -1940,18 +1944,28 @@ static VALUE nf_at_xpath_first(VALUE self, VALUE document,
  * Nodesets free the handle here (TODO.perf/22 eager discipline);
  * non-nodeset results return Qnil UNFREED — the caller keeps the
  * scalar path, whose wrap owns the free. */
-static VALUE nf_xpath_result_rows_bulk(VALUE self, VALUE document,
-                                       VALUE result_addr)
+static VALUE nf_xpath_result_rows_bulk(int argc, VALUE *argv, VALUE self)
 {
-    void *result = (void *)(uintptr_t)NUM2ULL(result_addr);
+    VALUE document, result_addr, mx_context, mx_adapter;
+    void *result;
     void **buf;
     int *kinds;
     size_t scount;
     long i, n;
     VALUE cache, out;
+    int all_native;
 
     (void)self;
     resolve_binding_classes();
+    /* Optional (context, adapter): when the consumer passes its
+     * contract state, every registered-klass row is born primed
+     * (@native is the node itself, @context/@adapter written here)
+     * and an all-native result extends with BulkIdentityRows —
+     * the consumer's per-row wrap prime disappears from the
+     * iterate-every-result lane (same triple as nn_create_element). */
+    rb_scan_args(argc, argv, "22", &document, &result_addr,
+                 &mx_context, &mx_adapter);
+    result = (void *)(uintptr_t)NUM2ULL(result_addr);
     if (f_xp_type(result) != 0) /* XPATH_NODESET only */
         return Qnil;
 
@@ -1969,6 +1983,7 @@ static VALUE nf_xpath_result_rows_bulk(VALUE self, VALUE document,
     n = (long)scount;
     out = rb_ary_new_capa(n);
     cache = binding_cache_of(document);
+    all_native = !NIL_P(mx_context);
     for (i = 0; i < n; i++) {
         void *ptr = buf[i];
         int tag;
@@ -1988,10 +2003,17 @@ static VALUE nf_xpath_result_rows_bulk(VALUE self, VALUE document,
                 node = rb_hash_aref(native_cache_of(document), key);
                 if (NIL_P(node))
                     node = mint_consumer_node(mk, document, ptr);
+                if (all_native &&
+                    !rb_ivar_defined(node, id_iv_mx_context)) {
+                    rb_ivar_set(node, id_iv_mx_native, node);
+                    rb_ivar_set(node, id_iv_mx_context, mx_context);
+                    rb_ivar_set(node, id_iv_mx_adapter, mx_adapter);
+                }
                 rb_ary_push(out, node);
                 continue;
             }
         }
+        all_native = 0;
         node = materialize_xp_entry(document, cache, result, ptr,
                                     kinds[i], (int)i);
         if (node == m_native_sentinel) {
@@ -2005,6 +2027,22 @@ static VALUE nf_xpath_result_rows_bulk(VALUE self, VALUE document,
     ruby_xfree(buf);
     ruby_xfree(kinds);
     f_xp_free(result);
+    if (all_native) {
+        /* Certificate for the consumer's fast row loop: every row
+         * is a born-primed, registered-klass identity native. The
+         * module lives in the Ruby layer (native_layer.rb) and may
+         * not be loaded on faces used without it — an unresolved
+         * mark degrades to the unmarked Array, never an error. */
+        if (c_bulk_rows_mark == Qundef) {
+            VALUE m_xml = rb_path2class("Leptris::XML");
+            c_bulk_rows_mark =
+                rb_const_defined_at(m_xml, id_bulk_rows_mark)
+                    ? rb_const_get_at(m_xml, id_bulk_rows_mark)
+                    : Qnil;
+        }
+        if (c_bulk_rows_mark != Qnil)
+            rb_extend_object(out, c_bulk_rows_mark);
+    }
     return out;
 }
 
@@ -3715,6 +3753,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     id_iv_mx_context = rb_intern("@context");
     id_iv_mx_native = rb_intern("@native");
     id_iv_mx_adapter = rb_intern("@adapter");
+    id_bulk_rows_mark = rb_intern("BulkIdentityRows");
     id_iv_parent = rb_intern("@parent");
     id_iv_structure_memoizable = rb_intern("@structure_memoizable");
     id_iv_native_fast = rb_intern("@native_fast");
@@ -3823,7 +3862,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_module_function(m_native, "materialize_xpath",
                               nf_materialize_xpath, 2);
     rb_define_module_function(m_native, "xpath_result_rows_bulk",
-                              nf_xpath_result_rows_bulk, 2);
+                              nf_xpath_result_rows_bulk, -1);
     rb_define_module_function(m_native, "set_binding_name",
                               nf_set_binding_name, 3);
     rb_define_module_function(m_native, "set_binding_text",
