@@ -548,11 +548,17 @@ class Leptris::XML::Element < Leptris::XML::Node
     # Cross-document and docless (#376): full path first (lift +
     # engine copy), then the source original is removed; returns
     # the installed copy (self's new next sibling).
+    # #543: the raw-FFI lanes are wrapper-visible mutations too —
+    # they must advance the document version like the C-bound face,
+    # or every #530 walk-read memo warmed before the insert serves
+    # stale children afterwards (bump before the splice: a failed
+    # mutation merely discards memos).
     if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
         Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
       end
+      @document&.advance_version
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
       Leptris::XML::Node.invalidate_cross_document!(node, @document)
@@ -569,6 +575,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
     end
+    @document&.advance_version
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_after(c_ptr, node.c_ptr))
     node
@@ -580,12 +587,14 @@ class Leptris::XML::Element < Leptris::XML::Node
     # the namespace lift — the full path below handles it.
     # Cross-document and docless (#376): full path first (lift +
     # engine copy), then the source original is removed; returns
-    # the installed copy (self's new previous sibling).
+    # the installed copy (self's new previous sibling). #543: the
+    # raw-FFI lanes advance the version like the C-bound face.
     if Leptris::XML::Element.foreign_to?(node, @document)
       ensure_writable!
       unless Leptris::XML::Element.skip_adoption_lift?(node)
         Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
       end
+      @document&.advance_version
       Leptris::XML::FFI.check_status(
         Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
       Leptris::XML::Node.invalidate_cross_document!(node, @document)
@@ -602,6 +611,7 @@ class Leptris::XML::Element < Leptris::XML::Node
     unless Leptris::XML::Element.skip_adoption_lift?(node)
       Leptris::XML::Element.lift_namespaces_for_adoption(node, namespaces_for_sibling)
     end
+    @document&.advance_version
     Leptris::XML::FFI.check_status(
       Leptris::XML::FFI.leptris_element_insert_before(c_ptr, node.c_ptr))
     node
