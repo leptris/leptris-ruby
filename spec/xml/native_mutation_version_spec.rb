@@ -212,4 +212,43 @@ RSpec.describe "native mutation faces advance the document version",
       expect(v).to eq(0)
     end
   end
+  describe "sibling insert faces (the #543 seam)" do
+    # The repro: a memo warmed before the insert must not serve stale
+    # children afterwards. The insert rides the raw-FFI lanes (foreign
+    # adoption, or the fallback when the fast-children predicate
+    # declines) - exactly the lanes that skipped the version advance.
+    let(:sibling_doc) do
+      doc = Leptris::XML::Document.parse("<r><a/>\n<b/></r>")
+      doc.root.children.map(&:name) # warm the walk-read memo
+      doc
+    end
+
+    it "next= through add_next_sibling is visible after a memo" do
+      doc = sibling_doc
+      a = doc.at("//a")
+      x = Leptris::XML::Document.parse("<x/>").root
+      x.instance_variable_set(:@document, doc)
+      a.add_next_sibling(x)
+      expect(doc.root.children.map(&:name)).to eq(%w[a x text b])
+    end
+
+    it "previous= through add_previous_sibling is visible after a memo" do
+      doc = sibling_doc
+      b = doc.at("//b")
+      y = Leptris::XML::Document.parse("<y/>").root
+      y.instance_variable_set(:@document, doc)
+      b.add_previous_sibling(y)
+      expect(doc.root.children.map(&:name)).to eq(%w[a text y b])
+    end
+
+    it "advances the document version on the raw lane" do
+      doc = sibling_doc
+      a = doc.at("//a")
+      x = Leptris::XML::Document.parse("<x/>").root
+      x.instance_variable_set(:@document, doc)
+      v0 = doc.version
+      a.add_next_sibling(x)
+      expect(doc.version).to be > v0
+    end
+  end
 end
