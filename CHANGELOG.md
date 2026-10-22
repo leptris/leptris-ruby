@@ -17,6 +17,14 @@
   parameters and marks all-native results; 1.9.380.1 shipped before
   the PR merged, so the face rides in 1.9.380.2.
 
+## [1.9.381.0] - 2026-10-22
+
+Ride: libleptris 1.9.381 — the XSLT identity/copy-of quadratic fix
+(#1839): identity transforms 13.0 s -> 57 ms on a 20k-book catalog;
+every CLI row now beats xsltproc end-to-end. The Rakefile pin moves
+1.9.380 -> 1.9.381 in the same commit so the platform gems vendor
+this core.
+
 ## [1.9.379.3] - 2026-10-22
 
 ### Fixed
