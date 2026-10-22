@@ -221,7 +221,22 @@ struct native_node {
      * Slot beats the hash memo on repeat reads of one name. */
     VALUE attr_key, attr_val, attr_ver;
     VALUE content_val, content_ver;
+    /* Walk-read memos (leptris-ruby#530): the element name and the
+     * children list, the two reads a tree walk pays per node. The
+     * children memo is what the subtree prime (#527 machinery)
+     * fills; the version stamp retires both on any mutation. The
+     * children list is SHARED with callers until the version moves
+     * (the mutation that would invalidate it also retires the
+     * memo) — treat it as read-only, like an interned String. */
+    VALUE name_val, name_ver;
+    VALUE children_val, children_ver;
 };
+
+static VALUE columnar_node_for(VALUE document, VALUE owner_klass,
+                               void *ptr, int kind);
+static VALUE doc_klass_for_kind(VALUE document, int kind);
+static VALUE nn_prime_children_of(VALUE document, VALUE owner_klass,
+                                  void *node, VALUE ver);
 
 static void nn_mark(void *p)
 {
@@ -234,6 +249,10 @@ static void nn_mark(void *p)
         rb_gc_mark(n->attr_val);
     if (n->content_val != Qnil)
         rb_gc_mark(n->content_val);
+    if (n->name_val != Qnil)
+        rb_gc_mark(n->name_val);
+    if (n->children_val != Qnil)
+        rb_gc_mark(n->children_val);
 }
 
 static size_t nn_size(const void *p) { (void)p; return sizeof(struct native_node); }
@@ -367,7 +386,19 @@ static VALUE nn_name(VALUE self)
 {
     struct native_node *n;
     const char *s;
+    VALUE doc, ver;
+
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    /* Walk-memo hit (leptris-ruby#530): a repeat name read is two
+     * struct reads and a Fixnum compare — the subtree prime fills
+     * this slot ahead of the walk, so walked names never recompute
+     * (or re-intern) until the next mutation. */
+    doc = n->document;
+    if (doc != Qnil) {
+        ver = rb_ivar_get(doc, id_iv_version);
+        if (n->name_ver == ver)
+            return n->name_val;
+    }
     s = f_elem_name(n->ptr);
     /* Interned (shared, frozen) fstring: element names repeat
      * massively across a document — one RString per distinct name
@@ -375,7 +406,13 @@ static VALUE nn_name(VALUE self)
      * ~18% of consumer materialize allocations were fresh name
      * strings). Names are identifiers; nothing downstream mutates
      * them in place (renames mint new strings). */
-    return s ? rb_enc_interned_str(s, strlen(s), rb_utf8_encoding()) : Qnil;
+    VALUE name = s ? rb_enc_interned_str(s, strlen(s), rb_utf8_encoding())
+                   : Qnil;
+    if (doc != Qnil) {
+        n->name_val = name;
+        n->name_ver = ver;
+    }
+    return name;
 }
 
 static VALUE nn_content(VALUE self)
@@ -563,14 +600,43 @@ static VALUE nn_children(VALUE self)
     void **buf;
     int *kinds;
     int count, i;
-    VALUE cache, out, owner_klass;
+    VALUE cache, out, owner_klass, doc, ver;
 
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    /* Walk-memo hit (leptris-ruby#530): the subtree prime (or an
+     * earlier read) filled this node's list against the current
+     * mutation version — serve it, engine walk skipped. */
+    doc = n->document;
+    if (doc != Qnil) {
+        ver = rb_ivar_get(doc, id_iv_version);
+        if (n->children_ver == ver)
+            return n->children_val;
+        /* Registered-consumer documents (#340 doc-klass map = the
+         * moxml mint registration) walk whole subtrees top-down:
+         * the FIRST cold children_read trades itself for ONE
+         * subtree crossing that fills every node's name + children
+         * memo (walk_columnar machinery, native-cache identity —
+         * the primed wrappers ARE the answers later reads give).
+         * Unregistered documents keep the per-node fetch; both
+         * paths memo-store below. */
+        if (!NIL_P(doc_klass_for_kind(doc, NT_ELEMENT))) {
+            out = nn_prime_children_of(doc, rb_obj_class(self), n->ptr,
+                                       ver);
+            n->children_val = out;
+            n->children_ver = ver;
+            return out;
+        }
+    }
     count = fetch_children_two_call(n->ptr, &buf, &kinds);
     if (count <= 0) {
         ruby_xfree(buf);
         ruby_xfree(kinds);
-        return rb_ary_new2(0);
+        out = rb_ary_new2(0);
+        if (doc != Qnil) {
+            n->children_val = out;
+            n->children_ver = ver;
+        }
+        return out;
     }
 
     cache = native_cache_of(n->document);
@@ -592,6 +658,10 @@ static VALUE nn_children(VALUE self)
     }
     ruby_xfree(buf);
     ruby_xfree(kinds);
+    if (doc != Qnil) {
+        n->children_val = out;
+        n->children_ver = ver;
+    }
     return out;
 }
 
@@ -2597,6 +2667,58 @@ static void walk_columnar_impl(VALUE document, VALUE owner_klass,
                                names, handles, depths);
         }
     }
+}
+
+/* ---- Subtree memo priming (leptris-ruby#530) ---------------------
+ * Registered-consumer documents (the #340 doc-klass map — moxml's
+ * mint registration) walk whole subtrees top-down, so the FIRST
+ * cold children_read fills every ELEMENT's name + children read
+ * memos in ONE crossing, reusing the walk_columnar machinery and
+ * minting through columnar_node_for (native-cache identity — the
+ * primed wrappers ARE the answers later reads hand back). Memos
+ * are version-stamped like the content memo: any mutation bumps
+ * @version and retires them subtree-wide.
+ *
+ * Conservative by construction: only ELEMENT descendants get their
+ * memos filled here (the one kind whose f_first_child chain IS its
+ * children list, the #527 contract); leaf and shell kinds keep the
+ * per-node fetch, which memo-stores the same way. The receiver's
+ * own name memo is left to nn_name (one node, once). */
+static VALUE nn_prime_children_of(VALUE document, VALUE owner_klass,
+                                  void *node, VALUE ver)
+{
+    VALUE out = rb_ary_new();
+    void *c;
+
+    for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+        int kind = f_node_type(c);
+        VALUE wrapper = columnar_node_for(document, owner_klass, c, kind);
+        struct native_node *nn;
+
+        TypedData_Get_Struct(wrapper, struct native_node, &nn_type, nn);
+        if (kind == WS_NODE_ELEMENT) {
+            const char *name = f_elem_name(c);
+            nn->name_val = name ? rb_enc_interned_str(name, strlen(name),
+                                                      rb_utf8_encoding())
+                                : Qnil;
+            nn->name_ver = ver;
+            nn->children_val = nn_prime_children_of(document, owner_klass,
+                                                    c, ver);
+            nn->children_ver = ver;
+        } else if (kind != WS_NODE_DOCTYPE && kind != 9 /* DOCUMENT */) {
+            /* leaf kinds: memo the name exactly as nn_name computes
+             * it (f_elem_name answers "" for nameless kinds); their
+             * (empty) children keep the fetch path, which
+             * memo-stores the same way. */
+            const char *name = f_elem_name(c);
+            nn->name_val = name ? rb_enc_interned_str(name, strlen(name),
+                                                      rb_utf8_encoding())
+                                : Qnil;
+            nn->name_ver = ver;
+        }
+        rb_ary_push(out, wrapper);
+    }
+    return out;
 }
 
 static VALUE nf_walk_columnar(VALUE self, VALUE root)
