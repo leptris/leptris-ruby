@@ -401,8 +401,15 @@ namespace :audit do
       .map { |n| n.sub(/\Aleptris_/, "") }.sort
     attached = File.read("lib/leptris/xml/ffi.rb")
       .scan(/attach_function :leptris_([a-z_0-9]+)/).flatten.sort
+    # Version-gated faces: soft-attached because engines BEFORE the
+    # named release lack the symbol (the load must survive them).
+    # They join the audit only when the engine pin reaches that
+    # release (the lockstep ride). TODO.concurrency/08-era law:
+    # never let one forward symbol poison the load.
+    version_gated = []
+    version_gated << "xsd_version" if Gem::Version.new(LIBLEPTRIS_VERSION) < Gem::Version.new("1.9.382")
     unattached = exported - attached
-    unexported = attached - exported
+    unexported = attached - exported - version_gated
     unless unattached.empty?
       puts "exported but NOT attached (upstream surface drift):"
       unattached.each { |s| puts "  leptris_#{s}" }
