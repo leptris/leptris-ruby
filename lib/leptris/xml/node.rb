@@ -401,6 +401,14 @@ class Leptris::XML::Node
     end
     result
   end
+  # leptris-ruby#545: the #507 contract face on the BINDING surface.
+  # moxml's children fast path and its splice-safety probe call
+  # children_read on the binding Element; with the face only on
+  # NativeNode the probe died on NoMethodError (rescued to "unsafe")
+  # and the fast path never engaged on any release. Same version-
+  # memoized product as #children — a splice bumps the document
+  # version and the next read refetches.
+  alias_method :children_read, :children
 
   def next_sibling
     if @structure_memoizable && @next_sibling_version == @document.version
