@@ -1399,9 +1399,16 @@ attach_function :leptris_parse_string,
         [:leptris_xsd_schema], UTF8_STRING
       # libleptris 1.9.382 (moxml#460 item 2): the schema's
       # effective version — "1.1" when the root declares
-      # @version="1.1" (1.1 semantics apply), else "1.0".
-      attach_function :leptris_xsd_version,
-        [:leptris_xsd_schema], UTF8_STRING
+      # @version="1.1" (1.1 semantics apply), else "1.0". SOFT
+      # attach: engines before 1.9.382 lack the symbol, and a hard
+      # attach would break every face at load for the whole gem —
+      # callers gate on FFI.respond_to?(:leptris_xsd_version).
+      begin
+        attach_function :leptris_xsd_version,
+          [:leptris_xsd_schema], UTF8_STRING
+      rescue ::FFI::NotFoundError
+        nil
+      end
       # Slice 2 (libleptris 1.9.319, #1075): lexical validation.
       # Built-ins take the "xs:NAME" reference spelling; -1 = not
       # in the tier-1 table. simple_valid resolves a user

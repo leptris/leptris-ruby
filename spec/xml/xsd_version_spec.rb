@@ -6,7 +6,8 @@ require "spec_helper"
 # installs take a skip.
 RSpec.describe "Leptris::XML::XSD::Schema#version",
                if: defined?(Leptris::XML::XSD) &&
-                   Leptris::XML::XSD.respond_to?(:compile) do
+                   Leptris::XML::XSD.respond_to?(:compile) &&
+                   Leptris::XML::FFI.respond_to?(:leptris_xsd_version) do
   def compile(src)
     Leptris::XML::XSD.compile(src)
   end
