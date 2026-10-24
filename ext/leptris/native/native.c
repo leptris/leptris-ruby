@@ -3133,8 +3133,23 @@ static VALUE nn_add_element_full(VALUE self, VALUE name, VALUE attrs,
         check_status_c(st);
     }
     ck = doc_klass_for_kind(doc, 0 /* element */);
-    if (!NIL_P(ck))
-        return mint_consumer_node(ck, doc, elem);
+    if (!NIL_P(ck)) {
+        node = mint_consumer_node(ck, doc, elem);
+        /* The #508 identity contract, born-primed from the parent
+         * wrapper: @native is the node itself and the contract state
+         * (@context/@adapter) copies off self, so the consumer's
+         * per-child wrap prime disappears from the build row. */
+        rb_ivar_set(node, id_iv_mx_native, node);
+        if (NIL_P(rb_ivar_get(node, id_iv_mx_context))) {
+            VALUE cx = rb_ivar_get(self, id_iv_mx_context);
+            if (!NIL_P(cx)) {
+                VALUE ad = rb_ivar_get(self, id_iv_mx_adapter);
+                rb_ivar_set(node, id_iv_mx_context, cx);
+                if (!NIL_P(ad)) rb_ivar_set(node, id_iv_mx_adapter, ad);
+            }
+        }
+        return node;
+    }
 
     node = rb_hash_aref(native_cache_of(doc),
                         ULL2NUM((uint64_t)(uintptr_t)elem));
