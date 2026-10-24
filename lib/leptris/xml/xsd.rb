@@ -108,6 +108,16 @@ module Leptris::XML::XSD
       Leptris::XML::FFI.leptris_xsd_declaration_count(@handle)
     end
 
+    # The schema's effective version (libleptris 1.9.382, moxml#460
+    # item 2): "1.1" when the root carries @version="1.1" — the
+    # engine then applies 1.1 semantics (xs:alternative CTA,
+    # xs:assert) — else "1.0". Consumers scope 1.0-only checks
+    # against it.
+    def version
+      check_released!
+      Leptris::XML::FFI.leptris_xsd_version(@handle) || "1.0"
+    end
+
     # The engine's schema-level error message, or nil when the
     # schema compiled cleanly.
     def error
