@@ -1,20 +1,28 @@
 # frozen_string_literal: true
 
+begin
+  require "leptris/xml/native_layer"
+rescue LoadError
+end
+
 require "spec_helper"
 
-require "leptris/xml/native_layer"
+# The face ships in the native ext; ruby-platform installs without a
+# built bundle take a skip (every native spec's convention).
 
 # TODO.sota/04 (moxml build row): NativeNode#add_element_full is the
 # ONE-crossing construction face — create + attrs + attach + optional
 # text + version bump + consumer mint, all in C off the parent
 # wrapper's struct. Nokogiri's equivalent build shape is five separate
 # crossings; this face is one.
-RSpec.describe "NativeNode#add_element_full" do
+RSpec.describe "NativeNode#add_element_full",
+               if: defined?(Leptris::XML::NativeNode) &&
+                   Leptris::XML::NativeNode.method_defined?(:add_element_full) do
   let(:doc) { Leptris::XML::Document.parse("<r><a/></r>") }
   let(:root) { doc.native_node }
 
   def build(parent, name, attrs, text = nil)
-    parent.add_element_full(parent, name, attrs, text)
+    parent.add_element_full(name, attrs, text)
   end
 
   it "creates, names, attaches, and sets text in one crossing" do
