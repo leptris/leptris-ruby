@@ -1397,6 +1397,11 @@ attach_function :leptris_parse_string,
         [:leptris_xsd_schema], :size_t
       attach_function :leptris_xsd_error,
         [:leptris_xsd_schema], UTF8_STRING
+      # libleptris 1.9.382 (moxml#460 item 2): the schema's
+      # effective version — "1.1" when the root declares
+      # @version="1.1" (1.1 semantics apply), else "1.0".
+      attach_function :leptris_xsd_version,
+        [:leptris_xsd_schema], UTF8_STRING
       # Slice 2 (libleptris 1.9.319, #1075): lexical validation.
       # Built-ins take the "xs:NAME" reference spelling; -1 = not
       # in the tier-1 table. simple_valid resolves a user
