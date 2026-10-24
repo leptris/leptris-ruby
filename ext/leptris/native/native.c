@@ -3094,6 +3094,65 @@ static VALUE nf_create_element_with_attrs_wrapped(
     return node;
 }
 
+/* TODO.sota/04 (moxml build row): ONE construction crossing for the
+ * consumer build shape — create + attrs + attach + optional text +
+ * version bump + consumer mint, all in C off the PARENT WRAPPER's
+ * struct (the document comes from the struct: no FFI twin, no
+ * bridge, no per-element document climb on the Ruby side). Nokogiri's
+ * equivalent shape is five separate crossings (Node.new, []= x2,
+ * content=, add_child) + five wrapper allocs; this face is one
+ * crossing + one wrapper. attrs arrives FLATTENED (name, value, ...)
+ * like create_element_with_attrs_wrapped; text may be nil. */
+static VALUE nn_add_element_full(VALUE self, VALUE name, VALUE attrs,
+                                 VALUE text)
+{
+    struct native_node *pn;
+    VALUE doc, ck, node;
+    void *doc_ptr, *elem;
+    int st;
+
+    resolve_binding_classes();
+    TypedData_Get_Struct(self, struct native_node, &nn_type, pn);
+    doc = pn->document;
+    if (NIL_P(doc) || NIL_P(rb_ivar_get(doc, id_iv_c_address)))
+        rb_raise(c_use_after_free_error,
+                 "owning document has been freed");
+    if (rb_ivar_get(doc, id_iv_readonly) == Qtrue)
+        rb_raise(c_readonly_error,
+                 "document is readonly — mutation attempted");
+    /* Bump before the call: a failed construction merely discards
+     * memos (the #539 discipline). */
+    rb_ivar_set(doc, id_iv_version,
+                LONG2FIX(FIX2LONG(rb_ivar_get(doc, id_iv_version)) + 1));
+    doc_ptr = doc_ptr_of(doc);
+    elem = create_elem_core(doc_ptr, pn->ptr,
+                            StringValueCStr(name), attrs);
+    if (!elem) return Qnil;
+    if (!NIL_P(text)) {
+        st = f_elem_set_text(elem, StringValueCStr(text));
+        check_status_c(st);
+    }
+    ck = doc_klass_for_kind(doc, 0 /* element */);
+    if (!NIL_P(ck))
+        return mint_consumer_node(ck, doc, elem);
+
+    node = rb_hash_aref(native_cache_of(doc),
+                        ULL2NUM((uint64_t)(uintptr_t)elem));
+    if (!NIL_P(node)) return node;
+    node = rb_obj_alloc(c_b_element);
+    rb_iv_set(node, "@c_address", ULL2NUM((uint64_t)(uintptr_t)elem));
+    rb_iv_set(node, "@document", doc);
+    rb_iv_set(node, "@parent", Qnil);
+    rb_iv_set(node, "@structure_memoizable", Qtrue);
+    rb_iv_set(node, "@native_fast", Qtrue);
+    rb_iv_set(node, "@pub_document", doc);
+    rb_iv_set(node, "@addr_reads_fast", Qtrue);
+    rb_iv_set(node, "@node_type", INT2FIX(0));
+    rb_hash_aset(native_cache_of(doc),
+                 ULL2NUM((uint64_t)(uintptr_t)elem), node);
+    return node;
+}
+
 static VALUE nf_attribute_rows(VALUE self, VALUE document, VALUE addr)
 {
     (void)self;
@@ -3965,6 +4024,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     rb_define_alias(c_native_node, "text_read", "content");
     rb_define_alias(c_native_node, "name_read", "name");
     rb_define_method(c_native_node, "children", nn_children, 0);
+    rb_define_method(c_native_node, "add_element_full",
+                     nn_add_element_full, 3);
     rb_define_alias(c_native_node, "children_read", "children");
     /* Unshadowed write face (the add_child_native pattern): the
      * registered Identity klasses shadow content= with the
