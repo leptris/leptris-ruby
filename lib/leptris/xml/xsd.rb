@@ -115,7 +115,11 @@ module Leptris::XML::XSD
     # against it.
     def version
       check_released!
-      Leptris::XML::FFI.leptris_xsd_version(@handle) || "1.0"
+      unless Leptris::XML::FFI.respond_to?(:leptris_xsd_version)
+        raise Leptris::XML::Error,
+              'Schema#version requires libleptris 1.9.382+ '               '(the leptris_xsd_version face)'
+      end
+      Leptris::XML::FFI.leptris_xsd_version(@handle) || '1.0'
     end
 
     # The engine's schema-level error message, or nil when the
