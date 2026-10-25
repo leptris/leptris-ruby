@@ -3613,6 +3613,18 @@ static VALUE nf_name(VALUE self, VALUE addr)
     return s ? rb_utf8_str_new_cstr(s) : Qnil;
 }
 
+/* moxml#460/#1855 ask 2: engine-side name comparison — no String
+ * materialization for name-comparing consumers. Qtrue/Qfalse;
+ * Qnil when the address is not an element (mirrors nf_name). */
+static VALUE nf_name_equals(VALUE self, VALUE addr, VALUE name)
+{
+    const char *s;
+    (void)self;
+    s = f_elem_name((void *)(uintptr_t)NUM2ULL(addr));
+    if (!s) return Qnil;
+    return strcmp(s, StringValueCStr(name)) == 0 ? Qtrue : Qfalse;
+}
+
 static VALUE nf_element_text(VALUE self, VALUE addr)
 {
     const char *s;
@@ -4057,6 +4069,7 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     m_native = rb_define_module_under(m_xml, "Native");
     m_native_sentinel = m_native;
     rb_define_module_function(m_native, "fast_name", nf_name, 1);
+    rb_define_module_function(m_native, "name_equals", nf_name_equals, 2);
     id_sax_start_document = rb_intern("start_document");
     id_sax_end_document = rb_intern("end_document");
     id_sax_start_element = rb_intern("start_element");
