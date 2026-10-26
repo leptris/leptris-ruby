@@ -1397,6 +1397,12 @@ attach_function :leptris_parse_string,
         [:leptris_xsd_schema], :size_t
       attach_function :leptris_xsd_error,
         [:leptris_xsd_schema], UTF8_STRING
+      # libleptris 1.9.382 (moxml#460/#1841): the structured report —
+      # rows of {kind, component, line, column, message}; schema-
+      # owned memory, valid until the next validate. out receives
+      # the record array pointer; the return is the row count.
+      attach_function :leptris_xsd_error_report,
+        [:leptris_xsd_schema, :pointer], :size_t
       # libleptris 1.9.382 (moxml#460 item 2): the schema's
       # effective version — "1.1" when the root declares
       # @version="1.1" (1.1 semantics apply), else "1.0". SOFT

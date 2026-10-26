@@ -164,6 +164,46 @@ module Leptris::XML::XSD
       end
     end
 
+    # The structured report (libleptris 1.9.382, moxml#460/#1841):
+    # one hash per finding — kind (element-decl / attribute-use /
+    # content-model / simpleType-facet / type-resolution /
+    # assertion / identity-constraint), component (declaring
+    # schema component), line, column, message (the same text
+    # validate_errors carries). Requires the 1.9.382 engine.
+    StructuredError = Struct.new(:kind, :component, :line, :column,
+                                 :message)
+
+    def structured_errors(document)
+      check_released!
+      valid?(document)
+      unless Leptris::XML::FFI.respond_to?(:leptris_xsd_error_report)
+        raise Leptris::XML::Error,
+              'structured_errors requires libleptris 1.9.382+ ' \
+              '(the leptris_xsd_error_report face)'
+      end
+      out = ::FFI::MemoryPointer.new(:pointer)
+      n = Leptris::XML::FFI.leptris_xsd_error_report(@handle, out)
+      rows = out.get_pointer(0)
+      return [] if n.zero? || rows.null?
+
+      # C layout: kind* / component* / uint line / uint column /
+      # message* — 32 bytes per record with tail padding.
+      (0...n).map do |i|
+        ptr = rows + (i * 32)
+        kind = ptr.get_pointer(0)
+        component = ptr.get_pointer(8)
+        line = ptr.get_uint32(16)
+        column = ptr.get_uint32(20)
+        message = ptr.get_pointer(24)
+        StructuredError.new(
+          kind.nil? ? nil : kind.read_string,
+          component.nil? ? nil : component.read_string,
+          line, column,
+          message.nil? ? nil : message.read_string
+        )
+      end
+    end
+
     # Slice 3 direct face: a child SEQUENCE against a top-level
     # element declaration's compiled content model (occurrence
     # bounds, xs:any wildcards). +children+ are child Nodes (name
