@@ -1,6 +1,32 @@
 ## [Unreleased]
 
+### Added — 1.9.382.0 (rides libleptris 1.9.382)
+
+- **Schema#version** (moxml#460 item 2): the effective schema
+  version — "1.1" when the root declares `@version="1.1"` (1.1
+  semantics apply: `xs:alternative` CTA, `xs:assert`), else
+  "1.0". Engine face leptris_xsd_version (leptris/leptris#1849).
+- **Native.name_equals** (leptris/leptris#1855 ask 2): engine-side
+  name comparison — no String materialization for name-comparing
+  consumers. Soft-gated; Qnil for non-element addresses.
+- **Soft-attached faces** (leptris-ruby#548): version-gated symbols
+  no longer break the load on older engines; the symbol audit
+  exempts them until the pin reaches their release.
+
 ### Fixed — engine ride
+
+- **Ride libleptris 1.9.382**: XSD structured error rows
+  (leptris/leptris#1843), negative wildcards (#1850), block +
+  category escapes in the pattern regex (#1853/#1856/#1857), the
+  parse-perf campaign work (#1844/#1847/#1848/#1851), and the
+  CAS-only retain spinlock.
+- **Ride libleptris 1.9.380**: the xsi:type conformance fix
+  (leptris/leptris#1832, lutaml/moxml#433) — an element carrying
+  `xsi:type` is assessed against the NAMED type (XSD 1.0
+  §2.6.2/§3.3.4), so valid xsi:type-derived instances validate
+  instead of being rejected against the declared type's content
+  model. Released 1.9.380.0 with the pin still at 1.9.379 (the
+  vendored dylib missed the fix); this pin bump is the real ride.
 
 - **Ride libleptris 1.9.380**: the xsi:type conformance fix
   (leptris/leptris#1832, lutaml/moxml#433) — an element carrying
