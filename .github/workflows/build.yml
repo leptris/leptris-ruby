@@ -44,7 +44,7 @@ jobs:
       # aarch64 linux, arm64 + intel darwin, x64 + arm64 Windows.
       # Ruby 3.3 is unavailable on windows-11-arm.
       matrix:
-        ruby-version: ['3.3', '3.4', '4.0']
+        ruby-version: ['3.3', '3.4', '4.0', '4.1.0-preview1']
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest,
              macos-15-intel, windows-latest, windows-11-arm]
         experimental: [false]
@@ -52,6 +52,18 @@ jobs:
           # Ruby 3.3 is unavailable on the windows-arm runner
           - os: windows-11-arm
             ruby-version: '3.3'
+          # 4.1 is a preview: one linux leg exercises the sdist
+          # native build + suite, no full grid until GA
+          - os: ubuntu-24.04-arm
+            ruby-version: '4.1.0-preview1'
+          - os: macos-latest
+            ruby-version: '4.1.0-preview1'
+          - os: macos-15-intel
+            ruby-version: '4.1.0-preview1'
+          - os: windows-latest
+            ruby-version: '4.1.0-preview1'
+          - os: windows-11-arm
+            ruby-version: '4.1.0-preview1'
 
     steps:
     - uses: actions/checkout@v4
