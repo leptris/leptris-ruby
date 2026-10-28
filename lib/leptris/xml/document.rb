@@ -692,7 +692,17 @@ class Leptris::XML::Document
   def absorbed?
     !@absorbed_into.nil?
   end
-  private :absorbed?
+
+  # leptris#1866: cross-document adoption lifetime anchor — the
+  # target document keeps the source alive so no wrapper/cache can
+  # outlive the source arena (standoc svg cleanup crash).
+  def retain_source_document!(source)
+    return unless source.is_a?(Leptris::XML::Document)
+    return if source.equal?(self)
+    (@retained_sources ||= []) << source
+    source
+  end
+
   def free
     return if @freed.state == :freed
     @freed.state = :freed
