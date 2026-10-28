@@ -230,15 +230,29 @@ RSpec.describe "namespace adoption on attach (#178)" do
   end
 end
 
-RSpec.describe "adoption prunes redundant own declarations (moxml #208 lineage)" do
-  it "drops an own declaration the attach target resolves identically" do
+RSpec.describe "adoption keeps own declarations (leptris#1866)" do
+  # leptris#1866: the lift's own-declaration PRUNE (moxml #208
+  # lineage — drop a declaration the attach target resolves
+  # identically) was removed: the engine's cross-document deep copy
+  # resolves each copied element's namespace through the SOURCE's
+  # in-scope declarations at copy time, so pruning the declaration
+  # made adopted subtrees lose their namespace URIs entirely
+  # (standoc svg cleanup: adopted svgs fell out of their namespace,
+  # namespaced queries matched nothing, and the attribute write
+  # path corrupted a sibling attr name). The redundant xmlns in
+  # the output is the CORRECT contract now; only shadowing
+  # declarations (same prefix, different URI) still matter.
+  it "keeps an own declaration the attach target resolves identically" do
     doc = Leptris::XML::Document.parse(%q{<r xmlns:p="urn:p"/>})
     el = doc.create_element("c")
     el.add_namespace_definition("p", "urn:p")
     el.name = "p:c"
     doc.root.add_child(el)
-    expect(doc.to_xml).to include(%q{<p:c/>})
-    expect(doc.to_xml.scan("xmlns:p=").size).to eq(1)
+    # the declaration RIDES the element (the redundant xmlns is the
+    # correct output — see the #1866 note above)
+    expect(doc.to_xml).to include(%q{<p:c xmlns:p="urn:p"/>})
+    # the element REMAINS in the urn:p namespace — the whole point
+    expect(doc.root.children.first.namespace&.href).to eq("urn:p")
   end
 
   it "preserves shadowing declarations (same prefix, different URI)" do
