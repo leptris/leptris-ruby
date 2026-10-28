@@ -147,12 +147,14 @@ if Gem.win_platform?
   # is present — pin the export table with a .def file so the
   # wrapper init names are certain to be exported.
   def_path = File.expand_path("native_exports.def", __dir__)
+  # The per-minor entry follows the BUILD's Ruby version (native.c
+  # generates the same name from ruby/version.h): a pinned
+  # 3_3/3_4/4_0 list left newer minors (4.1) unexported on PE.
+  win_minor = RUBY_VERSION[/\A\d+\.\d+/].tr(".", "_")
   File.write(def_path, <<~DEF)
     EXPORTS
     Init_native
-    Init_native_3_3
-    Init_native_3_4
-    Init_native_4_0
+    Init_native_#{win_minor}
   DEF
   win_def = " #{def_path.tr('/', '\\\\')}"
   $DLDFLAGS << win_def unless $DLDFLAGS.include?("native_exports.def")

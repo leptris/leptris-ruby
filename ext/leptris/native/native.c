@@ -4207,8 +4207,18 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
  * Linux per-minor bundles (native_<minor>) resolve these too —
  * an artifact only ever loads under the Ruby minor it was built
  * against. */
-LEPTRIS_INIT_EXPORT void Init_native_3_1(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_2(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { Init_native(); }
+#include <ruby/version.h>
+#define LEPTRIS_JOIN4_(a, b, c, d) a##b##c##d
+#define LEPTRIS_JOIN4(a, b, c, d) LEPTRIS_JOIN4_(a, b, c, d)
+/* The init name is derived from the BUILD's Ruby API version, not a
+ * hardcoded minor list: a list capped at the newest known minor
+ * made every newer Ruby (4.1-preview was the report) compile the
+ * sdist yet fail its own dlsym(Init_native_4_1) and silently drop
+ * to FFI. Each per-minor artifact is compiled under the minor it
+ * serves (build_native_per_minor.rb / the sdist extconf), so the
+ * generated name is always the one the running MRI asks for. */
+LEPTRIS_INIT_EXPORT void LEPTRIS_JOIN4(
+    Init_native_, RUBY_API_VERSION_MAJOR, _, RUBY_API_VERSION_MINOR)(void)
+{
+    Init_native();
+}
