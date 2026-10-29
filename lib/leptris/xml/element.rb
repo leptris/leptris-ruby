@@ -1007,6 +1007,60 @@ class Leptris::XML::Element < Leptris::XML::Node
     result
   end
 
+  # libleptris 1.9.388 (leptris#1874): the bulk in-scope namespace
+  # declaration snapshot — every (element, declaration) row under
+  # this element in document order, one engine call. Rows are
+  # {path:, prefix:, href:} with path an ancestor-first name array
+  # (empty for self) — the exact shape lutaml-model#1054's
+  # plan-hydrator contract consumes. Defined only when the native
+  # face attached (the soft attach above); consumers probe with
+  # respond_to?.
+  if Leptris::XML::FFI.respond_to?(
+    :leptris_element_namespace_declarations_snapshot,
+  )
+    def namespace_declarations_snapshot
+      ensure_alive!
+      fn = Leptris::XML::FFI
+      out_count = ::FFI::MemoryPointer.new(:size_t)
+      out_blob = ::FFI::MemoryPointer.new(:size_t)
+      rc = fn.leptris_element_namespace_declarations_snapshot(
+        c_ptr, nil, 0, out_count, nil, 0, out_blob,
+      )
+      return [] unless rc.zero?
+
+      rows_cap = out_count.read(:size_t)
+      blob_cap = out_blob.read(:size_t)
+      return [] if rows_cap.zero?
+
+      stride = 7 * ::FFI.type_size(:uint32)
+      rows = ::FFI::MemoryPointer.new(stride * rows_cap)
+      blob = ::FFI::MemoryPointer.new(blob_cap)
+      rc = fn.leptris_element_namespace_declarations_snapshot(
+        c_ptr, rows, rows_cap, out_count, blob, blob_cap, out_blob,
+      )
+      return [] if rc != 0
+
+      u32s = rows.read_array_of_uint32(7 * rows_cap)
+      (0...rows_cap).map do |i|
+        depth, _name_count, names_off, prefix_off, prefix_len,
+          href_off, href_len = u32s.slice(i * 7, 7)
+        path = depth.times.map do |k|
+          name_ptr = blob + names_off
+          s = name_ptr.get_string(0)
+          names_off += s.bytesize + 1
+          s
+        end
+        prefix = if prefix_off == 0xFFFF_FFFF
+                   nil
+                 else
+                   (blob + prefix_off).get_string(0, prefix_len)
+                 end
+        href = (blob + href_off).get_string(0, href_len)
+        { path: path, prefix: prefix, href: href }
+      end
+    end
+  end
+
   def namespaces
     return @namespaces if memo_hit?(@namespaces_version)
     scopes = {}

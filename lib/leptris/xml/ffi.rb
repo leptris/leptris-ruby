@@ -453,6 +453,18 @@ module Leptris
         nil
       end
 
+      # libleptris 1.9.388 (leptris#1874/#1884): the bulk in-scope
+      # namespace-declaration snapshot — one call replaces the
+      # per-node namespace_definitions union walk (lutaml-model#1018).
+      # SOFT attach — engines before 1.9.388 lack the symbol.
+      begin
+        attach_function :leptris_element_namespace_declarations_snapshot,
+          [:leptris_element, :pointer, :size_t, :pointer,
+           :pointer, :size_t, :pointer], :size_t
+      rescue ::FFI::NotFoundError
+        nil
+      end
+
       # libleptris 1.9.312 (#1551): serialize a walk result back
       # to XML guided by its plan — the plan supplies element
       # wrappers (row wire_name + ns_prefix), the result the
