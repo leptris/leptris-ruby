@@ -43,6 +43,8 @@ jobs:
           bundler-cache: true
       - name: Package and exercise Ruby 4.0
         run: |
+          # Refresh Gem::PackageTask's staging tree, retaining the native object.
+          bundle exec rake clobber_package
           bundle exec rake gem:native:x86_64-linux
           bundle exec ruby spec/support/native_abi_smoke.rb pkg/leptris-*-x86_64-linux.gem | tee .native-abi-smoke/runtime-4_0.json
           cp lib/leptris/xml/native_4_0.so .native-abi-smoke/native_4_0.so
@@ -53,6 +55,7 @@ jobs:
       - name: Package after switching to Ruby 3.3
         run: |
           # Keep Ruby 4.0's native.o: this is the release's final packaging step.
+          bundle exec rake clobber_package
           bundle exec rake gem:native:x86_64-linux
           if cmp -s lib/leptris/xml/native_3_3.so .native-abi-smoke/native_4_0.so; then
             echo 'Ruby 3.3 packaging reused the Ruby 4.0 native bundle'
@@ -65,6 +68,7 @@ jobs:
         if: always()
         with:
           name: native-abi-packaging
+          include-hidden-files: true
           path: |
             pkg/*.gem
             .native-abi-smoke/*.json
