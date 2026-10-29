@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+### Changed — 1.9.388.0 (rides libleptris 1.9.388)
+
+- Engine pin 1.9.386 -> 1.9.388: carries the one-pass text-run scan
+  (leptris/leptris#1895, #1842 — text shapes 764-804 -> 1370-1448 MB/s,
+  pugixml gap 2.9x -> 1.70x) and the arena retain-pool size-class split
+  (leptris/leptris#1893, #1846), plus the 1.9.387 wave (ns-declaration
+  snapshot, packed op-blob build, children_batch + name_compare,
+  XSD skip-wildcards / attributeGroup order / length facets / builtin
+  lexical table / schema-set compile_set / anyType default — the
+  schema-set faces this pin un-gates in spec/xml/xsd_spec.rb).
+
 ### Added — 1.9.382.0 (rides libleptris 1.9.382)
 
 - **Schema#version** (moxml#460 item 2): the effective schema
