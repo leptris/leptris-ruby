@@ -6,7 +6,17 @@
   Restoring the job Ruby after the per-minor release loop could reuse the
   last minor's object and overwrite the job minor's bundle with a different
   Ruby header ABI. The packaging regression now exercises the same workspace
-  under Ruby 4.0 then 3.3 and checks the actual packaged native/GC paths.
+  under Ruby 3.4, then 4.0, then 3.3 and checks the actual packaged native/GC paths.
+
+### Added — 1.9.390.2 (namespace snapshot face)
+
+- **Element#namespace_declarations_snapshot (leptris-ruby#565).**
+  The engine's bulk in-scope declaration snapshot (libleptris 1.9.388)
+  as {path:, prefix:, href:} rows — one engine call replaces the
+  per-node namespace_definitions union walk (lutaml-model#1018's
+  largest ours-side site). Soft-attached + respond_to?-probed per the
+  soft-attach law; parity-pinned against the per-node walk in specs.
+
 
 ### Added — 1.9.390.1 (prebuilt-matrix ride)
 
