@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added — 1.9.390.2 (namespace snapshot face)
+
+- **Element#namespace_declarations_snapshot (leptris-ruby#565).**
+  The engine's bulk in-scope declaration snapshot (libleptris 1.9.388)
+  as {path:, prefix:, href:} rows — one engine call replaces the
+  per-node namespace_definitions union walk (lutaml-model#1018's
+  largest ours-side site). Soft-attached + respond_to?-probed per the
+  soft-attach law; parity-pinned against the per-node walk in specs.
+
+
 ### Added — 1.9.390.1 (prebuilt-matrix ride)
 
 - **Ruby 4.0 native bundles ship in the platform gems (#563, #554).**
