@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added — 1.9.390.1 (prebuilt-matrix ride)
+
+- **Ruby 4.0 native bundles ship in the platform gems (#563, #554).**
+  The per-minor prebuilt matrix gains `native_4_0.*` per platform —
+  4.0 installs engage the native layer instead of silently falling
+  back to FFI (the builder compiled clean under 4.0; glossarist
+  output verified byte-identical on the issue). Windows already
+  shipped `Init_native_4_0` DLLs.
+
+
 ### Changed — 1.9.389.0 (rides libleptris 1.9.389)
 
 - Engine pin 1.9.388 -> 1.9.389: the XSD content-model automaton
