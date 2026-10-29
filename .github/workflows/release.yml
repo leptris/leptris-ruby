@@ -272,8 +272,21 @@ jobs:
       - run: ruby ext/build_native_per_minor.rb
         if: runner.os != 'Windows'
         shell: bash
+      # leptris-ruby#554: Ruby 4.0 joins the prebuilt matrix — same
+      # per-minor contract (the ext reads RString layout, which 4.0
+      # changed again). The builder compiles clean under 4.0 (verified
+      # on the issue); without the bundle 4.0 silently falls back to
+      # the FFI surface.
+      - uses: ruby/setup-ruby@master
+        if: runner.os != 'Windows'
+        with:
+          ruby-version: '4.0'
+          bundler-cache: false
+      - run: ruby ext/build_native_per_minor.rb
+        if: runner.os != 'Windows'
+        shell: bash
       # Restore the JOB ruby + its bundle before rake gem:native —
-      # the per-minor loop's last setup-ruby (3.4) left the job
+      # the per-minor loop's last setup-ruby (4.0) left the job
       # without a bundler install (the 1.9.363.0 train: every
       # darwin/Linux leg died on Bundler::GemNotFound).
       - uses: ruby/setup-ruby@master
@@ -286,7 +299,7 @@ jobs:
         shell: bash
         run: |
           ext=darwin && case "${{ runner.os }}" in macOS) ext=bundle;; Linux) ext=so;; *) ext=so;; esac
-          for m in 3_1 3_2 3_3 3_4; do
+          for m in 3_1 3_2 3_3 3_4 4_0; do
             f="lib/leptris/xml/native_${m}.${ext}"
             [ -f "$f" ] || { echo "ERROR: missing $f"; exit 1; }
           done
