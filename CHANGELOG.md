@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Fixed
+
+- Rebuild the native object under the Ruby that performs final packaging.
+  Restoring the job Ruby after the per-minor release loop could reuse the
+  last minor's object and overwrite the job minor's bundle with a different
+  Ruby header ABI. The packaging regression now exercises the same workspace
+  under Ruby 3.4, then 4.0, then 3.3 and checks the actual packaged native/GC paths.
+
 ### Added — 1.9.390.2 (namespace snapshot face)
 
 - **Element#namespace_declarations_snapshot (leptris-ruby#565).**
