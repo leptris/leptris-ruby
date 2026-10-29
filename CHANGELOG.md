@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Changed — 1.9.389.0 (rides libleptris 1.9.389)
+
+- Engine pin 1.9.388 -> 1.9.389: the XSD content-model automaton
+  size cap (leptris/leptris#1897, #1894 — pathological occurrence
+  products reject in microseconds via an analytic product bound,
+  with a 1e6 expansion cap backstop; over-cap models fail loudly
+  through the structured rows).
+
 ### Changed — 1.9.388.0 (rides libleptris 1.9.388)
 
 - Engine pin 1.9.386 -> 1.9.388: carries the one-pass text-run scan
