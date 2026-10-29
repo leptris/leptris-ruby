@@ -1,0 +1,72 @@
+name: Packaged native Ruby ABI
+
+on:
+  push:
+    paths:
+      - Rakefile
+      - 'ext/**'
+      - spec/support/native_abi_smoke.rb
+      - .github/workflows/native-abi.yml
+  pull_request:
+    paths:
+      - Rakefile
+      - 'ext/**'
+      - spec/support/native_abi_smoke.rb
+      - .github/workflows/native-abi.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BUNDLE_WITHOUT: benchmark
+
+jobs:
+  mixed-minor-packaging:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Package and exercise Ruby 3.4
+        run: |
+          mkdir -p .native-abi-smoke
+          bundle exec rake gem:native:x86_64-linux
+          bundle exec ruby spec/support/native_abi_smoke.rb pkg/leptris-*-x86_64-linux.gem | tee .native-abi-smoke/runtime-3_4.json
+          cp lib/leptris/xml/native_3_4.so .native-abi-smoke/native_3_4.so
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - name: Package and exercise Ruby 4.0
+        run: |
+          bundle exec rake gem:native:x86_64-linux
+          bundle exec ruby spec/support/native_abi_smoke.rb pkg/leptris-*-x86_64-linux.gem | tee .native-abi-smoke/runtime-4_0.json
+          cp lib/leptris/xml/native_4_0.so .native-abi-smoke/native_4_0.so
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Package after switching to Ruby 3.3
+        run: |
+          # Keep Ruby 4.0's native.o: this is the release's final packaging step.
+          bundle exec rake gem:native:x86_64-linux
+          if cmp -s lib/leptris/xml/native_3_3.so .native-abi-smoke/native_4_0.so; then
+            echo 'Ruby 3.3 packaging reused the Ruby 4.0 native bundle'
+            exit 1
+          fi
+          cmp .native-abi-smoke/native_3_4.so lib/leptris/xml/native_3_4.so
+          cmp .native-abi-smoke/native_4_0.so lib/leptris/xml/native_4_0.so
+          bundle exec ruby spec/support/native_abi_smoke.rb pkg/leptris-*-x86_64-linux.gem | tee .native-abi-smoke/runtime-3_3.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-abi-packaging
+          path: |
+            pkg/*.gem
+            .native-abi-smoke/*.json
+            .native-abi-smoke/native_*.so
+            lib/leptris/xml/native_3_3.so

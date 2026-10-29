@@ -290,7 +290,9 @@ task :compile do
   elsif %w[ruby truffleruby].include?(RUBY_ENGINE)
     ext_dir = "ext/leptris/native"
     Dir.chdir(ext_dir) do
-      sh "ruby extconf.rb"
+      # Packaging restores the job Ruby after the per-minor release loop.
+      # Rebuild even when native.o is newer: it may use another Ruby's headers.
+      sh "#{RbConfig.ruby} extconf.rb"
       if RUBY_PLATFORM =~ /darwin/
         # Link the bundle ourselves: mkmf snapshots LIBRUBYARG from
         # RbConfig at require time, so setup-ruby's shared-libruby
@@ -300,18 +302,18 @@ task :compile do
         # Makefile, link with pure -undefined dynamic_lookup (Ruby
         # symbols resolve from the loading interpreter) and a
         # conservative deployment target.
-        sh "make native.o"
+        sh "make -B native.o"
         sh "cc -dynamic -bundle -undefined dynamic_lookup " \
            "-mmacosx-version-min=#{ENV['MACOSX_DEPLOYMENT_TARGET'] || '11.0'} " \
            "-o native.bundle native.o"
       else
         # #207: the darwin contract on Linux too — mkmf's `make`
         # linked libruby.so.3.3 (plus a runner runpath), which
-        # failed to load on 3.4/4.0. Link WITHOUT libruby: one
-        # .so serves every Ruby minor; rb_* resolve from the
-        # loading interpreter at dlopen (static rubies export
+        # failed to load on 3.4/4.0. Link WITHOUT libruby while
+        # keeping the building Ruby's header ABI: rb_* resolve from
+        # the loading interpreter at dlopen (static rubies export
         # their symbols via -rdynamic, like any extension .so).
-        sh "make native.o"
+        sh "make -B native.o"
         sh "#{RbConfig::CONFIG['CC']} -shared -fPIC -o native.so native.o"
       end
       # Guard the linkage contract at the build chokepoint (#1739):
