@@ -292,7 +292,7 @@ task :compile do
     Dir.chdir(ext_dir) do
       # Packaging restores the job Ruby after the per-minor release loop.
       # Rebuild even when native.o is newer: it may use another Ruby's headers.
-      sh "#{RbConfig.ruby} extconf.rb"
+      sh RbConfig.ruby, "extconf.rb"
       if RUBY_PLATFORM =~ /darwin/
         # Link the bundle ourselves: mkmf snapshots LIBRUBYARG from
         # RbConfig at require time, so setup-ruby's shared-libruby
