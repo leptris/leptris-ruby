@@ -16,6 +16,12 @@ module Leptris::XML::XSD
     Schema.compile_file(path)
   end
 
+  # Compile a set of schema documents (paths) into one schema
+  # (libleptris >= 1.9.387): imports resolve across the whole set.
+  def compile_set(paths)
+    Schema.compile_set(paths)
+  end
+
   # Slice 2 (libleptris 1.9.319, #1075): built-in lexical table.
   # +builtin+ takes the "xs:NAME" reference spelling. Returns
   # true/false; an unknown table name raises — a silent false
@@ -97,6 +103,35 @@ module Leptris::XML::XSD
       if raw.null?
         raise Leptris::XML::Error,
           "schema file unreadable (status #{status.read_int}): #{path}"
+      end
+      new(Handle.new(raw))
+    end
+
+    # Compile a SET of schema documents (paths) into one schema:
+    # imports resolve across the whole set, so components declared
+    # in importing documents (substitution-group members, derived
+    # types) are visible to the head's content models — the
+    # one-document compile cannot see them (libleptris 1.9.387,
+    # leptris#1881). Requires the leptris_xsd_compile_set face.
+    def self.compile_set(paths)
+      paths = paths.map { |p| p.to_s }
+      raise ArgumentError, "schema set needs at least one path" if paths.empty?
+      unless Leptris::XML::FFI.respond_to?(:leptris_xsd_compile_set)
+        raise Leptris::XML::Error,
+              "Schema.compile_set requires libleptris 1.9.387+ " \
+              "(the leptris_xsd_compile_set face)"
+      end
+
+      strings = paths.map { |p| ::FFI::MemoryPointer.from_string(p) }
+      array = ::FFI::MemoryPointer.new(:pointer, strings.size)
+      array.write_array_of_pointer(strings)
+      status = ::FFI::MemoryPointer.new(:int)
+      raw = Leptris::XML::FFI.leptris_xsd_compile_set(array, strings.size,
+                                                      status)
+      if raw.null?
+        raise Leptris::XML::Error,
+          "schema set compile failed (status #{status.read_int}): " \
+          "#{paths.join(', ')}"
       end
       new(Handle.new(raw))
     end

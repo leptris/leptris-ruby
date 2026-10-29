@@ -442,6 +442,16 @@ module Leptris
       PLAN_OP_END = 3
       attach_function :leptris_plan_result_build,
         [:leptris_plan, :pointer, :size_t, :pointer], :leptris_plan_result
+      # libleptris 1.9.387: the packed-blob lane of the same face
+      # (five uint32 per op plus name/value bytes). SOFT attach —
+      # engines before 1.9.387 lack the symbol.
+      begin
+        attach_function :leptris_plan_result_build_packed,
+          [:leptris_plan, :pointer, :size_t, :pointer],
+          :leptris_plan_result
+      rescue ::FFI::NotFoundError
+        nil
+      end
 
       # libleptris 1.9.312 (#1551): serialize a walk result back
       # to XML guided by its plan — the plan supplies element
@@ -750,6 +760,26 @@ attach_function :leptris_parse_string,
         [:leptris_element, :pointer, :pointer, :size_t], :size_t
       attach_function :leptris_element_children,
         [:leptris_element, :pointer, :size_t], :size_t
+      # libleptris 1.9.387 engine faces not yet wrapped in Ruby —
+      # attached so the export audit stays in lockstep; adoption
+      # wraps them (leptris#1855 batch children: (addr, kind) pairs,
+      # document order only when cap >= count; #1874 namespace
+      # snapshot: one crossing per subtree, rows are seven uint32
+      # (depth, name_count, names_off, prefix_off, prefix_len,
+      # href_off, href_len) into a caller blob, 0xFFFFFFFF prefix_off
+      # = default-ns declaration; #1855 ask-2 name compare: strcmp
+      # semantics, non-elements compare as the empty string).
+      begin
+        attach_function :leptris_element_children_batch,
+          [:pointer, :pointer, :pointer, :size_t], :size_t
+        attach_function :leptris_node_name_compare,
+          [:pointer, :string, :size_t], :int
+        attach_function :leptris_element_namespace_declarations_snapshot,
+          [:leptris_element, :pointer, :size_t, :pointer,
+           :pointer, :size_t, :pointer], :size_t
+      rescue ::FFI::NotFoundError
+        nil
+      end
       attach_function :leptris_node_as_element,
         [:leptris_node_ref], :leptris_element
       attach_function :leptris_element_as_node,
@@ -1391,6 +1421,18 @@ attach_function :leptris_parse_string,
       # handles, exactly like the string face.
       attach_function :leptris_xsd_compile_file,
         [:string, :pointer], :leptris_xsd_schema
+      # libleptris 1.9.387 (leptris#1881): compile a SET of schema
+      # documents (NULL-terminated char* array) into one schema —
+      # imports resolve across the whole set, so substitution-group
+      # members declared in importing documents are visible to the
+      # head's content model. SOFT attach: engines before 1.9.387
+      # lack the symbol.
+      begin
+        attach_function :leptris_xsd_compile_set,
+          [:pointer, :size_t, :pointer], :leptris_xsd_schema
+      rescue ::FFI::NotFoundError
+        nil
+      end
       attach_function :leptris_xsd_free,
         [:leptris_xsd_schema], :void
       attach_function :leptris_xsd_declaration_count,

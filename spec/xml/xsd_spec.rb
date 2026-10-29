@@ -48,6 +48,63 @@ RSpec.describe "Leptris::XML::XSD (tier-1)" do
     expect { Leptris::XML::XSD.compile("") }
       .to raise_error(Leptris::XML::Error)
   end
+
+  # libleptris 1.9.387 (leptris#1881): a head document cannot see
+  # substitution-group members declared in schemas that import it —
+  # the set face merges every document into one compilation, so the
+  # head's content model admits the member.
+  it "compiles a schema set so imported substitution members resolve" do
+    pending "requires the libleptris 1.9.387 compile_set face" unless
+      Leptris::XML::FFI.respond_to?(:leptris_xsd_compile_set)
+
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "f.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns="urn:F" xmlns:f="urn:F" targetNamespace="urn:F"
+                   elementFormDefault="qualified">
+          <xs:complexType name="foo">
+            <xs:sequence><xs:any/></xs:sequence>
+          </xs:complexType>
+          <xs:element name="foo" type="foo"/>
+          <xs:element name="bar">
+            <xs:complexType>
+              <xs:choice minOccurs="0" maxOccurs="unbounded">
+                <xs:element ref="f:foo"/>
+                <xs:element ref="f:bar"/>
+              </xs:choice>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>
+      XSD
+      File.write(File.join(dir, "g.xsd"), <<~XSD)
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                   xmlns:g="urn:G" xmlns:f="urn:F" targetNamespace="urn:G"
+                   elementFormDefault="qualified">
+          <xs:import namespace="urn:F" schemaLocation="f.xsd"/>
+          <xs:element name="foo1" substitutionGroup="f:foo">
+            <xs:complexType>
+              <xs:complexContent>
+                <xs:extension base="f:foo">
+                  <xs:attribute name="x" type="xs:int"/>
+                </xs:extension>
+              </xs:complexContent>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>
+      XSD
+
+      set = Leptris::XML::XSD.compile_set(
+        [File.join(dir, "f.xsd"), File.join(dir, "g.xsd")],
+      )
+      doc = Leptris::XML::Document.parse(
+        %(<f:foo xmlns:f="urn:F" xmlns:g="urn:G">) +
+          %(<f:bar><g:foo1 x="1"><f:bar/></g:foo1></f:bar></f:foo>),
+      )
+      expect(set.valid?(doc)).to be(true)
+      expect { Leptris::XML::XSD.compile_set([]) }
+        .to raise_error(ArgumentError)
+    end
+  end
 end
 
 # libleptris 1.9.319 (#1075 slice 2): lexical validation — the
