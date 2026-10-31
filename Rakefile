@@ -401,8 +401,14 @@ namespace :audit do
       .map { |n| n.sub(/\A_/, "") }
       .select { |n| n.start_with?("leptris_") }
       .map { |n| n.sub(/\Aleptris_/, "") }.sort
-    attached = File.read("lib/leptris/xml/ffi.rb")
-      .scan(/attach_function :leptris_([a-z_0-9]+)/).flatten.sort
+    attached = (
+      File.read("lib/leptris/xml/ffi.rb")
+        .scan(/attach_function :leptris_([a-z_0-9]+)/).flatten +
+      # The native shim's C->C dlsym dispatches (#572: struct-value
+      # returns libffi can't carry) are bound surface too.
+      File.read("ext/leptris/native/native.c")
+        .scan(/lib_sym\((?:h|handle), "leptris_([a-z_0-9]+)"\)/).flatten
+    ).sort
     # Version-gated faces: soft-attached because engines BEFORE the
     # named release lack the symbol (the load must survive them).
     # They join the audit only when the engine pin reaches that
