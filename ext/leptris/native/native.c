@@ -278,6 +278,14 @@ static void *lib_open(const char *path) { return dlopen(path, RTLD_NOW); }
 static void *lib_sym(void *h, const char *name) { return dlsym(h, name); }
 #endif
 
+/* leptris-ruby#572: the engine's capability descriptor (1.9.392+). */
+typedef struct {
+    unsigned long long caps;
+    unsigned descriptor_version;
+} rb_caps_t;
+typedef rb_caps_t (*capabilities_fn)(void);
+static capabilities_fn f_capabilities;
+
 static void resolve_symbols(const char *lib_path)
 {
     void *h = lib_open(lib_path);
@@ -314,6 +322,7 @@ static void resolve_symbols(const char *lib_path)
     /* Single-crossing element construction (libleptris 1.9.237,
      * #1344): NULL in older engine pins; the create path falls
      * back to create + per-pair sets. */
+    f_capabilities = (capabilities_fn)lib_sym(h, "leptris_capabilities");
     f_elem_new_with_attrs =
         (elem_new_attrs_fn)lib_sym(h, "leptris_element_new_with_attributes");
     f_text_create = (text_create_fn)lib_sym(h, "leptris_text_node_create");
@@ -3965,6 +3974,25 @@ static VALUE nf_sax_parser_free(VALUE self, VALUE obj)
     return Qnil;
 }
 
+/* leptris-ruby#572: the engine's capability descriptor as a plain
+ * hash — libffi's small-struct value return proved unreliable across
+ * ABIs, so the shim reads the C struct and returns the two fields
+ * (raw bitset + descriptor version; bits append per #1905). */
+static VALUE nf_capabilities(VALUE module) {
+    VALUE hash = rb_hash_new();
+    if (!f_capabilities) {
+        rb_hash_aset(hash, ID2SYM(rb_intern("caps")), Qnil);
+        rb_hash_aset(hash, ID2SYM(rb_intern("descriptor_version")), Qnil);
+        return hash;
+    }
+    rb_caps_t c = f_capabilities();
+    rb_hash_aset(hash, ID2SYM(rb_intern("caps")),
+                 ULL2NUM(c.caps));
+    rb_hash_aset(hash, ID2SYM(rb_intern("descriptor_version")),
+                 UINT2NUM(c.descriptor_version));
+    return hash;
+}
+
 LEPTRIS_INIT_EXPORT void Init_native(void)
 {
     VALUE m_leptris, m_xml, m_native;
@@ -4084,6 +4112,8 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
     c_sax_parser = rb_define_class_under(m_native, "SaxParser",
                                          c_object);
     rb_define_module_function(m_native, "sax_parse", nf_sax_parse, 3);
+    rb_define_module_function(m_native, "capabilities",
+                              nf_capabilities, 0);
     rb_define_module_function(m_native, "sax_parser_create",
                               nf_sax_parser_create, 2);
     rb_define_module_function(m_native, "sax_parser_feed",

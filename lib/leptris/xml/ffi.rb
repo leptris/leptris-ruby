@@ -566,6 +566,11 @@ module Leptris
         [:string, :size_t, :leptris_plan, :pointer],
         :leptris_plan_result
 
+      # leptris-ruby#572: the engine's capability descriptor is read
+      # through the native shim's Native.capabilities (libffi's
+      # small-struct value return proved ABI-unreliable); the shim
+      # exposes the raw bitset + descriptor version and re-encodes
+      # nothing (bits append per contract).
       attach_function :leptris_version, [], UTF8_STRING
       attach_function :leptris_version_components, [:pointer, :pointer, :pointer], :void
 

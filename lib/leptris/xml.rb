@@ -43,6 +43,31 @@ module Leptris
 
     # Nokogiri-style top-level entry points (Nokogiri::XML(...) /
     # Nokogiri::XML.parse). Delegates to Document.parse.
+    # leptris-ruby#572: the engine's capability descriptor — the
+    # raw bitset plus descriptor version (leptris/leptris#1905).
+    # Frozen and memoized: the engine's answers are fixed per binary.
+    # Consumers (moxml#504) OR this with wrapper knowledge; bits
+    # append per the engine's contract — never reorder.
+    def self.capabilities
+      @capabilities ||=
+        begin
+          raw =
+            begin
+              Native.capabilities
+            rescue NameError
+              # the native layer loads with `require "leptris"`;
+              # a direct `require "leptris/xml"` has not loaded it
+              # yet — the explicit entry is the parallel-API door.
+              require "leptris"
+              Native.capabilities
+            end
+          {
+            caps: raw[:caps],
+            descriptor_version: raw[:descriptor_version]
+          }.freeze
+        end
+    end
+
     def self.parse(xml_or_io, options: nil, readonly: false,
                    recover: true, strict: false)
       recover = false if strict
