@@ -209,7 +209,12 @@ class Leptris::XML::Descriptor
       # libleptris 1.9.312 (#1551): the root plan's serialization
       # prefix (ns_form EXACT rows emit "prefix:local" and the
       # xmlns declaration lands once on the output root).
-      ep[:ns_prefix] = anchor_string(anchors, plan[:ns_prefix]) if plan[:ns_prefix]
+      # leptris#1941: the compiler's tree ns Hash carries the wire
+      # prefix ({exact:, prefix:}) — the emission prefix rides the
+      # same slot as an explicit plan[:ns_prefix].
+      prefix_src = plan[:ns_prefix] ||
+                   (plan[:ns].is_a?(Hash) ? plan[:ns][:prefix] : nil)
+      ep[:ns_prefix] = anchor_string(anchors, prefix_src) if prefix_src
       attrs = plan[:attributes] || []
       attr_memory = attrs.empty? ? nil :
         ::FFI::MemoryPointer.new(Leptris::XML::FFI::AttrPlan, attrs.size)
@@ -233,7 +238,9 @@ class Leptris::XML::Descriptor
             anchor_string(anchors, row[:ns].fetch(:exact)) : nil
         # libleptris 1.9.312 (#1551): serialization prefix — with
         # ns_form EXACT the attribute emits as "prefix:local".
-        ap[:ns_prefix] = anchor_string(anchors, row[:ns_prefix]) if row[:ns_prefix]
+        aprefix = row[:ns_prefix] ||
+                  (row[:ns].is_a?(Hash) ? row[:ns][:prefix] : nil)
+        ap[:ns_prefix] = anchor_string(anchors, aprefix) if aprefix
         pack_predicates(ap, row, anchors)
       end
       ep[:attribute_count] = attrs.size
@@ -271,7 +278,9 @@ class Leptris::XML::Descriptor
         # libleptris 1.9.312 (#1551): serialization prefix — with
         # ns_form EXACT the element emits as "prefix:local" and
         # its declaration lands once on the output root.
-        cp[:ns_prefix] = anchor_string(anchors, row[:ns_prefix]) if row[:ns_prefix]
+        cprefix = row[:ns_prefix] ||
+                  (row[:ns].is_a?(Hash) ? row[:ns][:prefix] : nil)
+        cp[:ns_prefix] = anchor_string(anchors, cprefix) if cprefix
         pack_predicates(cp, row, anchors)
       end
       ep[:child_count] = children.size
