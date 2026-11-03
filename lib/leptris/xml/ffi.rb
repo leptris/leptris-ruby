@@ -440,6 +440,8 @@ module Leptris
       PLAN_OP_ELEMENT = 1
       PLAN_OP_ATTR = 2
       PLAN_OP_END = 3
+      # leptris#1941: splice a host-serialized fragment verbatim.
+      PLAN_OP_RAW = 4
       attach_function :leptris_plan_result_build,
         [:leptris_plan, :pointer, :size_t, :pointer], :leptris_plan_result
       # libleptris 1.9.387: the packed-blob lane of the same face
