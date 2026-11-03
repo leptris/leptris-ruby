@@ -3701,6 +3701,11 @@ static VALUE leptris_native_resolve_rb(VALUE self, VALUE lib_path)
  */
 #if defined(_WIN32)
 #  define LEPTRIS_INIT_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+/* -fvisibility=hidden (extconf) keeps every internal symbol off
+ * the dynamic table; the entry points opt back in (#582) so no
+ * internal name can clash with another gem's exports. */
+#  define LEPTRIS_INIT_EXPORT __attribute__((visibility("default")))
 #else
 #  define LEPTRIS_INIT_EXPORT
 #endif
@@ -3993,7 +3998,15 @@ static VALUE nf_capabilities(VALUE module) {
     return hash;
 }
 
-LEPTRIS_INIT_EXPORT void Init_native(void)
+/* leptris-ruby#582: the setup body is PRIVATE (static) so the
+ * per-minor entry points call leptris's own code unconditionally.
+ * MRI loads extensions into the global symbol scope on Linux —
+ * when the per-minor entries called the exported `Init_native`,
+ * a second gem's `Init_native` (loaded first) hijacked the call
+ * and leptris's setup never ran (NativeNode undefined). The
+ * exported plain `Init_native` stays only for the mkmf .def
+ * contract; nothing in the gem loads it. */
+static void leptris_native_setup(void)
 {
     VALUE m_leptris, m_xml, m_native;
 
@@ -4236,9 +4249,17 @@ LEPTRIS_INIT_EXPORT void Init_native(void)
  * unconditionally on every platform since ruby#476: the darwin/
  * Linux per-minor bundles (native_<minor>) resolve these too —
  * an artifact only ever loads under the Ruby minor it was built
- * against. */
-LEPTRIS_INIT_EXPORT void Init_native_3_1(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_2(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { Init_native(); }
-LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { Init_native(); }
+ * against. Each entry calls the PRIVATE setup directly (#582):
+ * routing through the exported `Init_native` let whichever gem
+ * defined that symbol first win the call on Linux's flat
+ * namespace. */
+LEPTRIS_INIT_EXPORT void Init_native_3_1(void) { leptris_native_setup(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_2(void) { leptris_native_setup(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_3(void) { leptris_native_setup(); }
+LEPTRIS_INIT_EXPORT void Init_native_3_4(void) { leptris_native_setup(); }
+LEPTRIS_INIT_EXPORT void Init_native_4_0(void) { leptris_native_setup(); }
+
+/* The plain entry stays exported for the mkmf .def contract (see
+ * the LEPTRIS_INIT_EXPORT note); the gem's own loader only ever
+ * requires the per-minor bundles. */
+LEPTRIS_INIT_EXPORT void Init_native(void) { leptris_native_setup(); }

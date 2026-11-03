@@ -165,4 +165,10 @@ end
 # same basename — exported by native.c and pinned in the Windows
 # .def above.
 minor_us = RUBY_VERSION[/\A\d+\.\d+/].tr(".", "_")
+# ruby#582: hide every internal symbol; only the Init_* entry
+# points opt back in (visibility("default")). Linux's flat symbol
+# scope otherwise lets another gem's exports hijack our calls.
+unless RUBY_PLATFORM =~ /mswin|mingw/
+  append_cflags("-fvisibility=hidden")
+end
 create_makefile("leptris/xml/native_#{minor_us}")
