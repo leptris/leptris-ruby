@@ -388,6 +388,9 @@ class Leptris::XML::Descriptor
     element: Leptris::XML::FFI::PLAN_OP_ELEMENT,
     attr: Leptris::XML::FFI::PLAN_OP_ATTR,
     end: Leptris::XML::FFI::PLAN_OP_END,
+    # leptris#1941: value carries a host-serialized fragment; the
+    # engine stores it as a VALUE_RAW and emits it verbatim.
+    raw: Leptris::XML::FFI::PLAN_OP_RAW,
   }.freeze
   private_constant :ROW_OP_KINDS
 
