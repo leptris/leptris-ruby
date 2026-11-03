@@ -2840,6 +2840,41 @@ static VALUE nf_walk_addresses(VALUE self, VALUE root)
     return rb_ary_new3(3, names, addrs, depths);
 }
 
+/* ---- Raw child addresses (leptris-ruby#587 shadow lane) ----------
+ * The per-node counterpart of walk_addresses: ONE crossing returns
+ * the parent's direct children as raw addresses + node kinds — no
+ * wrapper mint, no identity-cache writes; kinds are the f_children_ex
+ * ints (0 = element). Accepts a NativeNode handle or a raw address
+ * Integer. Read-only consumers pair it with the address-keyed read
+ * faces; a mutable, identity-backed handle mints through the normal
+ * wrap path on first write. */
+static VALUE nf_children_addrs(VALUE self, VALUE parent)
+{
+    void **buf;
+    int *kinds;
+    void *ptr;
+    int count, i;
+    VALUE addrs, kind_vals;
+    (void)self;
+    if (RB_INTEGER_TYPE_P(parent)) {
+        ptr = (void *)(uintptr_t)NUM2ULL(parent);
+    } else {
+        struct native_node *n;
+        TypedData_Get_Struct(parent, struct native_node, &nn_type, n);
+        ptr = n->ptr;
+    }
+    count = fetch_children_two_call(ptr, &buf, &kinds);
+    addrs = rb_ary_new2(count > 0 ? count : 0);
+    kind_vals = rb_ary_new2(count > 0 ? count : 0);
+    for (i = 0; i < count; i++) {
+        rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)buf[i]));
+        rb_ary_push(kind_vals, INT2NUM(kinds[i]));
+    }
+    ruby_xfree(buf);
+    ruby_xfree(kinds);
+    return rb_ary_new3(2, addrs, kind_vals);
+}
+
 /* ---- Struct plan executor (moxml "miles faster" round) ------------
  * The consumer's shape compiles to spec: name (interned String) ->
  * [Struct class, attrs Hash (name -> slot Symbol), text slot Symbol
@@ -4283,6 +4318,8 @@ static void leptris_native_setup(void)
                               nf_walk_columnar, 1);
     rb_define_module_function(m_native, "walk_addresses",
                               nf_walk_addresses, 1);
+    rb_define_module_function(m_native, "children_addrs",
+                              nf_children_addrs, 1);
     rb_define_module_function(m_native, "attribute_pairs",
                               nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
