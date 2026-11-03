@@ -79,4 +79,22 @@ RSpec.describe "Native.walk_addresses (#587)",
     b_wrapper << "tail"
     expect(Leptris::XML::Native.fast_element_text(b_addr)).to eq("tail")
   end
+
+  it "children_addrs: raw direct children with kinds, no mints" do
+    d_addr = addrs[names.index("d")]
+    child_addrs, kinds = Leptris::XML::Native.children_addrs(d_addr)
+    expect(child_addrs).to all(be_an(Integer))
+    expect(kinds).to eq([0]) # one element child (e); 0 = WS_NODE_ELEMENT
+    expect(Leptris::XML::Native.fast_name(child_addrs.first)).to eq("e")
+    cache_before = doc.native_cache.size
+    Leptris::XML::Native.children_addrs(doc.native_node)
+    expect(doc.native_cache.size).to eq(cache_before)
+  end
+
+  it "children_addrs: empty element answers two empty arrays" do
+    c_addr = addrs[names.index("c")]
+    child_addrs, kinds = Leptris::XML::Native.children_addrs(c_addr)
+    expect(child_addrs).to eq([])
+    expect(kinds).to eq([])
+  end
 end
