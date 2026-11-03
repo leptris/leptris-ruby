@@ -411,13 +411,15 @@ class Leptris::XML::Element < Leptris::XML::Node
   # address] triples; the Attr value objects are minted from them
   # with zero further engine crossings — identical objects to
   # each_attribute. The win amplifies with attribute density
-  # (40-attr elements list ~7x faster than the chain).
+  # (40-attr elements list ~7x faster than the chain). The raw
+  # Integer address rides along (ruby#586 ask 2) — the FFI::Pointer
+  # is minted lazily on the first namespace read, so read-only
+  # walkers stop paying one Pointer per attribute.
   def attribute_rows_native
     ::Leptris::XML::Native.attribute_rows(@document, @c_address)
       .each_slice(3)
       .map do |name, value, handle|
-        ::Leptris::XML::Attr.new(name, value, self,
-                                 c_handle: ::FFI::Pointer.new(handle))
+        ::Leptris::XML::Attr.new(name, value, self, c_handle: handle)
       end
   end
 

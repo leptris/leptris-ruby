@@ -3255,6 +3255,29 @@ static VALUE nf_attribute_rows(VALUE self, VALUE document, VALUE addr)
     return out;
 }
 
+/* ruby#586 ask 1: the flat packet face — [name1, value1, ...] in one
+ * crossing, with no per-attribute Attr/Pointer objects, no slice
+ * arrays and no identity-cache writes. Names interned, values fresh.
+ * Read-only consumers zip the flat array themselves. */
+static VALUE nf_attribute_packet(VALUE self, VALUE document, VALUE addr)
+{
+    (void)self;
+    (void)document;
+    void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    VALUE out = rb_ary_new();
+    if (f_node_type(node) != WS_NODE_ELEMENT) return out;
+
+    for (void *a = f_attr_first(node); a; a = f_attr_next(a)) {
+        const char *an = f_attr_name(a);
+        const char *av = f_attr_value(node, a);
+        rb_ary_push(out, an ? rb_enc_interned_str(an, strlen(an),
+                                                  rb_utf8_encoding())
+                            : Qnil);
+        rb_ary_push(out, av ? rb_utf8_str_new_cstr(av) : Qnil);
+    }
+    return out;
+}
+
 static VALUE nf_plan_structs(VALUE self, VALUE document, VALUE addr,
                              VALUE spec)
 {
@@ -4266,6 +4289,8 @@ static void leptris_native_setup(void)
                               nf_plan_structs, 3);
     rb_define_module_function(m_native, "attribute_rows",
                               nf_attribute_rows, 2);
+    rb_define_module_function(m_native, "attribute_packet",
+                              nf_attribute_packet, 2);
     rb_define_module_function(m_native, "create_element_with_attrs",
                               nf_create_element_with_attrs, 4);
     rb_define_module_function(m_native, "register_doc_klasses",
