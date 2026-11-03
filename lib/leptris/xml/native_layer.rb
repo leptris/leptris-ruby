@@ -105,6 +105,17 @@ class Leptris::XML::Document
     @native_cache ||= {}
   end
 
+  # ruby#587 ask 2: documented drop point for the identity cache —
+  # a parse -> hydrate -> discard lane releases the retained wrapper
+  # set without waiting for document GC. Surviving wrappers stay
+  # valid (they carry their own document + address); new crossings
+  # mint fresh wrappers, so the object-identity contract ends where
+  # the host says it ends.
+  def clear_native_cache
+    @native_cache = nil
+    self
+  end
+
   def native_node
     r = root or raise Leptris::XML::Error, "document has no root element"
     Leptris::XML::NativeNode.from(self, r.c_ptr)

@@ -714,6 +714,9 @@ class Leptris::XML::Document
     @c_ptr = nil
     @c_address = nil
     @wrapper_cache&.clear
+    # ruby#587: release the native identity cache at free time —
+    # the wrapper set dies with the document, not at GC time.
+    @native_cache = nil
     # Detach the lifetime handle (TODO.perf/12): the memory is
     # already released above — the GC-pass dfree must no-op.
     Leptris::XML::Native.doc_handle_release(self) if defined?(Leptris::XML::NATIVE_FAST)
