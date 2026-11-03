@@ -273,6 +273,23 @@ task :compile do
   raise "utf8proc shared library not found after build" unless u8_lib
   cp(u8_lib, "lib/#{File.basename(u8_lib)}")
   sign_darwin_binaries("lib/libleptris#{ext}", "lib/#{File.basename(u8_lib)}")
+  # ruby#582 dev follow-through: a source checkout carrying the
+  # release-assembly vendor copy (lib/leptris/vendor/<platform>/)
+  # would shadow the fresh lib/ dylib — ffi_lib prefers vendor_dirs.
+  # Sync the platform copy so `rake compile` keeps every vendored
+  # location at the built engine version (CI source-install lanes
+  # hit the same shadow).
+  # the vendor dir spelling comes from the FFI loader's own platform
+  # derivation (RUBY_PLATFORM carries the darwin OS version:
+  # "arm64-darwin23" -> vendor "arm64-darwin")
+  cpu = RUBY_PLATFORM.split('-').first
+  os = RUBY_PLATFORM.include?('darwin') ? 'darwin' : 'linux'
+  vendor_dir = "lib/leptris/vendor/#{cpu}-#{os}"
+  if Dir.exist?(vendor_dir)
+    cp(lib, File.join(vendor_dir, "libleptris#{ext}"))
+    sign_darwin_binaries(File.join(vendor_dir, "libleptris#{ext}"))
+    puts "Synced #{vendor_dir}/libleptris#{ext}"
+  end
   puts "Vendored #{File.basename(lib)} + #{File.basename(u8_lib)} into lib/"
 
   # Opt-in native read layer ext (#185): built and vendored beside
