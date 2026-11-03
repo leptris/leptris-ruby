@@ -2782,6 +2782,64 @@ static VALUE nf_walk_columnar(VALUE self, VALUE root)
     return rb_ary_new3(3, names, handles, depths);
 }
 
+/* ---- Raw-address columnar walk (leptris-ruby#587) ----------------
+ * The identity-free read lane: the preorder/depths contract of
+ * walk_columnar (#527), but the handles lane carries RAW NODE
+ * ADDRESSES as Integers instead of minted NativeNodes — addresses
+ * are immediates in CRuby, so a whole-subtree read walk allocates
+ * nothing per node beyond the three arrays, mints nothing, and
+ * writes nothing into the per-document identity cache. Names are
+ * interned fstrings exactly as walk_columnar produces them.
+ *
+ * Read-only consumers resolve everything through the address-keyed
+ * faces (fast_name, fast_element_text, attribute_pairs, ...). A
+ * consumer that later needs a mutable, identity-backed handle
+ * mints it through the normal wrap path — the write lane is
+ * unchanged. This is the shadow-binding read half: Ruby objects
+ * exist only where the consumer holds state, never per visited
+ * node. */
+static void walk_addresses_impl(void *node, int depth, VALUE names,
+                                VALUE addrs, VALUE depths)
+{
+    int kind = f_node_type(node);
+    void *c;
+
+    if (kind == WS_NODE_ELEMENT) {
+        const char *name = f_elem_name(node);
+        rb_ary_push(names, name
+                               ? rb_enc_interned_str(name, strlen(name),
+                                                     rb_utf8_encoding())
+                               : Qnil);
+        rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
+        rb_ary_push(depths, INT2NUM(depth));
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            walk_addresses_impl(c, depth + 1, names, addrs, depths);
+        }
+    } else if (kind == WS_NODE_TEXT || kind == WS_NODE_COMMENT ||
+               kind == WS_NODE_CDATA || kind == WS_NODE_PI) {
+        rb_ary_push(names, Qnil);
+        rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
+        rb_ary_push(depths, INT2NUM(depth));
+    } else if (kind == WS_NODE_DOCTYPE || kind == 9 /* DOCUMENT */) {
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            walk_addresses_impl(c, depth, names, addrs, depths);
+        }
+    }
+}
+
+static VALUE nf_walk_addresses(VALUE self, VALUE root)
+{
+    struct native_node *n;
+    VALUE names, addrs, depths;
+    (void)self;
+    TypedData_Get_Struct(root, struct native_node, &nn_type, n);
+    names = rb_ary_new();
+    addrs = rb_ary_new();
+    depths = rb_ary_new();
+    walk_addresses_impl(n->ptr, 0, names, addrs, depths);
+    return rb_ary_new3(3, names, addrs, depths);
+}
+
 /* ---- Struct plan executor (moxml "miles faster" round) ------------
  * The consumer's shape compiles to spec: name (interned String) ->
  * [Struct class, attrs Hash (name -> slot Symbol), text slot Symbol
@@ -4200,6 +4258,8 @@ static void leptris_native_setup(void)
                               nf_snapshot_rows, 2);
     rb_define_module_function(m_native, "walk_columnar",
                               nf_walk_columnar, 1);
+    rb_define_module_function(m_native, "walk_addresses",
+                              nf_walk_addresses, 1);
     rb_define_module_function(m_native, "attribute_pairs",
                               nf_attribute_pairs, 2);
     rb_define_module_function(m_native, "plan_structs",
