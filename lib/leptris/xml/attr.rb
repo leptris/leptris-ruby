@@ -8,9 +8,12 @@
 class Leptris::XML::Attr
   attr_reader :name, :value, :element
 
-  # c_handle is the C LeptrisAttribute pointer from the owning
-  # element's iteration face — document-owned and borrowed. Absent
-  # only when an Attr is constructed by hand.
+  # c_handle is the C LeptrisAttribute handle from the owning
+  # element's iteration face — document-owned and borrowed. The rows
+  # faces pass the raw Integer address (ruby#586 ask 2: no
+  # per-attribute FFI::Pointer on read-only callers); the Pointer is
+  # minted lazily on the first namespace read. Hand constructors may
+  # pass a Pointer directly, or nil when constructed by hand.
   def initialize(name, value, element, c_handle: nil)
     @name = name
     @value = value
@@ -37,8 +40,9 @@ class Leptris::XML::Attr
   # nil for a no-namespace attribute or an undeclared prefix; xml
   # is prebound to http://www.w3.org/XML/1998/namespace.
   def namespace_uri
-    return nil if @c_handle.nil?
-    Leptris::XML::FFI.leptris_attribute_namespace_uri(@c_handle)
+    h = c_handle_ptr
+    return nil if h.nil?
+    Leptris::XML::FFI.leptris_attribute_namespace_uri(h)
   end
 
   def namespace
@@ -72,5 +76,16 @@ class Leptris::XML::Attr
 
   def inspect
     "#<#{self.class.name} name=#{@name.inspect} value=#{@value.inspect}>"
+  end
+
+  private
+
+  # Wrap a raw Integer address on first namespace read; Pointer and
+  # nil pass through unchanged.
+  def c_handle_ptr
+    if @c_handle.is_a?(Integer)
+      @c_handle = @c_handle.zero? ? nil : FFI::Pointer.new(@c_handle)
+    end
+    @c_handle
   end
 end
