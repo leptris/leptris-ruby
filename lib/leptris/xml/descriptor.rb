@@ -426,8 +426,20 @@ class Leptris::XML::Descriptor
     raw = Leptris::XML::FFI.leptris_plan_result_build(
       @handle, memory, ops.size, status)
     if raw.null?
+      # leptris#1966 ask 2: the bare "status=-5" sent three consumers
+      # hunting an ABI bug that did not exist. Carry the op-stream
+      # shape — op count, plan count, and the ops at the highest
+      # plan_index — so an out-of-range reference is visible at a
+      # glance.
+      max_pi = ops.filter_map { |o| o[:plan_index] }.max
+      at_max = ops.each_index
+                  .select { |i| ops[i][:plan_index] == max_pi }
+                  .first(3)
       raise Leptris::XML::Error,
-        "plan result build failed (status=#{status.read_int})"
+        "plan result build failed (status=#{status.read_int}; " \
+        "ops=#{ops.size} plans=#{@plans.size} " \
+        "max_plan_index=#{max_pi.inspect} " \
+        "ops_at_max=#{at_max.map { |i| [i, ops[i][:kind], ops[i][:row_index]] }.inspect})"
     end
     Leptris::XML::PlanValue.new(ResultHandle.new(raw),
                                 owner: true, plans: @plans, plan: @plans[0])
