@@ -774,3 +774,30 @@ RSpec.describe "Descriptor.build on diamond-shared plan trees (leptris#1743)" do
     ])
   end
 end
+
+# leptris#1966 ask 2: a rejected op stream must fail with DIAGNOSTIC
+# context — the bare "status=-5" sent three consumers (uniword, the
+# metanorma matrix) hunting an ABI bug that did not exist. The raise
+# carries the op count, the plan count, and the ops at the highest
+# plan_index — enough to see the out-of-range reference at a glance.
+RSpec.describe "Descriptor#build_result diagnostics" do
+  let(:plan) do
+    Leptris::XML::Descriptor.build(
+      name: "r",
+      children: [{ name: "a", kind: :scalar }])
+  end
+
+  it "reports the op stream shape when the engine rejects it" do
+    expect do
+      plan.build_result([
+        { kind: :element, plan_index: 0 },
+        { kind: :element, plan_index: 9, row_index: 0 },
+        { kind: :end },
+        { kind: :end },
+      ])
+    end.to raise_error(
+      Leptris::XML::Error,
+      /status=-5.*ops=4.*plans=1.*plan_index=9/m,
+    )
+  end
+end
