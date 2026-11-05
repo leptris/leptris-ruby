@@ -166,7 +166,14 @@ class Leptris::XML::Descriptor
     tree_index = plans.size - 1
     memo[key] = tree_index
     duped[:children] = (duped[:children] || []).map do |row|
-      if row[:kind] == :nested
+      # leptris#1966: :ordered_deferred rows carry child :plan trees
+      # exactly like :nested rows (lutaml's emission_rows_for
+      # materializes the deferred subtree) — skipping them here
+      # left deferred subtrees WITHOUT descriptor slots, so the
+      # slot numbering diverged from the emission graph at the
+      # first deferred row and the ops' plan_index pointed at the
+      # wrong plan (engine status=-5 on the theme/styles shapes).
+      if row[:kind] == :nested || row[:kind] == :ordered_deferred
         row.merge(child_plan_index: flatten_plan(row.fetch(:plan), plans,
                                                  memo))
       else
