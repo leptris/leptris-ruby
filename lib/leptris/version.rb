@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module Leptris
-  VERSION = "1.9.406.1"
+  VERSION = "1.9.407.0"
 end
