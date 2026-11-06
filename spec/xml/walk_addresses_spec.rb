@@ -25,13 +25,21 @@ RSpec.describe "Native.walk_addresses (#587)",
   let(:names) { cols[0] }
   let(:addrs) { cols[1] }
   let(:depths) { cols[2] }
+  let(:kinds) { cols[3] }
 
-  it "returns three parallel arrays of equal length" do
+  it "returns four parallel arrays of equal length (#603)" do
     expect(cols).to be_an(Array)
-    expect(cols.size).to eq(3)
+    expect(cols.size).to eq(4)
     expect(names.size).to eq(8)
     expect(addrs.size).to eq(8)
     expect(depths.size).to eq(8)
+    expect(kinds.size).to eq(8)
+  end
+
+  it "carries the node kind per row so one crossing self-classifies" do
+    # 0 element / 1 text — the f_children_ex ints; the two nil-name
+    # rows are the text runs "one" and "two".
+    expect(kinds).to eq([0, 0, 1, 0, 1, 0, 0, 0])
   end
 
   it "walks preorder with interned names and depths" do
