@@ -2798,8 +2798,12 @@ static VALUE nf_walk_columnar(VALUE self, VALUE root)
  * unchanged. This is the shadow-binding read half: Ruby objects
  * exist only where the consumer holds state, never per visited
  * node. */
+/* #603 ask 1: the walk carries a fourth kinds column — the
+ * f_node_type ints (0 element, 1 text, 2 comment, 3 cdata, 4 pi) —
+ * so a token-backed consumer classifies the nil-name rows without
+ * a second children_addrs crossing per parent. */
 static void walk_addresses_impl(void *node, int depth, VALUE names,
-                                VALUE addrs, VALUE depths)
+                                VALUE addrs, VALUE depths, VALUE kinds)
 {
     int kind = f_node_type(node);
     void *c;
@@ -2812,17 +2816,19 @@ static void walk_addresses_impl(void *node, int depth, VALUE names,
                                : Qnil);
         rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
         rb_ary_push(depths, INT2NUM(depth));
+        rb_ary_push(kinds, INT2NUM(kind));
         for (c = f_first_child(node); c; c = f_next_sibling(c)) {
-            walk_addresses_impl(c, depth + 1, names, addrs, depths);
+            walk_addresses_impl(c, depth + 1, names, addrs, depths, kinds);
         }
     } else if (kind == WS_NODE_TEXT || kind == WS_NODE_COMMENT ||
                kind == WS_NODE_CDATA || kind == WS_NODE_PI) {
         rb_ary_push(names, Qnil);
         rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
         rb_ary_push(depths, INT2NUM(depth));
+        rb_ary_push(kinds, INT2NUM(kind));
     } else if (kind == WS_NODE_DOCTYPE || kind == 9 /* DOCUMENT */) {
         for (c = f_first_child(node); c; c = f_next_sibling(c)) {
-            walk_addresses_impl(c, depth, names, addrs, depths);
+            walk_addresses_impl(c, depth, names, addrs, depths, kinds);
         }
     }
 }
@@ -2830,14 +2836,15 @@ static void walk_addresses_impl(void *node, int depth, VALUE names,
 static VALUE nf_walk_addresses(VALUE self, VALUE root)
 {
     struct native_node *n;
-    VALUE names, addrs, depths;
+    VALUE names, addrs, depths, kinds;
     (void)self;
     TypedData_Get_Struct(root, struct native_node, &nn_type, n);
     names = rb_ary_new();
     addrs = rb_ary_new();
     depths = rb_ary_new();
-    walk_addresses_impl(n->ptr, 0, names, addrs, depths);
-    return rb_ary_new3(3, names, addrs, depths);
+    kinds = rb_ary_new();
+    walk_addresses_impl(n->ptr, 0, names, addrs, depths, kinds);
+    return rb_ary_new3(4, names, addrs, depths, kinds);
 }
 
 /* ---- Raw child addresses (leptris-ruby#587 shadow lane) ----------
