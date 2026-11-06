@@ -119,6 +119,13 @@ module Leptris
             %w[libutf8proc.3.dylib libutf8proc.so.3 libutf8proc.so
                utf8proc.dll].map { |n| File.join(d, n) }
           },
+          # linux platform gems pack the vendored utf8proc flat in lib/
+          # (lib/libutf8proc.so.3) — the vendor-tree layout only exists on
+          # darwin; without the .so spellings the dlopen-first hack never
+          # loads it and libleptris.so dies on its DT_NEEDED
+          # (metanorma-docker alpine smoke, leptris 1.9.411.0)
+          File.expand_path("../../libutf8proc.so.3", __dir__),
+          File.expand_path("../../libutf8proc.so", __dir__),
           File.expand_path("../../libutf8proc.3.dylib", __dir__),
           File.expand_path("../../libutf8proc.so.3", __dir__),
           File.expand_path("../../libutf8proc.so", __dir__),
