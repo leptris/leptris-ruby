@@ -181,9 +181,28 @@ task :compile do
   # 11.0 = the oldest macOS GitHub still hosts runners for;
   # matches extconf.rb.
   ENV["MACOSX_DEPLOYMENT_TARGET"] ||= "11.0" if RUBY_PLATFORM =~ /darwin/
+  # Linux: the vendored libutf8proc sits BESIDE libleptris in the gem's
+  # lib/ — resolve it by $ORIGIN, not by the build prefix's absolute
+  # RUNPATH and not by the ffi pre-load trick. The trick works on glibc
+  # and dyld (both reuse an already-loaded SONAME/install-name when
+  # resolving a later NEEDED entry) but NOT on musl, whose dependency
+  # search consults the filesystem paths only — the tebako musl smoke
+  # (packed-metanorma) failed exactly there: libleptris loaded, its
+  # libutf8proc.so.3 unfound. $ORIGIN is honored by glibc, musl, and
+  # any ELF loader; `-z origin` sets DF_ORIGIN for the loaders that
+  # gate on it. The `\$` survives Rake's `sh` (a shell).
+  # macOS keeps @rpath + the ffi pre-load (working, and $ORIGIN is not
+  # the macOS spelling); Windows has no rpath at all.
+  origin_rpath =
+    if RUBY_PLATFORM =~ /linux/
+      "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,origin -Wl,-rpath,\\$ORIGIN"
+    else
+      ""
+    end
   cmake_base =
     "#{CMAKE_FLAGS.join(' ').sub('-DLEPTRIS_ENABLE_UTF8PROC=OFF', '-DLEPTRIS_ENABLE_UTF8PROC=ON')} " \
-    "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"}"
+    "-DCMAKE_PREFIX_PATH=#{u8_prefix} #{cflags.empty? ? '' : "-DCMAKE_C_FLAGS=#{cflags}"} " \
+    "#{origin_rpath}".strip
 
   # Two-stage PGO (engine CMake: LEPTRIS_ENABLE_PGO GENERATE/USE;
   # measured ~20% CPU on the DOM parse path, v1.9.188 worktree A/B,
