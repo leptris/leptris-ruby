@@ -183,6 +183,7 @@ static VALUE c_sax_parser;
  * C address and the caches in plain ivars, so the hot C faces skip
  * rb_funcall dispatch entirely. */
 static ID id_iv_c_address, id_iv_native_cache, id_iv_binding_cache;
+static ID id_iv_token_cache;
 static ID id_iv_version, id_iv_readonly, id_address;
 static ID id_iv_nn_content, id_iv_nn_content_ver;
 static ID id_iv_nn_attrs, id_iv_nn_attrs_ver;
@@ -862,6 +863,85 @@ static VALUE native_cache_of(VALUE document)
         rb_ivar_set(document, id_iv_native_cache, cache);
     }
     return cache;
+}
+
+/* #603 ask 2: the token lane. A SECOND address-keyed cache on the
+ * document holding frozen [addr, kind] pairs — identity views with
+ * no NativeNode TypedData, no klass injection, no wrapper
+ * lifecycle. Tokens key on the same raw addr Integers the native
+ * cache uses, so a token and a native for one address are two
+ * views of one identity (equality by address); a consumer holds
+ * tokens across calls and resolves reads through the address-keyed
+ * faces. Lifecycle matches native_cache: the hash lives on the
+ * document and dies with it. */
+static VALUE token_cache_of(VALUE document)
+{
+    VALUE cache = rb_ivar_get(document, id_iv_token_cache);
+    if (NIL_P(cache)) {
+        cache = rb_hash_new();
+        rb_ivar_set(document, id_iv_token_cache, cache);
+    }
+    return cache;
+}
+
+static VALUE token_for(VALUE cache, uint64_t addr, int kind)
+{
+    VALUE key = ULL2NUM(addr);
+    VALUE tok = rb_hash_aref(cache, key);
+    if (NIL_P(tok)) {
+        tok = rb_ary_new3(2, key, INT2NUM(kind));
+        rb_obj_freeze(tok);
+        rb_hash_aset(cache, key, tok);
+    }
+    return tok;
+}
+
+/* The walk_addresses walk minus the names column — same preorder,
+ * same kind classification, no name materialization. */
+static void tokens_walk_impl(void *node, VALUE addrs, VALUE kinds)
+{
+    int kind = f_node_type(node);
+    void *c;
+
+    if (kind == WS_NODE_ELEMENT) {
+        rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
+        rb_ary_push(kinds, INT2NUM(kind));
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            tokens_walk_impl(c, addrs, kinds);
+        }
+    } else if (kind == WS_NODE_TEXT || kind == WS_NODE_COMMENT ||
+               kind == WS_NODE_CDATA || kind == WS_NODE_PI) {
+        rb_ary_push(addrs, ULL2NUM((uint64_t)(uintptr_t)node));
+        rb_ary_push(kinds, INT2NUM(kind));
+    } else if (kind == WS_NODE_DOCTYPE || kind == 9 /* DOCUMENT */) {
+        for (c = f_first_child(node); c; c = f_next_sibling(c)) {
+            tokens_walk_impl(c, addrs, kinds);
+        }
+    }
+}
+
+/* ONE C-side walk returning [addrs, kinds, tokens]: the token-lane
+ * entry for the moxml consumer — no per-parent children_addrs
+ * crossing, no TypedData mint, identity held across calls through
+ * the token cache. */
+static VALUE nf_children_tokens(VALUE self, VALUE root)
+{
+    struct native_node *n;
+    VALUE addrs, kinds, tokens, cache;
+    long i;
+    (void)self;
+    TypedData_Get_Struct(root, struct native_node, &nn_type, n);
+    addrs = rb_ary_new();
+    kinds = rb_ary_new();
+    tokens_walk_impl(n->ptr, addrs, kinds);
+    tokens = rb_ary_new();
+    cache = token_cache_of(n->document);
+    for (i = 0; i < RARRAY_LEN(addrs); i++) {
+        uint64_t addr = NUM2ULL(rb_ary_entry(addrs, i));
+        int kind = NUM2INT(rb_ary_entry(kinds, i));
+        rb_ary_push(tokens, token_for(cache, addr, kind));
+    }
+    return rb_ary_new3(3, addrs, kinds, tokens);
 }
 
 static VALUE binding_cache_of(VALUE document)
@@ -4156,6 +4236,7 @@ static void leptris_native_setup(void)
     id_iv_element = rb_intern("@element");
     id_iv_c_address = rb_intern("@c_address");
     id_iv_native_cache = rb_intern("@native_cache");
+    id_iv_token_cache = rb_intern("@token_cache");
     id_iv_binding_cache = rb_intern("@wrapper_cache");
     id_iv_c_address = rb_intern("@c_address");
     id_iv_document = rb_intern("@document");
@@ -4323,6 +4404,8 @@ static void leptris_native_setup(void)
                               nf_snapshot_rows, 2);
     rb_define_module_function(m_native, "walk_columnar",
                               nf_walk_columnar, 1);
+    rb_define_module_function(m_native, "children_tokens",
+                        nf_children_tokens, 1);
     rb_define_module_function(m_native, "walk_addresses",
                               nf_walk_addresses, 1);
     rb_define_module_function(m_native, "children_addrs",
