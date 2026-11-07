@@ -190,12 +190,18 @@ task :compile do
   # (packed-metanorma) failed exactly there: libleptris loaded, its
   # libutf8proc.so.3 unfound. $ORIGIN is honored by glibc, musl, and
   # any ELF loader; `-z origin` sets DF_ORIGIN for the loaders that
-  # gate on it. The `\$` survives Rake's `sh` (a shell).
+  # gate on it.
+  #
+  # The value carries a SPACE, so it single-quotes (the pgo path's own
+  # precedent below) — unquoted, Rake's `sh` shell-splits it and the
+  # rpath flag silently never reaches cmake (the 1.9.412.3 binaries
+  # shipped without $ORIGIN for exactly this). Inside the quotes
+  # $ORIGIN is literal — no backslash escape.
   # macOS keeps @rpath + the ffi pre-load (working, and $ORIGIN is not
   # the macOS spelling); Windows has no rpath at all.
   origin_rpath =
     if RUBY_PLATFORM =~ /linux/
-      "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,origin -Wl,-rpath,\\$ORIGIN"
+      "-DCMAKE_SHARED_LINKER_FLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN'"
     else
       ""
     end
