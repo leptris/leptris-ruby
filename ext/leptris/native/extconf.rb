@@ -69,13 +69,25 @@ if !prebuilt && File.directory?(File.join(vendored, "libleptris")) &&
     eng_src = File.join(vendored, "libleptris")
     eng_bld = File.join(vendored, "libleptris-build")
     FileUtils.mkpath(eng_bld)
+    # Linux: resolve the vendored libutf8proc by $ORIGIN (it installs
+    # BESIDE libleptris in the gem's lib/). glibc/dyld forgive the
+    # missing rpath through their soname/install-name reuse of the ffi
+    # pre-load; musl does not (its dependency search reads filesystem
+    # paths only). Array spawn: no shell, `$ORIGIN` passes literally.
+    origin_flags =
+      if RUBY_PLATFORM =~ /linux/
+        ["-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,origin -Wl,-rpath,$ORIGIN"]
+      else
+        []
+      end
     sh_ok.call("cmake", "-B", eng_bld, "-S", eng_src,
                "-DCMAKE_BUILD_TYPE=Release",
                "-DLEPTRIS_BUILD_SHARED=ON", "-DLEPTRIS_BUILD_STATIC=OFF",
                "-DBUILD_TESTING=OFF", "-DLEPTRIS_BUILD_CLI=OFF",
                "-DLEPTRIS_BUILD_BENCHMARKS=OFF", "-DLEPTRIS_BUILD_MAN_PAGES=OFF",
                "-DLEPTRIS_ENABLE_UTF8PROC=ON",
-               "-DCMAKE_PREFIX_PATH=#{u8_pre}")
+               "-DCMAKE_PREFIX_PATH=#{u8_pre}",
+               *origin_flags)
     sh_ok.call("cmake", "--build", eng_bld, "--config", "Release",
                ENV.fetch("MAKEFLAGS", "-j4").split.first || "-j4")
     built = Dir.glob(File.join(eng_bld, "**", "libleptris.{so,dylib,dll}")).first
