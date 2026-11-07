@@ -193,9 +193,15 @@ task :compile do
   # gate on it. The `\$` survives Rake's `sh` (a shell).
   # macOS keeps @rpath + the ffi pre-load (working, and $ORIGIN is not
   # the macOS spelling); Windows has no rpath at all.
+  # The whole -D value must be ONE shell word: cmake_base runs through
+  # Rake's `sh` (bash), and an unquoted space splits it — cmake then
+  # sees SHARED_LINKER_FLAGS="-Wl,-z,origin" (rpath lost as a stray
+  # positional; the 1.9.412.3 gems shipped without the $ORIGIN RUNPATH
+  # for exactly this reason). The embedded double quotes survive bash;
+  # the backslash keeps $ORIGIN literal through the same shell.
   origin_rpath =
     if RUBY_PLATFORM =~ /linux/
-      "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,origin -Wl,-rpath,\\$ORIGIN"
+      '"-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,origin -Wl,-rpath,\\$ORIGIN"'
     else
       ""
     end
