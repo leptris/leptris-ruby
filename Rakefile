@@ -107,9 +107,21 @@ task :compile do
   u8_prefix = File.join(u8_dir, "prefix")
   rm_rf(u8_dir)
   mkdir_p(u8_dir)
-  fetch_tarball.call(
-    "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz",
-    u8_dir)
+  # The releases/download asset URL is a CDN edge path — a stale 504
+  # there poisons EVERY CI lane at once (2026-11-08: all 19 lanes died
+  # on it while the rest of GitHub stayed healthy). The codeload
+  # archive of the same tag serves identical bytes from a different
+  # path: try the asset first, fall back when it exhausts its retries.
+  begin
+    fetch_tarball.call(
+      "https://github.com/JuliaStrings/utf8proc/releases/download/v#{UTF8PROC_VERSION}/utf8proc-#{UTF8PROC_VERSION}.tar.gz",
+      u8_dir)
+  rescue StandardError
+    warn "releases/download URL failed — falling back to codeload"
+    fetch_tarball.call(
+      "https://codeload.github.com/JuliaStrings/utf8proc/tar.gz/refs/tags/v#{UTF8PROC_VERSION}",
+      u8_dir)
+  end
   sh "cmake -B #{u8_dir}/build -S #{u8_dir} -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DUTF8PROC_ENABLE_TESTING=OFF"
   sh "cmake --build #{u8_dir}/build --config Release -j 4"
   sh "cmake --install #{u8_dir}/build --prefix #{u8_prefix}"
