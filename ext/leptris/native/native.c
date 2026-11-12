@@ -1681,6 +1681,42 @@ static VALUE nn_set_root(VALUE klass, VALUE document, VALUE element)
     return element;
 }
 
+/* TODO.perf/39(a) (leptris-ruby#622 ask 1): hot readers
+ * parameterized by subclass. Consumers whose wrapper classes SUBCLASS
+ * NativeNode (klass injection, #340) shadow these C methods with
+ * included Ruby modules — every shadowed read pays an
+ * UnboundMethod#bind_call frame (~the whole difference between the
+ * facade's ~331ns reads and the binding's ~160ns seam). This entry
+ * defines the SAME C functions (same bodies, same walk-memos, same
+ * TypedData type) DIRECTLY on the consumer's subclass, so lookup
+ * answers in C with no module shadow in the chain.
+ *
+ * The consumer decides which classes get the hot surface: a
+ * per-document klass map (#340) can route entity-bearing documents
+ * to contract classes and clean documents to hot classes, keeping
+ * any Ruby-side value post-processing exactly where it is still
+ * needed.
+ *
+ * Re-defining a method that already exists on the class replaces it
+ * (Ruby semantics); calling twice is harmless. The class must be the
+ * consumer's NativeNode subclass or NativeNode itself — a non-
+ * TypedData class would crash on first read, so the type is checked
+ * here against the registry. */
+static VALUE nf_define_hot_readers(VALUE self, VALUE klass)
+{
+    (void)self;
+    if (!RB_TYPE_P(klass, T_CLASS))
+        rb_raise(rb_eTypeError, "expected a class");
+    if (klass != c_native_node &&
+        rb_class_inherited_p(klass, c_native_node) != Qtrue)
+        rb_raise(rb_eTypeError,
+                 "the class must subclass Leptris::XML::NativeNode");
+    rb_define_method(klass, "name", nn_name, 0);
+    rb_define_method(klass, "content", nn_content, 0);
+    rb_define_method(klass, "attribute", nn_attribute, 1);
+    return Qtrue;
+}
+
 /* NativeNode surface completion (TODO.perf/05): bulk attribute
  * hash (name => value, one C walk, no per-attr Ruby frames) and
  * the position readers. */
@@ -4350,6 +4386,8 @@ static void leptris_native_setup(void)
                               nf_append_binding_child, 3);
     rb_define_module_function(m_native, "set_binding_attribute",
                               nf_set_binding_attribute, 4);
+    rb_define_module_function(m_native, "define_hot_readers",
+                              nf_define_hot_readers, 1);
     rb_define_module_function(m_native, "insert_binding_child",
                               nf_insert_binding_child, 4);
     rb_define_module_function(m_native, "at_xpath_first",
