@@ -235,6 +235,12 @@ struct native_node {
      * memo) — treat it as read-only, like an interned String. */
     VALUE name_val, name_ver;
     VALUE children_val, children_ver;
+    /* Shape (b) hydration (leptris-ruby#631): the flat attribute
+     * pairs array in exactly nf_attribute_pairs' shape, filled by
+     * the subtree prime — the walk+read lane's attribute reads
+     * answer from the crossing instead of a per-element pairs
+     * crossing. Version-stamped like the other memos. */
+    VALUE attrs_val, attrs_ver;
 };
 
 static VALUE columnar_node_for(VALUE document, VALUE owner_klass,
@@ -258,6 +264,8 @@ static void nn_mark(void *p)
         rb_gc_mark(n->name_val);
     if (n->children_val != Qnil)
         rb_gc_mark(n->children_val);
+    if (n->attrs_val != Qnil)
+        rb_gc_mark(n->attrs_val);
 }
 
 static size_t nn_size(const void *p) { (void)p; return sizeof(struct native_node); }
@@ -2724,8 +2732,25 @@ static void walk_rows_impl(void *node, int depth, VALUE out)
 static VALUE nf_attribute_pairs(VALUE self, VALUE document, VALUE addr)
 {
     (void)self;
-    (void)document;
     void *node = (void *)(uintptr_t)NUM2ULL(addr);
+    /* Shape (b) cache-first (leptris-ruby#631): the subtree prime
+     * hydrates the flat pairs array per element — when the
+     * address-keyed wrapper exists and its memo matches the
+     * document version, the answer IS the memo (zero crossings,
+     * the same object identity on repeat reads). */
+    if (document != Qnil) {
+        VALUE key = ULL2NUM((uint64_t)(uintptr_t)node);
+        VALUE w = rb_hash_aref(native_cache_of(document), key);
+        if (!NIL_P(w) &&
+            rb_typeddata_is_kind_of(w, &nn_type)) {
+            struct native_node *cn;
+            TypedData_Get_Struct(w, struct native_node, &nn_type, cn);
+            if (cn->document != Qnil && cn->attrs_val != Qnil &&
+                cn->attrs_ver ==
+                    rb_ivar_get(cn->document, id_iv_version))
+                return cn->attrs_val;
+        }
+    }
     VALUE out = rb_ary_new();
     if (f_node_type(node) != WS_NODE_ELEMENT) return out;
 
@@ -2748,6 +2773,22 @@ static VALUE nf_attribute_pairs(VALUE self, VALUE document, VALUE addr)
     }
     xfree(names);
     xfree(values);
+    /* Shape (b) write-back: when the address-keyed wrapper exists,
+     * the captured array lands in its memo — the next read (or any
+     * consumer reading the same address again) answers from it
+     * until the version moves. */
+    if (document != Qnil && out != Qnil) {
+        VALUE key = ULL2NUM((uint64_t)(uintptr_t)node);
+        VALUE w = rb_hash_aref(native_cache_of(document), key);
+        if (!NIL_P(w) && rb_typeddata_is_kind_of(w, &nn_type)) {
+            struct native_node *cn;
+            TypedData_Get_Struct(w, struct native_node, &nn_type, cn);
+            if (cn->document != Qnil)
+                rb_ivar_get(cn->document, id_iv_version);
+            cn->attrs_val = out;
+            cn->attrs_ver = rb_ivar_get(cn->document, id_iv_version);
+        }
+    }
     return out;
 }
 
@@ -2865,6 +2906,33 @@ static VALUE nn_prime_children_of(VALUE document, VALUE owner_klass,
                                                       rb_utf8_encoding())
                                 : Qnil;
             nn->name_ver = ver;
+            /* Shape (b) hydration (leptris-ruby#631): the attr
+             * packet rides the SAME crossing — the pairs face's
+             * exact output shape, served cache-first by the face
+             * afterwards. Zero attributes leaves the memo nil (the
+             * face's empty answer is cheap to recompute). */
+            size_t total = f_attr_pairs(c, NULL, NULL, NULL, 0);
+            if (total > 0) {
+                const char **anames = ALLOC_N(const char *, total);
+                const char **avalues = ALLOC_N(const char *, total);
+                size_t n2 = f_attr_pairs(c, anames, avalues, NULL, total);
+                VALUE flat = rb_ary_new_capa(2 * n2);
+                for (size_t i = 0; i < n2; i++) {
+                    rb_ary_push(flat, anames[i]
+                                          ? rb_enc_interned_str(
+                                                anames[i],
+                                                strlen(anames[i]),
+                                                rb_utf8_encoding())
+                                          : Qnil);
+                    rb_ary_push(flat, avalues[i]
+                                          ? rb_utf8_str_new_cstr(avalues[i])
+                                          : Qnil);
+                }
+                xfree(anames);
+                xfree(avalues);
+                nn->attrs_val = flat;
+                nn->attrs_ver = ver;
+            }
             nn->children_val = nn_prime_children_of(document, owner_klass,
                                                     c, ver);
             nn->children_ver = ver;
@@ -2872,12 +2940,29 @@ static VALUE nn_prime_children_of(VALUE document, VALUE owner_klass,
             /* leaf kinds: memo the name exactly as nn_name computes
              * it (f_elem_name answers "" for nameless kinds); their
              * (empty) children keep the fetch path, which
-             * memo-stores the same way. */
+             * memo-stores the same way. Shape (b): the leaf's
+             * CONTENT hydrates on the same crossing — nn_content's
+             * memo serves it afterwards with zero crossings. nil
+             * content stays uncached (nn_content's nil discipline). */
             const char *name = f_elem_name(c);
             nn->name_val = name ? rb_enc_interned_str(name, strlen(name),
                                                       rb_utf8_encoding())
                                 : Qnil;
             nn->name_ver = ver;
+            {
+                const char *cs = NULL;
+                switch (kind) {
+                case WS_NODE_TEXT:    cs = f_text_content(c);    break;
+                case WS_NODE_COMMENT: cs = f_comment_content(c); break;
+                case WS_NODE_CDATA:   cs = f_cdata_content(c);   break;
+                case WS_NODE_PI:      cs = f_pi_data(c);         break;
+                default:              cs = NULL;                 break;
+                }
+                if (cs) {
+                    nn->content_val = rb_utf8_str_new_cstr(cs);
+                    nn->content_ver = ver;
+                }
+            }
         }
         rb_ary_push(out, wrapper);
     }
