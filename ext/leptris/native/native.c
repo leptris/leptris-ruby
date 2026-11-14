@@ -211,6 +211,7 @@ static ID id_bulk_rows_mark;
 static ID id_ptr_new, id_freed_new, id_alive;
 static ID id_iv_c_address, id_iv_document, id_iv_parent;
 static ID id_iv_mx_context, id_iv_mx_adapter, id_iv_mx_native;
+static ID id_cs_factory, id_af_factory;
 static ID id_iv_structure_memoizable, id_iv_native_fast;
 static ID id_iv_pub_document, id_iv_addr_reads_fast, id_iv_node_type;
 static void check_status_c(int st);
@@ -1710,6 +1711,57 @@ static VALUE nn_set_root(VALUE klass, VALUE document, VALUE element)
  * consumer's NativeNode subclass or NativeNode itself — a non-
  * TypedData class would crash on first read, so the type is checked
  * here against the registry. */
+/* ---- moxml-native consumer-contract binding (lutaml/moxml#548,
+ * leptris-ruby#634) ----------------------------------------------
+ * The factory-parameterized contract: the consumer registers its
+ * shape factories ONCE per klass, and the binding defines the
+ * contract's hot methods IN C — children serving the #530 memo'd
+ * list wrapped by the consumer's set factory (the contract-required
+ * object constructed without the Ruby dispatch chain), attribute
+ * serving the engine's decode-authoritative getter wrapped by the
+ * attribute factory. The context rides the primed @mx_context ivar
+ * (the wrap path writes it); unprimed instances pass nil. */
+static VALUE cc_children(VALUE self)
+{
+    VALUE list = nn_children(self);
+    VALUE factory =
+        rb_attr_get(rb_obj_class(self), id_cs_factory);
+    VALUE context = rb_ivar_get(self, id_iv_mx_context);
+    if (NIL_P(factory)) return list;
+    return rb_funcall(factory, rb_intern("new"), 2, list, context);
+}
+
+static VALUE cc_attribute(VALUE self, VALUE name)
+{
+    struct native_node *n;
+    TypedData_Get_Struct(self, struct native_node, &nn_type, n);
+    VALUE factory = rb_attr_get(rb_obj_class(self), id_af_factory);
+    if (NIL_P(factory)) return Qnil;
+    const char *v = f_attr(n->ptr, StringValueCStr(name));
+    if (!v) return Qnil;
+    return rb_funcall(factory, rb_intern("new"), 3,
+                      rb_utf8_str_new_cstr(StringValueCStr(name)),
+                      rb_utf8_str_new_cstr(v), self);
+}
+
+static VALUE nf_bind_consumer_contract(VALUE self, VALUE klass,
+                                       VALUE set_factory,
+                                       VALUE attr_factory)
+{
+    (void)self;
+    if (!RB_TYPE_P(klass, T_CLASS))
+        rb_raise(rb_eTypeError, "expected a class");
+    if (klass != c_native_node &&
+        rb_class_inherited_p(klass, c_native_node) != Qtrue)
+        rb_raise(rb_eTypeError,
+                 "the class must subclass Leptris::XML::NativeNode");
+    rb_ivar_set(klass, id_cs_factory, set_factory);
+    rb_ivar_set(klass, id_af_factory, attr_factory);
+    rb_define_method(klass, "children", cc_children, 0);
+    rb_define_method(klass, "attribute", cc_attribute, 1);
+    return Qtrue;
+}
+
 static VALUE nf_define_hot_readers(VALUE self, VALUE klass)
 {
     (void)self;
@@ -4362,6 +4414,8 @@ static void leptris_native_setup(void)
     id_iv_c_address = rb_intern("@c_address");
     id_iv_document = rb_intern("@document");
     id_iv_mx_context = rb_intern("@context");
+    id_cs_factory = rb_intern("@cs_factory");
+    id_af_factory = rb_intern("@af_factory");
     id_iv_mx_native = rb_intern("@native");
     id_iv_mx_adapter = rb_intern("@adapter");
     id_bulk_rows_mark = rb_intern("BulkIdentityRows");
@@ -4473,6 +4527,8 @@ static void leptris_native_setup(void)
                               nf_set_binding_attribute, 4);
     rb_define_module_function(m_native, "define_hot_readers",
                               nf_define_hot_readers, 1);
+    rb_define_module_function(m_native, "bind_consumer_contract",
+                              nf_bind_consumer_contract, 3);
     rb_define_module_function(m_native, "insert_binding_child",
                               nf_insert_binding_child, 4);
     rb_define_module_function(m_native, "at_xpath_first",
