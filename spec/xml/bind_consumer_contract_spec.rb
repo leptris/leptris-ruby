@@ -35,12 +35,13 @@ RSpec.describe "Native.bind_consumer_contract",
 
   let(:attr_factory) do
     Class.new do
-      attr_reader :name, :value, :owner
+      attr_reader :name, :value, :owner, :ns_uri
 
-      def initialize(name, value, owner = nil)
+      def initialize(name, value, owner = nil, ns_uri = nil)
         @name = name
         @value = value
         @owner = owner
+        @ns_uri = ns_uri
       end
     end
   end
@@ -81,9 +82,11 @@ RSpec.describe "Native.bind_consumer_contract",
     expect(a).to be_instance_of(attr_factory)
     expect(a.name).to eq("a")
     expect(a.value).to eq("1")
+    expect(a.ns_uri).to eq(nil).or(eq(""))
 
     px = root.attribute("p:x")
     expect(px.value).to eq("2")
+    expect(px.ns_uri).to eq("urn:p")
 
     expect(root.attribute("missing")).to be_nil
   end

@@ -83,6 +83,7 @@ static attr_first_fn f_attr_first;
 static attr_next_fn f_attr_next;
 static attr_name_fn f_attr_name;
 static attr_value_fn f_attr_value;
+static const char *(*e_attr_ns_uri)(void *);
 static attr_pairs_fn f_attr_pairs;
 static node_line_fn f_node_line;
 static node_offset_fn f_node_offset;
@@ -323,6 +324,7 @@ static void resolve_symbols(const char *lib_path)
     f_attr_next = (attr_next_fn)lib_sym(h, "leptris_attribute_next");
     f_attr_name = (attr_name_fn)lib_sym(h, "leptris_attribute_get_name");
     f_attr_value = (attr_value_fn)lib_sym(h, "leptris_attribute_get_value");
+    e_attr_ns_uri = (const char *(*)(void *))lib_sym(h, "leptris_attribute_namespace_uri");
     f_attr_pairs = (attr_pairs_fn)lib_sym(h, "leptris_element_attribute_pairs");
     f_node_line = (node_line_fn)lib_sym(h, "leptris_node_line");
     f_node_offset = (node_offset_fn)lib_sym(h, "leptris_node_byte_offset");
@@ -1737,11 +1739,22 @@ static VALUE cc_attribute(VALUE self, VALUE name)
     TypedData_Get_Struct(self, struct native_node, &nn_type, n);
     VALUE factory = rb_attr_get(rb_obj_class(self), id_af_factory);
     if (NIL_P(factory)) return Qnil;
-    const char *v = f_attr(n->ptr, StringValueCStr(name));
-    if (!v) return Qnil;
-    return rb_funcall(factory, rb_intern("new"), 3,
-                      rb_utf8_str_new_cstr(StringValueCStr(name)),
-                      rb_utf8_str_new_cstr(v), self);
+    const char *needle = StringValueCStr(name);
+    /* Walk to the ATTRIBUTE pointer: the value comes from the
+     * decode-authoritative getter and the namespace URI from the
+     * attr-level face - both need the attr pointer, not the node. */
+    for (void *a = f_attr_first(n->ptr); a; a = f_attr_next(a)) {
+        const char *an = f_attr_name(a);
+        if (!an || strcmp(an, needle) != 0) continue;
+        const char *v = f_attr_value(n->ptr, a);
+        if (!v) return Qnil;
+        const char *uri = e_attr_ns_uri ? e_attr_ns_uri(a) : NULL;
+        return rb_funcall(factory, rb_intern("new"), 4,
+                          rb_utf8_str_new_cstr(an),
+                          rb_utf8_str_new_cstr(v), self,
+                          uri ? rb_utf8_str_new_cstr(uri) : Qnil);
+    }
+    return Qnil;
 }
 
 static VALUE nf_bind_consumer_contract(VALUE self, VALUE klass,
