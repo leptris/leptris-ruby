@@ -9,6 +9,15 @@ RSpec::Core::RakeTask.new(:spec)
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
 LIBLEPTRIS_VERSION = "1.9.426"
+
+# THE SSOT for the per-minor native bundle list (ruby#645): one line,
+# space-separated, consumed by the Rakefile, the per-minor builder's
+# callers, and the release workflow's container loops + publication
+# gates (`cat SUPPORTED_MINORS`). A minor joins here and every
+# platform's matrix covers it; it leaves here and every gate stops
+# requiring it. NO OTHER COPY of this list may exist in this repo.
+SUPPORTED_RUBY_MINORS = File.read("SUPPORTED_MINORS").split.freeze
+SUPPORTED_RUBY_MINORS_US = SUPPORTED_RUBY_MINORS.map { |v| v.tr(".", "_") }.freeze
 # Vendored alongside libleptris for fn:normalize-unicode (TODO
 # .restructure/20): built per platform with a RELOCATABLE @rpath
 # install name, loaded by ffi.rb before libleptris so the
