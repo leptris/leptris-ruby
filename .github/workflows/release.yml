@@ -96,17 +96,30 @@ jobs:
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Push bump commit + tag
+      - name: Push the release branch + tag (main is protected — ruby#645 follow-up)
         env:
           NEW_VERSION: ${{ steps.bump.outputs.new-version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          # main is a protected branch and the workflow token cannot
+          # push it (the 1.9.426.1 dispatch died on GH006). The
+          # release now rides its own branch: the tag and every build
+          # leg pin THIS branch's sha, and the version bump reaches
+          # main through the PR opened below (merged in the
+          # post-release pass — future dispatches pass explicit
+          # versions, so main's version.rb lagging is harmless).
+          BRANCH="release/v${NEW_VERSION}"
+          git push origin "+HEAD:refs/heads/${BRANCH}"
           git tag "v${NEW_VERSION}" HEAD
           # A failed release run can leave its tag behind while the
           # gems never published; re-dispatching the same version
           # must not die on it (the publish loop is idempotent).
           git push origin "v${NEW_VERSION}" || \
             echo "::warning::tag v${NEW_VERSION} already exists — continuing"
+          gh pr create --base main --head "${BRANCH}" \
+            --title "Bump leptris to ${NEW_VERSION}" \
+            --body "Post-release version bump (main is protected — the release rides the branch; merge to keep main's version.rb current)." || \
+            echo "::warning::bump PR for ${BRANCH} already exists — continuing"
 
   # Snapshot main's HEAD once — every build leg checks out THIS
   # sha. Without it the slow legs (docker qemu, musl) checkout
