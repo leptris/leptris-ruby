@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- RelaxNG: a `combine="interleave"` define can add an element between
+  the members of a base sequence again (regression in 1.9.428.0, fixed
+  by engine 1.9.429; leptris/leptris#2094). Regression spec with the
+  include-override schema pair from #650.
 - Rebuild the native object under the Ruby that performs final packaging.
   Restoring the job Ruby after the per-minor release loop could reuse the
   last minor's object and overwrite the job minor's bundle with a different
