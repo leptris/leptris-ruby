@@ -144,6 +144,9 @@ jobs:
     needs: [bump, pin]
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
+    # The gnu glibc floor (#2109): the x86_64-linux leg builds inside
+    # a bullseye container - see the matrix note.
+    container: ${{ matrix.container || '' }}
     # Release builds never run the benchmark suite; nokogiri has no
     # aarch64-Windows binary gem and its source build fails there.
     env:
@@ -152,8 +155,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          # leptris-ruby (the glibc floor, #2109): the gnu gems must
+          # not bind the pthread-merge symbols (pthread_once and
+          # friends moved into libc at GLIBC 2.34) — an ubuntu-22.04
+          # host (2.35) built gems that LoadError'd on every
+          # pre-2.34 host at first use. The leg now builds inside a
+          # bullseye container (glibc 2.31): same-symbol binaries
+          # load on 20.04-era hosts and everything newer. The 2.17
+          # rake-compiler-dock floor follows as a validated step.
+          - os: ubuntu-latest
             platform: x86_64-linux
+            container: ruby:3.3-bullseye
           - os: windows-latest
             platform: x64-mingw32
           - os: windows-latest
@@ -175,6 +187,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
+
+      # The glibc-floor container ships no build toolchain (#2109)
+      - name: Install the build toolchain (the gnu floor container)
+        if: matrix.container
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            cmake curl ca-certificates git
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -458,11 +477,13 @@ jobs:
       matrix:
         include:
           - platform: aarch64-linux
-            image: ruby:3.3-bookworm
+            # glibc floor: bullseye 2.31, not bookworm 2.36 (#2109)
+            image: ruby:3.3-bullseye
             qplatform: linux/arm64
             experimental: false
           - platform: arm-linux
-            image: ruby:3.3-bookworm
+            # glibc floor: bullseye 2.31, not bookworm 2.36 (#2109)
+            image: ruby:3.3-bullseye
             qplatform: linux/arm/v7
             experimental: false
           - platform: arm-linux-musl
@@ -471,7 +492,8 @@ jobs:
             experimental: false
           # POWER8+ LE and IBM Z: qemu-built platform gems.
           - platform: ppc64le-linux
-            image: ruby:3.3-bookworm
+            # glibc floor: bullseye 2.31, not bookworm 2.36 (#2109)
+            image: ruby:3.3-bullseye
             qplatform: linux/ppc64le
             experimental: false
           # s390x ships as MUSL: official ruby images dropped s390x
@@ -614,6 +636,18 @@ jobs:
           # binary this job builds is throwaway (the vendored
           # binaries above are the artifacts users load).
           LEPTRIS_PGO=0 bundle exec rake compile
+          # The gnu glibc floor gate (#2109): the packaged gem's
+          # libleptris.so must not bind symbols newer than 2.31 -
+          # the pthread-merge trio (pthread_once etc.) binds 2.34
+          # whenever the build host libc is newer, and the gem then
+          # LoadErrors at first use on every pre-2.34 host.
+          max=$(strings lib/libleptris.so | grep -oE 'GLIBC_2\.[0-9]+' | sort -uV | tail -1)
+          echo "max glibc symbol version: $max"
+          minor=${max#GLIBC_2.}
+          if [ "$minor" -gt 31 ]; then
+            echo "::error::the gnu gem binds $max; the floor is 2.31 (leptris-ruby #2109)"
+            exit 1
+          fi
           rm -rf pkg
           bundle exec rake platform:any gem
 
