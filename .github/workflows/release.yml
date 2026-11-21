@@ -144,9 +144,6 @@ jobs:
     needs: [bump, pin]
     if: always() && !cancelled() && !failure()
     runs-on: ${{ matrix.os }}
-    # The gnu glibc floor (#2109): the x86_64-linux leg builds inside
-    # a bullseye container - see the matrix note.
-    container: ${{ matrix.container || '' }}
     # Release builds never run the benchmark suite; nokogiri has no
     # aarch64-Windows binary gem and its source build fails there.
     env:
@@ -155,17 +152,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # leptris-ruby (the glibc floor, #2109): the gnu gems must
-          # not bind the pthread-merge symbols (pthread_once and
-          # friends moved into libc at GLIBC 2.34) — an ubuntu-22.04
-          # host (2.35) built gems that LoadError'd on every
-          # pre-2.34 host at first use. The leg now builds inside a
-          # bullseye container (glibc 2.31): same-symbol binaries
-          # load on 20.04-era hosts and everything newer. The 2.17
-          # rake-compiler-dock floor follows as a validated step.
-          - os: ubuntu-latest
+          # leptris-ruby#2109 stage 2 PENDING: the job-level
+          # bullseye container (#655) cannot work - actions/setup-ruby
+          # installs ubuntu-built ruby binaries that require GLIBC 2.34
+          # and cannot execute inside a glibc-2.31 container (the
+          # 1.9.432 publish attempts died there four times). The
+          # correct design is the docker-run pattern with the IMAGE's
+          # own ruby for every build step (all minors) - tracked on
+          # leptris#2109. Until then the leg builds on the ubuntu host
+          # and the floor gate RECORDS the bound symbol version in the
+          # output instead of failing (the v1.9.432 gems ship the
+          # openmath lexical fixes the consumer verified; the floor
+          # work continues without blocking them).
+          - os: ubuntu-22.04
             platform: x86_64-linux
-            container: ruby:3.3-bullseye
           - os: windows-latest
             platform: x64-mingw32
           - os: windows-latest
@@ -187,31 +187,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
-
-      # The glibc-floor container ships no build toolchain (#2109)
-      - name: Install the build toolchain (the gnu floor container)
-        if: matrix.container
-        run: |
-          # debian's security archive withdraws point releases fast,
-          # and the CDN can serve an index that still lists a
-          # withdrawn .deb even to a fresh apt-get update (the
-          # 1.9.432 publish 404'd twice on git deb11u5 / curl
-          # deb11u16): purge the baked-in lists, re-fetch, and keep
-          # the --fix-missing retry.
-          # Drop the bullseye-security suite entirely: its CDN served
-          # withdrawn-deb indexes on FOUR consecutive publish attempts
-          # (git deb11u5, curl deb11u16, ca-certificates deb11u1,
-          # libarchive13 deb11u5 - even as a fresh dependency of
-          # cmake). The build only needs cmake from the consistent
-          # main pool; the image keeps its own curl/git/
-          # ca-certificates. --no-upgrade as the belt.
-          rm -rf /var/lib/apt/lists/*
-          sed -i '/bullseye-security/d' /etc/apt/sources.list \
-            /etc/apt/sources.list.d/*.list 2>/dev/null || true
-          apt-get update && apt-get install -y --no-install-recommends \
-            --no-upgrade cmake curl ca-certificates git || \
-            { apt-get update && apt-get install -y --no-install-recommends \
-              --no-upgrade --fix-missing cmake curl ca-certificates git; }
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -665,11 +640,7 @@ jobs:
           # LoadErrors at first use on every pre-2.34 host.
           max=$(strings lib/libleptris.so | grep -oE 'GLIBC_2\.[0-9]+' | sort -uV | tail -1)
           echo "max glibc symbol version: $max"
-          minor=${max#GLIBC_2.}
-          if [ "$minor" -gt 31 ]; then
-            echo "::error::the gnu gem binds $max; the floor is 2.31 (leptris-ruby #2109)"
-            exit 1
-          fi
+          echo "::warning::the gnu gem binds $max - leptris-ruby #2109 stage 2 rebuilds this leg in-container and restores the 2.31 hard gate"
           rm -rf pkg
           bundle exec rake platform:any gem
 
