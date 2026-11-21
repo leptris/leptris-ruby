@@ -192,8 +192,13 @@ jobs:
       - name: Install the build toolchain (the gnu floor container)
         if: matrix.container
         run: |
+          # debian's security archive withdraws point releases fast:
+          # a fresh index can still 404 on a just-superseded .deb -
+          # one --fix-missing retry re-resolves to the current revs
           apt-get update && apt-get install -y --no-install-recommends \
-            cmake curl ca-certificates git
+            cmake curl ca-certificates git || \
+            { apt-get update && apt-get install -y --no-install-recommends \
+              --fix-missing cmake curl ca-certificates git; }
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -537,7 +542,7 @@ jobs:
                 set -eux
                 case "'"ruby:${minor}-${family}"'" in
                   *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) apt-get update -qq && apt-get install -y -qq build-essential bash git ;;
+                  *) apt-get update -qq && { apt-get install -y -qq build-essential bash git || apt-get install -y -qq --fix-missing build-essential bash git; } ;;
                 esac
                 git config --global --add safe.directory /work
                 ruby ext/build_native_per_minor.rb
@@ -563,7 +568,9 @@ jobs:
                   ;;
                 *)
                   apt-get update -qq
-                  apt-get install -y -qq build-essential cmake bash git curl
+                  apt-get install -y -qq build-essential cmake bash git curl || \
+                  { apt-get update -qq && apt-get install -y -qq --fix-missing \
+                    build-essential cmake bash git curl; }
                   ;;
               esac
               git config --global --add safe.directory /work
