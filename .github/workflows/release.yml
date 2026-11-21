@@ -198,12 +198,16 @@ jobs:
           # 1.9.432 publish 404'd twice on git deb11u5 / curl
           # deb11u16): purge the baked-in lists, re-fetch, and keep
           # the --fix-missing retry.
-          # --no-upgrade: the image's curl/git/ca-certificates stay
-          # as built - the security pool's CDN served withdrawn-deb
-          # indexes on three consecutive runs (deb11u5/deb11u16), and
-          # no amount of list purging or retrying survives that.
-          # cmake installs from the consistent main pool.
+          # Drop the bullseye-security suite entirely: its CDN served
+          # withdrawn-deb indexes on FOUR consecutive publish attempts
+          # (git deb11u5, curl deb11u16, ca-certificates deb11u1,
+          # libarchive13 deb11u5 - even as a fresh dependency of
+          # cmake). The build only needs cmake from the consistent
+          # main pool; the image keeps its own curl/git/
+          # ca-certificates. --no-upgrade as the belt.
           rm -rf /var/lib/apt/lists/*
+          sed -i '/bullseye-security/d' /etc/apt/sources.list \
+            /etc/apt/sources.list.d/*.list 2>/dev/null || true
           apt-get update && apt-get install -y --no-install-recommends \
             --no-upgrade cmake curl ca-certificates git || \
             { apt-get update && apt-get install -y --no-install-recommends \
@@ -551,7 +555,7 @@ jobs:
                 set -eux
                 case "'"ruby:${minor}-${family}"'" in
                   *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) rm -rf /var/lib/apt/lists/* && apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
+                  *) rm -rf /var/lib/apt/lists/* && sed -i '/bullseye-security/d' /etc/apt/sources.list 2>/dev/null || true; apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
                 esac
                 git config --global --add safe.directory /work
                 ruby ext/build_native_per_minor.rb
@@ -576,7 +580,9 @@ jobs:
                   apk add --no-cache build-base bash curl git cmake make linux-headers
                   ;;
                 *)
-                  rm -rf /var/lib/apt/lists/* && apt-get update -qq
+                  rm -rf /var/lib/apt/lists/* \
+                    && sed -i '/bullseye-security/d' /etc/apt/sources.list 2>/dev/null || true
+                  apt-get update -qq
                   apt-get install -y -qq --no-upgrade build-essential cmake bash git curl || \
                   { apt-get update -qq && apt-get install -y -qq --no-upgrade --fix-missing \
                     build-essential cmake bash git curl; }
