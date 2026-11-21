@@ -485,8 +485,11 @@ jobs:
             experimental: false
           # POWER8+ LE and IBM Z: qemu-built platform gems.
           - platform: ppc64le-linux
-            # glibc floor: bullseye 2.31, not bookworm 2.36 (#2109)
-            image: ruby:3.3-bullseye
+            # bullseye's docker-library manifest lacks ppc64le (the
+            # 1.9.432 publish died on "no matching manifest") - this
+            # leg stays on bookworm (2.36) under the recorded-floor
+            # gate; the hard-floor redesign is leptris#2109 stage 2.
+            image: ruby:3.3-bookworm
             qplatform: linux/ppc64le
             experimental: false
           # s390x ships as MUSL: official ruby images dropped s390x
@@ -530,7 +533,7 @@ jobs:
                 set -eux
                 case "'"ruby:${minor}-${family}"'" in
                   *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) rm -rf /var/lib/apt/lists/* && sed -i '/bullseye-security/d' /etc/apt/sources.list 2>/dev/null || true; apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
+                  *) rm -rf /var/lib/apt/lists/* && sed -i "/bullseye-security/d" /etc/apt/sources.list 2>/dev/null || true; apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
                 esac
                 git config --global --add safe.directory /work
                 ruby ext/build_native_per_minor.rb
@@ -556,7 +559,7 @@ jobs:
                   ;;
                 *)
                   rm -rf /var/lib/apt/lists/* \
-                    && sed -i '/bullseye-security/d' /etc/apt/sources.list 2>/dev/null || true
+                    && sed -i "/bullseye-security/d" /etc/apt/sources.list 2>/dev/null || true
                   # bullseye's cmake is 3.18 - the engine requires 3.20
                   # (CMakeLists.txt:3). Backports carries 3.22.
                   echo "deb http://deb.debian.org/debian bullseye-backports main" \
