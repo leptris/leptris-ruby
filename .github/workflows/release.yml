@@ -521,29 +521,114 @@ jobs:
             *alpine*) family=alpine ;;
             *)        family=bookworm ;;
           esac
+          mkdir -p .ci-rel
+          # The container script is a FILE, not a sh -c string. The
+          # inline form died twice on quoting classes: one apostrophe
+          # in a comment closed the outer single quote and the rest
+          # of the script leaked onto the runner command line, where
+          # "cmake" became sh's $0 and the truncated case hit EOF
+          # (the 1.9.432.1 trains). A quoted heredoc expands nothing.
           # ruby#645: the minor list is SUPPORTED_MINORS (the repo
           # SSOT) — never a literal here.
+          cat > .ci-rel/per_minor.sh <<'EOF'
+          set -eux
+          case "${CI_IMAGE}" in
+            *alpine*)
+              apk add --no-cache build-base bash git make cmake curl linux-headers
+              ;;
+            *)
+              rm -rf /var/lib/apt/lists/* \
+                && sed -i "/bullseye-security/d" /etc/apt/sources.list 2>/dev/null || true
+              apt-get -o Acquire::Check-Valid-Until=false update -qq \
+                || apt-get -o Acquire::Check-Valid-Until=false --fix-missing update -qq
+              apt-get install -y -qq --no-upgrade build-essential bash git cmake \
+                || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git cmake
+              cmake --version | head -1
+              ;;
+          esac
+          git config --global --add safe.directory /work
+          ruby ext/build_native_per_minor.rb
+          EOF
           for minor in $(cat SUPPORTED_MINORS); do
             docker run --rm \
               --platform '${{ matrix.qplatform }}' \
               -v "$PWD:/work" \
               -w /work \
               -e LEPTRIS_PGO=0 \
-              "ruby:${minor}-${family}" sh -c '
-                set -eux
-                case "'"ruby:${minor}-${family}"'" in
-                  *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) rm -rf /var/lib/apt/lists/* && sed -i "/bullseye-security/d" /etc/apt/sources.list 2>/dev/null || true; apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
-                esac
-                git config --global --add safe.directory /work
-                ruby ext/build_native_per_minor.rb
-              '
+              -e CI_IMAGE="ruby:${minor}-${family}" \
+              "ruby:${minor}-${family}" sh /work/.ci-rel/per_minor.sh
           done
 
       - name: Build gem in emulated ARM container
         env:
           TARGET_PLATFORM: ${{ matrix.platform }}
         run: |
+          mkdir -p .ci-rel
+          # Same file-not-string rule as the per-minor step: the
+          # inline sh -c form broke on an apostrophe in a comment
+          # (closed the outer quote; the truncated case hit EOF with
+          # sh $0 = cmake) and on runner-level expansion gymnastics
+          # for the rake task argument. The platform rides the
+          # target_platform env var instead.
+          cat > .ci-rel/package.sh <<'EOF'
+          set -eux
+          case "${CI_IMAGE}" in
+            *alpine*)
+              apk add --no-cache build-base bash curl git cmake make linux-headers
+              ;;
+            *)
+              # bullseye went EOL (Aug 2026): deb.debian.org froze
+              # main at the last point release while the image
+              # carries newer security-pool packages (libc6
+              # deb11u14 in the image vs u11 in the main index =
+              # "held broken packages" on the first install). Point
+              # the suites at archive.debian.org, where both still
+              # live. The cmake toolchain comes from the archived
+              # backports suite (3.25.1~bpo11+1 - the engine needs
+              # 3.20, bullseye ships 3.18). bookworm is current -
+              # its stock sources work as-is.
+              codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+              if [ "${codename}" = "bullseye" ]; then
+                printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" \
+                  > /etc/apt/sources.list
+                rm -f /etc/apt/sources.list.d/*.list
+              fi
+              apt-get -o Acquire::Check-Valid-Until=false update -qq \
+                || apt-get -o Acquire::Check-Valid-Until=false --fix-missing update -qq
+              apt-get install -y -qq build-essential bash git curl \
+                || apt-get install -y -qq --fix-missing build-essential bash git curl
+              if [ "${codename}" = "bullseye" ]; then
+                echo "deb http://archive.debian.org/debian bullseye-backports main" \
+                  > /etc/apt/sources.list.d/bullseye-backports.list
+                apt-get -o Acquire::Check-Valid-Until=false update -qq \
+                  || apt-get -o Acquire::Check-Valid-Until=false --fix-missing update -qq
+                apt-get install -y -qq -t bullseye-backports cmake \
+                  || apt-get install -y -qq -t bullseye-backports --fix-missing cmake \
+                  || apt-get install -y -qq cmake
+              else
+                apt-get install -y -qq --no-upgrade cmake \
+                  || apt-get install -y -qq --no-upgrade --fix-missing cmake
+              fi
+              cmake --version | head -1
+              ;;
+          esac
+          git config --global --add safe.directory /work
+          # ruby#645 publication gate: every minor in
+          # SUPPORTED_MINORS must have its bundle present before
+          # packaging.
+          for m in $(cat SUPPORTED_MINORS | tr "." "_"); do
+            f="lib/leptris/xml/native_${m}.so"
+            [ -f "$f" ] || { echo "ERROR: missing $f (ruby#645 gate)"; exit 1; }
+          done
+          bundle install --jobs 4 --retry 3
+          bundle exec rake "gem:native:${target_platform}"
+          # Validate the built gem INSIDE the emulation: install it
+          # and run the round-trip smoke (parses, queries,
+          # serializes, validates). This is what proves the 32-bit
+          # shim actually works, not just compiles.
+          gem install --local pkg/*.gem --no-document
+          ruby /work/scripts/gem_smoke.rb
+          EOF
           docker run --rm \
             --platform '${{ matrix.qplatform }}' \
             -v "$PWD:/work" \
@@ -551,45 +636,8 @@ jobs:
             -e BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
             -e LEPTRIS_PGO=0 \
             -e target_platform="${TARGET_PLATFORM}" \
-            '${{ matrix.image }}' sh -c '
-              set -eux
-              case "${{ matrix.image }}" in
-                *alpine*)
-                  apk add --no-cache build-base bash curl git cmake make linux-headers
-                  ;;
-                *)
-                  rm -rf /var/lib/apt/lists/* \
-                    && sed -i "/bullseye-security/d" /etc/apt/sources.list 2>/dev/null || true
-                  # bullseye's cmake is 3.18 - the engine requires 3.20
-                  # (CMakeLists.txt:3). Backports carries 3.22.
-                  echo "deb http://deb.debian.org/debian bullseye-backports main" \
-                    > /etc/apt/sources.list.d/bullseye-backports.list
-                  apt-get update -qq
-                  apt-get install -y -qq --no-upgrade build-essential bash git curl \
-                    || { apt-get update -qq && apt-get install -y -qq --no-upgrade \
-                         --fix-missing build-essential bash git curl; }
-                  apt-get install -y -qq -t bullseye-backports cmake \
-                    || apt-get install -y -qq -t bullseye-backports --fix-missing cmake
-                  cmake --version | head -1
-                  ;;
-              esac
-              git config --global --add safe.directory /work
-              # ruby#645 publication gate: every minor in
-              # SUPPORTED_MINORS must have its bundle present before
-              # packaging.
-              for m in $(cat SUPPORTED_MINORS | tr "." "_"); do
-                f="lib/leptris/xml/native_${m}.so"
-                [ -f "$f" ] || { echo "ERROR: missing $f (ruby#645 gate)"; exit 1; }
-              done
-              bundle install --jobs 4 --retry 3
-              bundle exec rake gem:native:"'"${TARGET_PLATFORM}"'"
-              # Validate the built gem INSIDE the emulation: install
-              # it and run the round-trip smoke (parses, queries,
-              # serializes, validates). This is what proves the
-              # 32-bit shim actually works, not just compiles.
-              gem install --local pkg/*.gem --no-document
-              ruby /work/scripts/gem_smoke.rb
-            '
+            -e CI_IMAGE='${{ matrix.image }}' \
+            '${{ matrix.image }}' sh /work/.ci-rel/package.sh
 
       - uses: actions/upload-artifact@v4
         with:
