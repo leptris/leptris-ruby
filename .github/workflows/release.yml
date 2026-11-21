@@ -198,11 +198,16 @@ jobs:
           # 1.9.432 publish 404'd twice on git deb11u5 / curl
           # deb11u16): purge the baked-in lists, re-fetch, and keep
           # the --fix-missing retry.
+          # --no-upgrade: the image's curl/git/ca-certificates stay
+          # as built - the security pool's CDN served withdrawn-deb
+          # indexes on three consecutive runs (deb11u5/deb11u16), and
+          # no amount of list purging or retrying survives that.
+          # cmake installs from the consistent main pool.
           rm -rf /var/lib/apt/lists/*
           apt-get update && apt-get install -y --no-install-recommends \
-            cmake curl ca-certificates git || \
+            --no-upgrade cmake curl ca-certificates git || \
             { apt-get update && apt-get install -y --no-install-recommends \
-              --fix-missing cmake curl ca-certificates git; }
+              --no-upgrade --fix-missing cmake curl ca-certificates git; }
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -546,7 +551,7 @@ jobs:
                 set -eux
                 case "'"ruby:${minor}-${family}"'" in
                   *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) rm -rf /var/lib/apt/lists/* && apt-get update -qq && { apt-get install -y -qq build-essential bash git || apt-get install -y -qq --fix-missing build-essential bash git; } ;;
+                  *) rm -rf /var/lib/apt/lists/* && apt-get update -qq && { apt-get install -y -qq --no-upgrade build-essential bash git || apt-get install -y -qq --no-upgrade --fix-missing build-essential bash git; } ;;
                 esac
                 git config --global --add safe.directory /work
                 ruby ext/build_native_per_minor.rb
@@ -572,8 +577,8 @@ jobs:
                   ;;
                 *)
                   rm -rf /var/lib/apt/lists/* && apt-get update -qq
-                  apt-get install -y -qq build-essential cmake bash git curl || \
-                  { apt-get update -qq && apt-get install -y -qq --fix-missing \
+                  apt-get install -y -qq --no-upgrade build-essential cmake bash git curl || \
+                  { apt-get update -qq && apt-get install -y -qq --no-upgrade --fix-missing \
                     build-essential cmake bash git curl; }
                   ;;
               esac
