@@ -192,9 +192,13 @@ jobs:
       - name: Install the build toolchain (the gnu floor container)
         if: matrix.container
         run: |
-          # debian's security archive withdraws point releases fast:
-          # a fresh index can still 404 on a just-superseded .deb -
-          # one --fix-missing retry re-resolves to the current revs
+          # debian's security archive withdraws point releases fast,
+          # and the CDN can serve an index that still lists a
+          # withdrawn .deb even to a fresh apt-get update (the
+          # 1.9.432 publish 404'd twice on git deb11u5 / curl
+          # deb11u16): purge the baked-in lists, re-fetch, and keep
+          # the --fix-missing retry.
+          rm -rf /var/lib/apt/lists/*
           apt-get update && apt-get install -y --no-install-recommends \
             cmake curl ca-certificates git || \
             { apt-get update && apt-get install -y --no-install-recommends \
@@ -542,7 +546,7 @@ jobs:
                 set -eux
                 case "'"ruby:${minor}-${family}"'" in
                   *alpine*) apk add --no-cache build-base bash git make ;;
-                  *) apt-get update -qq && { apt-get install -y -qq build-essential bash git || apt-get install -y -qq --fix-missing build-essential bash git; } ;;
+                  *) rm -rf /var/lib/apt/lists/* && apt-get update -qq && { apt-get install -y -qq build-essential bash git || apt-get install -y -qq --fix-missing build-essential bash git; } ;;
                 esac
                 git config --global --add safe.directory /work
                 ruby ext/build_native_per_minor.rb
@@ -567,7 +571,7 @@ jobs:
                   apk add --no-cache build-base bash curl git cmake make linux-headers
                   ;;
                 *)
-                  apt-get update -qq
+                  rm -rf /var/lib/apt/lists/* && apt-get update -qq
                   apt-get install -y -qq build-essential cmake bash git curl || \
                   { apt-get update -qq && apt-get install -y -qq --fix-missing \
                     build-essential cmake bash git curl; }
