@@ -152,18 +152,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # leptris-ruby#2109 stage 2 PENDING: the job-level
-          # bullseye container (#655) cannot work - actions/setup-ruby
-          # installs ubuntu-built ruby binaries that require GLIBC 2.34
-          # and cannot execute inside a glibc-2.31 container (the
-          # 1.9.432 publish attempts died there four times). The
-          # correct design is the docker-run pattern with the IMAGE's
-          # own ruby for every build step (all minors) - tracked on
-          # leptris#2109. Until then the leg builds on the ubuntu host
-          # and the floor gate RECORDS the bound symbol version in the
-          # output instead of failing (the v1.9.432 gems ship the
-          # openmath lexical fixes the consumer verified; the floor
-          # work continues without blocking them).
+          # leptris-ruby#2109 stage 2: the gnu floor leg builds in
+          # docker containers using the IMAGE's own ruby — built FOR
+          # bullseye's glibc 2.31, so every shipped artifact binds
+          # only 2.31-and-older symbols (the nokogiri /
+          # rake-compiler-dock shape). The dead #655 design (job-level
+          # container + actions/setup-ruby) cannot work: setup-ruby
+          # installs ubuntu-built ruby binaries that require GLIBC
+          # 2.34 and cannot execute inside the container (the 1.9.432
+          # publish attempts died at `ruby --version` itself). The
+          # host never runs a ruby against this leg's build steps —
+          # it only orchestrates docker, the gate, and gem packaging
+          # (glibc-independent assembly of the container-built
+          # artifacts).
           - os: ubuntu-22.04
             platform: x86_64-linux
           - os: windows-latest
@@ -187,6 +188,117 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.bump.outputs.sha || needs.pin.outputs.sha }}
+
+      # ---- leptris-ruby#2109 stage 2: the gnu floor leg ----
+      # libleptris.so + libutf8proc (the FFI surface) + the 3.3
+      # native bundle + the vendored engine sources: ONE docker run
+      # of ruby:3.3-bullseye, whose ruby is built for bullseye's
+      # glibc 2.31. The script is a FILE, not a sh -c string (the
+      # inline form died on quoting classes — see build-arm32).
+      - name: Build the engine library in the bullseye container
+        if: matrix.platform == 'x86_64-linux'
+        run: |
+          mkdir -p .ci-rel
+          cat > .ci-rel/gnu_engine.sh <<'EOF'
+          set -eux
+          # bullseye went EOL (Aug 2026): deb.debian.org froze main
+          # at the last point release while the image carries newer
+          # security-pool packages (libc6 deb11u14 in the image vs
+          # u11 in the main index = "held broken packages" on the
+          # first install). Point the suites at archive.debian.org,
+          # where they still live - the build-arm32 verified pattern.
+          # The cmake toolchain comes from the archived backports
+          # suite (3.25.1~bpo11+1 - the engine needs 3.20, bullseye
+          # ships 3.18); cmake is a build tool, so its own libc
+          # needs never touch the artifact's symbol floor.
+          codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+          if [ "${codename}" = "bullseye" ]; then
+            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" \
+              > /etc/apt/sources.list
+            rm -f /etc/apt/sources.list.d/*.list
+          fi
+          apt-get -o Acquire::Check-Valid-Until=false update -qq \
+            || apt-get -o Acquire::Check-Valid-Until=false --fix-missing update -qq
+          apt-get install -y -qq build-essential bash git curl \
+            || apt-get install -y -qq --fix-missing build-essential bash git curl
+          if [ "${codename}" = "bullseye" ]; then
+            echo "deb http://archive.debian.org/debian bullseye-backports main" \
+              > /etc/apt/sources.list.d/bullseye-backports.list
+            apt-get -o Acquire::Check-Valid-Until=false update -qq \
+              || apt-get -o Acquire::Check-Valid-Until=false --fix-missing update -qq
+            apt-get install -y -qq -t bullseye-backports cmake \
+              || apt-get install -y -qq -t bullseye-backports --fix-missing cmake \
+              || apt-get install -y -qq cmake
+          else
+            apt-get install -y -qq --no-upgrade cmake \
+              || apt-get install -y -qq --no-upgrade --fix-missing cmake
+          fi
+          cmake --version | head -1
+          git config --global --add safe.directory /work
+          bundle install --jobs 4 --retry 3
+          # PGO stays ON (the default) - parity with the shipped
+          # library's trained parse path; the trainer rescue degrades
+          # loudly to the single-stage build if it ever breaks.
+          bundle exec rake compile
+          EOF
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BUNDLE_WITHOUT="${BUNDLE_WITHOUT}" \
+            'ruby:3.3-bullseye' sh /work/.ci-rel/gnu_engine.sh
+
+      # Per-minor native bundles: one container per SUPPORTED_MINORS
+      # entry (the repo SSOT), the image's ruby providing the matching
+      # headers + ABI. The full (non-slim) bullseye images carry the
+      # whole toolchain (gcc/make/strings/git + ruby headers), so no
+      # apt dance is needed here. ruby:4.0-bullseye does not exist
+      # (docker-library dropped bullseye for ruby >= 4.0): the 4.0
+      # bundle rides 4.0-bookworm - the tiny shim's bound libc
+      # surface is asserted by the engine-floor gate below, and a
+      # pre-2.34 host degrades that one bundle to FFI by contract.
+      - name: Build per-minor native bundles in bullseye containers
+        if: matrix.platform == 'x86_64-linux'
+        run: |
+          mkdir -p .ci-rel
+          cat > .ci-rel/gnu_per_minor.sh <<'EOF'
+          set -eux
+          git config --global --add safe.directory /work
+          ruby ext/build_native_per_minor.rb
+          EOF
+          for minor in $(cat SUPPORTED_MINORS); do
+            case "${minor}" in
+              4.0) image='ruby:4.0-bookworm' ;;
+              *)   image="ruby:${minor}-bullseye" ;;
+            esac
+            docker run --rm \
+              -v "$PWD:/work" \
+              -w /work \
+              "${image}" sh /work/.ci-rel/gnu_per_minor.sh
+          done
+
+      # The gnu glibc floor gate (#2109) is HARD again: the engine
+      # library the containers just built - the exact binary the
+      # platform gem ships and the ruby variant vendors - must not
+      # bind symbols newer than 2.31. The pthread-merge trio
+      # (pthread_once etc.) binds 2.34 whenever the build host libc
+      # is newer, and the gem then LoadErrors at first use on every
+      # pre-2.34 host.
+      - name: Gate the gnu glibc floor at 2.31
+        if: matrix.platform == 'x86_64-linux'
+        run: |
+          set -eu
+          max=$(strings lib/libleptris.so | grep -oE 'GLIBC_2\.[0-9]+' | sort -uV | tail -1)
+          echo "max glibc symbol version: $max"
+          if [ -z "$max" ]; then
+            echo "::error::no GLIBC symbol versions found in lib/libleptris.so"
+            exit 1
+          fi
+          minor=${max#GLIBC_2.}
+          if [ "$minor" -gt 31 ]; then
+            echo "::error::the gnu gem binds $max; the floor is 2.31 (leptris-ruby #2109)"
+            exit 1
+          fi
+          echo "gnu floor gate: OK ($max <= GLIBC_2.31)"
 
       # #227: Windows native layer as one DLL per Ruby minor. A PE
       # DLL must bind its build Ruby's runtime, so each supported
@@ -259,44 +371,47 @@ jobs:
           ruby-version: ${{ matrix.ruby-version || '3.3' }}
           bundler-cache: true
 
-      # Per-minor native bundles on darwin/Linux (ruby#476): the
+      # Per-minor native bundles on darwin (ruby#476): the
       # ext's compiled-in RString layout changed in Ruby 3.2, so a
       # single CI-built bundle segfaults under 3.1 (garbage pointer
       # + length into the engine's text counter). One bundle per
       # supported minor ships — the #207/#227 Windows contract,
       # generalized. Windows builds its own per-minor DLLs in the
-      # block above; these legs cover the non-PE platforms.
+      # block above, and x86_64-linux builds its bundles in the
+      # bullseye containers above (#2109 stage 2 — a host setup-ruby
+      # build would bind the host's glibc, not the floor); these
+      # host-side steps cover the darwin legs.
       - uses: ruby/setup-ruby@master
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         with:
           ruby-version: '3.1'
           bundler-cache: false
       - run: ruby ext/build_native_per_minor.rb
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         shell: bash
       - uses: ruby/setup-ruby@master
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         with:
           ruby-version: '3.2'
           bundler-cache: false
       - run: ruby ext/build_native_per_minor.rb
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         shell: bash
       - uses: ruby/setup-ruby@master
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         with:
           ruby-version: '3.3'
           bundler-cache: false
       - run: ruby ext/build_native_per_minor.rb
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         shell: bash
       - uses: ruby/setup-ruby@master
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         with:
           ruby-version: '3.4'
           bundler-cache: false
       - run: ruby ext/build_native_per_minor.rb
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         shell: bash
       # leptris-ruby#554: Ruby 4.0 joins the prebuilt matrix — same
       # per-minor contract (the ext reads RString layout, which 4.0
@@ -304,12 +419,12 @@ jobs:
       # on the issue); without the bundle 4.0 silently falls back to
       # the FFI surface.
       - uses: ruby/setup-ruby@master
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         with:
           ruby-version: '4.0'
           bundler-cache: false
       - run: ruby ext/build_native_per_minor.rb
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.platform != 'x86_64-linux'
         shell: bash
       # Restore the JOB ruby + its bundle before rake gem:native —
       # the per-minor loop's last setup-ruby (4.0) left the job
@@ -333,6 +448,17 @@ jobs:
           echo "All $(cat SUPPORTED_MINORS | wc -w | tr -d ' ') per-minor native bundles present"
 
       - run: bundle exec rake gem:native:${{ matrix.platform }}
+        if: matrix.platform != 'x86_64-linux'
+        shell: bash
+
+      # #2109 stage 2: packaging assembles the container-built
+      # artifacts host-side — gem packaging is glibc-independent.
+      # gem:native:<platform> would re-run `rake compile` and rebuild
+      # the engine on the ubuntu host (glibc 2.35 → GLIBC_2.34
+      # symbols), so the platform task runs directly against the
+      # workspace the bullseye containers filled.
+      - run: bundle exec rake platform:x86_64-linux gem
+        if: matrix.platform == 'x86_64-linux'
         shell: bash
 
       - uses: actions/upload-artifact@v4
@@ -691,14 +817,35 @@ jobs:
           # binary this job builds is throwaway (the vendored
           # binaries above are the artifacts users load).
           LEPTRIS_PGO=0 bundle exec rake compile
-          # The gnu glibc floor gate (#2109): the packaged gem's
-          # libleptris.so must not bind symbols newer than 2.31 -
-          # the pthread-merge trio (pthread_once etc.) binds 2.34
-          # whenever the build host libc is newer, and the gem then
-          # LoadErrors at first use on every pre-2.34 host.
-          max=$(strings lib/libleptris.so | grep -oE 'GLIBC_2\.[0-9]+' | sort -uV | tail -1)
+          # #2109 stage 2: rake compile's vendor-sync (#582) overwrites
+          # the x86_64-linux vendored engine with THIS job's host build
+          # (ubuntu glibc 2.39) — restore the container-built bullseye
+          # binary from the build leg's artifact so the shipped vendor
+          # copy keeps the 2.31 floor. Every OTHER platform's vendor
+          # copy is untouched by the sync (it keys on RUBY_PLATFORM).
+          v=lib/leptris/vendor/x86_64-linux
+          if [ -d bins/bin-x86_64-linux ]; then
+            cp bins/bin-x86_64-linux/libleptris.so "${v}/libleptris.so"
+            cp bins/bin-x86_64-linux/libutf8proc.so.3 "${v}/libutf8proc.so.3"
+          fi
+          # The gnu glibc floor gate (#2109) is HARD again: the ruby
+          # gem's x86_64-linux vendored engine must not bind symbols
+          # newer than 2.31 - the pthread-merge trio (pthread_once
+          # etc.) binds 2.34 whenever the build host libc is newer,
+          # and the gem then LoadErrors at first use on every pre-2.34
+          # host.
+          max=$(strings "${v}/libleptris.so" | grep -oE 'GLIBC_2\.[0-9]+' | sort -uV | tail -1)
           echo "max glibc symbol version: $max"
-          echo "::warning::the gnu gem binds $max - leptris-ruby #2109 stage 2 rebuilds this leg in-container and restores the 2.31 hard gate"
+          if [ -z "$max" ]; then
+            echo "::error::no GLIBC symbol versions found in ${v}/libleptris.so"
+            exit 1
+          fi
+          minor=${max#GLIBC_2.}
+          if [ "$minor" -gt 31 ]; then
+            echo "::error::the gnu gem binds $max; the floor is 2.31 (leptris-ruby #2109)"
+            exit 1
+          fi
+          echo "gnu floor gate: OK ($max <= GLIBC_2.31)"
           rm -rf pkg
           bundle exec rake platform:any gem
 
