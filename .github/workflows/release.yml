@@ -557,10 +557,17 @@ jobs:
                 *)
                   rm -rf /var/lib/apt/lists/* \
                     && sed -i '/bullseye-security/d' /etc/apt/sources.list 2>/dev/null || true
+                  # bullseye's cmake is 3.18 - the engine requires 3.20
+                  # (CMakeLists.txt:3). Backports carries 3.22.
+                  echo "deb http://deb.debian.org/debian bullseye-backports main" \
+                    > /etc/apt/sources.list.d/bullseye-backports.list
                   apt-get update -qq
-                  apt-get install -y -qq --no-upgrade build-essential cmake bash git curl || \
-                  { apt-get update -qq && apt-get install -y -qq --no-upgrade --fix-missing \
-                    build-essential cmake bash git curl; }
+                  apt-get install -y -qq --no-upgrade build-essential bash git curl \
+                    || { apt-get update -qq && apt-get install -y -qq --no-upgrade \
+                         --fix-missing build-essential bash git curl; }
+                  apt-get install -y -qq -t bullseye-backports cmake \
+                    || apt-get install -y -qq -t bullseye-backports --fix-missing cmake
+                  cmake --version | head -1
                   ;;
               esac
               git config --global --add safe.directory /work
