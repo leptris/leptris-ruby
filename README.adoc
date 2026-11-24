@@ -446,6 +446,88 @@ puts root.namespaces
 doc.xpath("//t:title")
 ----
 
+== Validation
+
+XSD 1.1 (`Leptris::XML::XSD`, libleptris >= 1.9.318), Schematron
+(`Leptris::XML::Schematron`, libleptris >= 1.9.126), RelaxNG
+(`Leptris::XML::RelaxNG`), and DTD (`Leptris::XML::DTD`) all follow the
+same compile-once / validate-many shape: parse the schema, then check
+any number of documents against it.
+
+=== XSD (W3C XML Schema 1.1)
+
+[source,ruby]
+----
+schema = Leptris::XML::XSD.compile(<<~XSD)
+  <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="item">
+      <xs:complexType>
+        <xs:attribute name="id" type="xs:integer" use="required"/>
+      </xs:complexType>
+    </xs:element>
+  </xs:schema>
+XSD
+schema = Leptris::XML::XSD.compile_file("schema.xsd")
+schema = Leptris::XML::XSD.compile_set(["head.xsd", "types.xsd"]) # imports resolve across the set
+
+schema.declaration_count      # top-level declarations recognized
+schema.version                # "1.1" / "1.0" — the effective version (1.9.382+)
+schema.valid?(doc)            # true / false — whole-instance validation
+schema.validate_errors(doc)   # [message, ...] — the failure list of the last validate
+schema.structured_errors(doc) # StructuredError rows: kind / component / line / column / message (1.9.382+)
+
+# Lexical checks without an instance document:
+Leptris::XML::XSD.builtin_valid?("xs:date", "2026-11-24")  # => true
+schema.simple_valid?("xs:int", "42")                       # => true
+schema.content_valid?("item", doc.root.children)           # => child content model check
+----
+
+`compile`/`compile_file` raise when the text cannot be used at all
+(not well-formed, no root); schema-level problems compile to a handle
+whose `#error` carries the detail. Unknown built-in names, type
+names, or element declarations raise — a silent false would mean "no
+such declaration", never "invalid input". `#release` drops the
+compiled schema deterministically instead of waiting for GC.
+
+=== Schematron (ISO)
+
+[source,ruby]
+----
+sch = Leptris::XML::Schematron.parse(sch_text)  # or .parse_file(path)
+sch = Leptris::XML::Schematron.parse(sch_text, phase: "quick") # only that phase's patterns
+
+sch.valid?(doc)            # true when no failed asserts (reports do not invalidate)
+svrl = sch.validate(doc)   # the SVRL report as a queryable Document
+svrl.xpath("//*[local-name()='failed-assert']")
+----
+
+=== RelaxNG and DTD
+
+`Leptris::XML::RelaxNG` / `Leptris::XML::DTD` — parse once (text or
+file; `<include>` resolves relative to the schema file), validate
+many; `#validate` returns rendered `line:column: error: message`
+strings and `#validate_errors` the structured
+`{line:, column:, message:}` rows.
+
+== XInclude
+
+Process `xi:include` elements in place
+(`leptris_xinclude_process_opts`, libleptris >= 1.9.357 resolver
+policy):
+
+[source,ruby]
+----
+doc = Leptris::XML.parse_file("master.xml")
+doc.process_xinclude                       # file loader only
+doc.process_xinclude(base_url: "/docs")    # seeds the xml:base chain
+doc.process_xinclude(catalog_path: "catalog.xml") # URI mapping via XML Catalog
+----
+
+`no_network` (the default) refuses remote schemes with a resource
+error so `xi:fallback` applies. `parse="text"` / `parse="xml"`, the
+element()/xpointer() schemes, and depth-bounded loop protection are
+engine-side.
+
 == Serialization and canonicalization
 
 [horizontal]
@@ -835,10 +917,11 @@ Notable differences:
   (`Leptris::HTML` / `Leptris::HTML4` / `Leptris::HTML5` facades
   over `Leptris::XML.parse_html`, libleptris 1.9.75); Nokogiri's
   HTML-specific node subclasses have no equivalent.
-* RelaxNG and DTD validation ARE supported (`Leptris::XML::RelaxNG`,
-  `Leptris::XML::DTD` — parse once, validate many, structured
-  errors). No W3C XML Schema and no schema caching (XSLT 1.0–3.0
-  and an XQuery 1.0 core are supported — see above).
+* Validation IS supported: RelaxNG, DTD, XSD 1.1 (`Leptris::XML::XSD`),
+  and Schematron (`Leptris::XML::Schematron`) — all parse once,
+  validate many, with structured errors (see <<Validation>>).
+  XInclude processing is supported (`Document#process_xinclude`).
+  XSLT 1.0–3.0 and an XQuery 1.0 core are supported — see above.
 * TruffleRuby and JRuby ARE supported out of the box (#160): the
   `ruby`-platform variant vendors precompiled binaries and the
   binding is FFI-based (no MRI C extension required to load).
