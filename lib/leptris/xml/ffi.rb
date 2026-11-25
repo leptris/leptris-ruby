@@ -1362,6 +1362,13 @@ attach_function :leptris_parse_string,
       attach_function :leptris_xquery_eval_params,
         [:leptris_xquery, :leptris_document, :leptris_element,
          :pointer, :pointer, :size_t], :leptris_xpath_result
+      # Evaluation-context flags variant (libleptris 1.9.442, XSD 1.1
+      # assertion evaluation #2154): LEPTRIS_XQUERY_ASSERT_DATA_MODEL
+      # = 1 excludes comments/PIs from the tree the query sees
+      # (§3.13.4.1/§3.16.4 assertion data model).
+      attach_function :leptris_xquery_eval_params_ex,
+        [:leptris_xquery, :leptris_document, :leptris_element,
+         :pointer, :pointer, :size_t, :uint], :leptris_xpath_result
       attach_function :leptris_xquery_free, [:leptris_xquery], :void
 
       # Schematron validation (libleptris >= 1.9.126 family):
