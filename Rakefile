@@ -8,7 +8,7 @@ RSpec::Core::RakeTask.new(:spec)
 # Pin for `rake compile` and the platform-gem builds. Keep in lockstep
 # with .github/workflows/build.yml (which calls `rake compile`) and the
 # CHANGELOG when libleptris releases.
-LIBLEPTRIS_VERSION = "1.9.446"
+LIBLEPTRIS_VERSION = "1.9.447"
 
 # THE SSOT for the per-minor native bundle list (ruby#645): one line,
 # space-separated, consumed by the Rakefile, the per-minor builder's
