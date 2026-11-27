@@ -1369,6 +1369,15 @@ attach_function :leptris_parse_string,
       attach_function :leptris_xquery_eval_params_ex,
         [:leptris_xquery, :leptris_document, :leptris_element,
          :pointer, :pointer, :size_t, :uint], :leptris_xpath_result
+      # Error-code variant (libleptris 1.9.449, XSD 1.1 assertion
+      # semantics #2183): appends an out_error_code channel — coded
+      # errors (FOAR0001/XPDY0002/FODC0002) surface as strings so the
+      # XSD assertion lane can distinguish "error ⇒ facet false" from
+      # "not enforced"; code-free results carry no code.
+      attach_function :leptris_xquery_eval_params_ec,
+        [:leptris_xquery, :leptris_document, :leptris_element,
+         :pointer, :pointer, :size_t, :uint, :pointer, :size_t],
+        :leptris_xpath_result
       attach_function :leptris_xquery_free, [:leptris_xquery], :void
 
       # Schematron validation (libleptris >= 1.9.126 family):
