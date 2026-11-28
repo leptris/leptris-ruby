@@ -628,6 +628,13 @@ attach_function :leptris_parse_string,
       # dst's free performs the real release. Chaining rejects.
       attach_function :leptris_document_absorb,
         [:leptris_document, :leptris_document], :leptris_status
+      # 1.9.452: ADOPT+MOVE - transfers ONE element (with its subtree)
+      # from src_doc into dest_doc, reporting the installed handle via
+      # moved_out (wrap THAT, not the source pointer). The move
+      # semantics companion to absorb (1.9.311): same pool transfer,
+      # single-element scope.
+      attach_function :leptris_document_adopt_move,
+        [:leptris_document, :leptris_document, :leptris_element, :pointer], :leptris_status
       attach_function :leptris_document_create,
         [], :leptris_document
       attach_function :leptris_document_set_root,
